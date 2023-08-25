@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <!--==================== UNICONS ====================-->
+        <link rel="stylesheet" href="https://unicons.iconscout.com/release/v3.0.6/css/line.css">
+        
+        <!--==================== SWIPER CSS====================-->
+        <link rel="stylesheet" href="assets/css/swiper-bundle.min.css">
+
+        <!--==================== CSS ==========-->
+        <link rel="stylesheet" href="assets/css/styles.css">
+        <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+
+        <title>Ayush Maria</title>
+    </head>
+    <body>
+        <!--==================== HEADER ====================-->
+        <header class="header" id="header">
+            <nav class="nav container">
+                <a href="/#" class="nav__logo">Ayush Maria</a>
+
+                <div class="nav__menu" id="nav-menu">
+                    <ul class="nav__list grid">
+                        <li class="nav__item">
+                            <a href="/#home" class="nav__link">
+                                <i class="uil uil-estate nav__icon"></i> Home
+                            </a>
+                        </li>
+
+                        <li class="nav__item">
+                            <a href="/#about" class="nav__link">
+                                <i class="uil uil-user nav__icon"></i> About
+                            </a>
+                        </li>
+
+                        <li class="nav__item">
+                            <a href="/#skills" class="nav__link">
+                                <i class="uil uil-file-alt nav__icon"></i> Skills
+                            </a>
+                        </li>
+
+                        <!-- <li class="nav__item">
+                            <a href="#services" class="nav__link">
+                                <i class="uil uil-briefcase-alt nav__icon"></i> Services
+                            </a>
+                        </li> -->
+
+                        <li class="nav__item">
+                            <a href="#/projects" class="nav__link active-link">
+                                <i class="uil uil-scenery nav__icon"></i> Projects
+                            </a>
+                        </li>
+
+                        
+                        <li class="nav__item">
+                            <a href="/artworks/index.html" class="nav__link">
+                                <i class="uil uil-scenery nav__icon"></i> Art Work
+                            </a>
+                        </li>
+                        
+                        <li class="nav__item">
+                            <a href="/additionalinfo/index.html" class="nav__link">
+                                <i class="uil uil-scenery nav__icon"></i> Additional Information
+                            </a>
+                        </li>
+                        
+                        <li class="nav__item">
+                            <a href="/#contact" class="nav__link">
+                                <i class="uil uil-message nav__icon"></i> Contact
+                            </a>
+                        </li>
+
+                    </ul>
+                    
+                    <i class="uil uil-times nav__close" id="nav-close"></i>
+                </div>
+
+                <div class="nav__btns">
+                    <!-- Theme change button -->
+                    <i class="uil uil-moon change-theme" id="theme-button"></i>
+
+                    <div class="nav__toggle" id="nav-toggle">
+                        <i class="uil uil-apps"></i>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <!--==================== MAIN ====================-->
+        <main class="main">
+            <!--==================== HOME ====================-->
+            <section class="home section" id="home2">
+                <div class="home__container container grid">
+                    <div class="home__content grid">
+                        <div class="home__data">
+                            <h1 class="home__title">Projects</h1>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!--=============== WORK ===============-->
+            <section class="work section_work" id="work">
+                <!-- <span class="section__subtitle">My Portfolio</span> -->
+                <!-- <h2 class="section__title">Recent Works</h2> -->
+
+                <div class="work__filters">
+                    <span class="work__item active-work" data-filter='all'>All</span>
+                    <span class="work__item" data-filter='.ds' data-sort="order:asc">Data Science</span>
+                    <span class="work__item" data-filter='.da' data-sort="order:asc">Data Analytics</span>
+                    <span class="work__item" data-filter='.ma' data-sort="order:asc">Marketing Analytics</span>
+                </div>                
+                <div class="work__filters">
+                    <span class="work__item" data-filter='.py' data-sort="order:asc">Python</span>
+                    <span class="work__item" data-filter='.r' data-sort="order:asc">R</span>
+                    <span class="work__item" data-filter='.sql' data-sort="order:asc">SQL</span>
+                  
+                </div>
+
+                <div class="work__container container_work grid_work">
+
+
+                    <div class="work__card mix ds py" data-order="2">
+                        <a href="https://github.com/YaashviiPThakkarr/Lending-Club-Data-driven-investment-strategy">
+                            <img src="assets/LendingClub.png" alt="" class="work__img">
+                        </a>
+
+                        <h3 class="work__title">Lending Club - Data Driven Investment Strategy</h3>
+                        <span class="qualification__subtitle">Predictive Analytics </span>
+                    
+                          <!-- <a href="/projects/pages/mlpp" class="work__button">
+                            Learn more <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                       <a href="assets/pdf/mlpp_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/mlpp_presentation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                        <a href="https://github.com/YaashviiPThakkarr/Lending-Club-Data-driven-investment-strategy" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                    </div>
+                    <div class="work__card mix ds da sql py" data-order="1">
+                        <!-- Insert your image in a rectangular format (Ex: 600 x 400, 1000 x 800, 1200 x 1000, etc) -->
+                        <a href="https://github.com/YaashviiPThakkarr/Location-Intelligence-for-Music-Concerts">
+                            <img src="assets/Music.png" alt="" class="work__img">
+                        </a>
+                        <h3 class="work__title"> Location Intelligence for Music Concerts </h3>
+                        <span class="qualification__subtitle">Machine Learning driven application development </span>
+                        
+                     
+                        <!-- <a href="assets/pdf/iuu_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>-->
+                        <a href="https://github.com/YaashviiPThakkarr/Location-Intelligence-for-Music-Concerts" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                    </div>
+                    <div class="work__card mix ds py r" data-order="5">
+                        <a href="https://github.com/YaashviiPThakkarr/Effect-of-video-recording-on-learning-outcomes" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/ab.png" alt="" class="work__img">
+                        </a>
+
+                        <h3 class="work__title">Effect of video recording on learning outcomes</h3>
+                        <span class="qualification__subtitle">A/B Testing</span>
+                        
+                        <a href="https://github.com/YaashviiPThakkarr/Effect-of-video-recording-on-learning-outcomes/blob/main/AB%20Testing%20Final%20Report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="https://github.com/YaashviiPThakkarr/Effect-of-video-recording-on-learning-outcomes/blob/main/A_B%20Testing%20Slides.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="https://github.com/YaashviiPThakkarr/Effect-of-video-recording-on-learning-outcomes" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                    </div>
+
+                    <div class="work__card mix ds py sql" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/FarmIQ-Price-Forecasting" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/farmIQ.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">FarmIQ - Crop price forecaster</h3>
+                        <span class="qualification__subtitle"> Time Series Forecasting</span>
+                        <a href="https://kbhambha.wixsite.com/farmiq" class="work__button" target="_blank" rel="noopener noreferrer">
+                            FarmIQ Website <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <!-- <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>-->
+                        <a href="https://github.com/YaashviiPThakkarr/FarmIQ-Price-Forecasting/blob/main/Farm%20IQ.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="https://github.com/YaashviiPThakkarr/FarmIQ-Price-Forecasting" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                    </div>
+                    
+                      <div class="work__card mix ds py" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/Yelp-Dataset-Recommender-System" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/yelp.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">Recommender System using Yelp Dataset</h3>
+                        <span class="qualification__subtitle"> Topic Modelling, Collaborative filtering </span>
+                          
+                         <!--<a href="https://dalberg.com/what-we-do/dalberg-data-insights/" class="work__button" target="_blank" rel="noopener noreferrer">
+                            more on DDI <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_presenation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                          
+                        <a href="https://github.com/YaashviiPThakkarr/Yelp-Dataset-Recommender-System" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                    
+                    
+                    <div class="work__card mix ds py" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/Email-Spam-Classification-and-Representation-Learning" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/Email.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">Email Spam Classification and Representation Learning</h3>
+                        <span class="qualification__subtitle"> Natural Language Processing, Deep Learning </span>
+                          
+                       
+                        <a href="https://github.com/YaashviiPThakkarr/Email-Spam-Classification-and-Representation-Learning" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                    
+                     <div class="work__card mix ds da py" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/Premature-Death-Predictor-in-Allegheny-County" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/Premature.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">Premature Death Predictor in Allegheny County</h3>
+                        <span class="qualification__subtitle"> Clustering and Classification </span>
+                          
+                         <!--<a href="https://dalberg.com/what-we-do/dalberg-data-insights/" class="work__button" target="_blank" rel="noopener noreferrer">
+                            more on DDI <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_presenation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                          
+                        <a href="https://github.com/YaashviiPThakkarr/Premature-Death-Predictor-in-Allegheny-County" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                    
+                    
+                    <div class="work__card mix ds r" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/Ford-Car-Clustering-Analysis-Segmentation" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/FordKa.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">Ford Car Clustering Analysis Segmentation</h3>
+                        <span class="qualification__subtitle"> Marketing Strategy, Clustering  </span>
+                          
+                         <!--<a href="https://dalberg.com/what-we-do/dalberg-data-insights/" class="work__button" target="_blank" rel="noopener noreferrer">
+                            more on DDI <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_presenation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                          
+                        <a href="https://github.com/YaashviiPThakkarr/Ford-Car-Clustering-Analysis-Segmentation" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                    
+                     <div class="work__card mix ds ma r" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/HighNote---Freemium-to-Premium" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/freemium1.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">HighNote- Freemium to Premium</h3>
+                        <span class="qualification__subtitle"> Predictice Modeling, Upselling  </span>
+                          
+                         <!--<a href="https://dalberg.com/what-we-do/dalberg-data-insights/" class="work__button" target="_blank" rel="noopener noreferrer">
+                            more on DDI <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_presenation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                          
+                        <a href="https://github.com/YaashviiPThakkarr/HighNote---Freemium-to-Premium" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                   
+                     <div class="work__card mix ds da ma py" data-order="4">
+                        <a href="https://github.com/YaashviiPThakkarr/Customer-Lifetime-Value" target="_blank" rel="noopener noreferrer">
+                            <img src="assets/CLV.png" alt="" class="work__img">
+
+                        </a>
+
+                        <h3 class="work__title">Customer Lifetime Value</h3>
+                        <span class="qualification__subtitle"> Marketing Mix Modeling  </span>
+                          
+                         <!--<a href="https://dalberg.com/what-we-do/dalberg-data-insights/" class="work__button" target="_blank" rel="noopener noreferrer">
+                            more on DDI <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_report.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Report <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a>
+                        <a href="assets/pdf/drought_presenation.pdf" class="work__button" target="_blank" rel="noopener noreferrer">
+                            Presentation <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> -->
+                          
+                        <a href="https://github.com/YaashviiPThakkarr/Customer-Lifetime-Value" class="work__button" target="_blank" rel="noopener noreferrer">
+                            GitHub <i class='bx bx-right-arrow-alt work__icon' ></i>
+                        </a> 
+                     </div>
+                   
+                
+            </section>
+
+            <!--==================== ABOUT ====================-->
+
+            <!--==================== SKILLS ====================-->
+
+            <!--==================== SERVICES ====================-->
+
+            <!--==================== QUALIFICATION ====================-->
+
+            <!--==================== PORTFOLIO ====================-->
+
+            <!--==================== PROJECT IN MIND ====================-->
+
+            <!--==================== TESTIMONIAL ====================-->
+
+            <!--==================== CONTACT ME ====================-->
+            <section class="contact section" id="contact">
+                <h2 class="section__title">Contact Me</h2>
+                <span class="section__subtitle">Get in touch</span>
+
+                <div class="contact__container container grid">
+                    <div>
+                        <div class="contact__information">
+                            <a href="https://www.linkedin.com/in/yashvithakkar/" target="_blank" class="contact__icon">
+                                <i class="uil uil-linkedin-alt"></i>
+                            </a>
+                            <div>
+                                <h3 class="contact__title">LinkedIn</h3>
+                                <span class="contact__subtitle">yashvithakkar</span>
+                            </div>
+                        </div>
+
+                        <div class="contact__information">
+                            <i class="uil uil-envelope contact__icon"></i>
+                            <div>
+                                <h3 class="contact__title">Email</h3>
+                                <span class="contact__subtitle">yaashviipthakkarr@gmail.com</span>
+                            </div>
+                        </div>
+
+                        <div class="contact__information">
+                            <i class="uil uil-map-marker contact__icon"></i>
+                            <div>
+                                <h3 class="contact__title">Location</h3>
+                                <span class="contact__subtitle">Pittsburgh, PA </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="contact__information">
+                            <!-- <i class="uil uil-envelope contact__icon"></i> -->
+                            <div>
+                                <h3 class="contact__title">I'm excited to hear from you!</h3>
+                                <!-- <span class="contact__subtitle">alexa@email.com</span> -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- <form action="" class="contact__form grid">
+                        <div class="contact__inputs grid">
+                            <div class="contact__content">
+                                <label for="" class="contact__label">Name</label>
+                                <input type="text" class="contact__input">
+                            </div>
+                            <div class="contact__content">
+                                <label for="" class="contact__label">E-Mail</label>
+                                <input type="email" class="contact__input">
+                            </div>
+                        </div>
+                        <div class="contact__content">
+                            <label for="" class="contact__label">Project</label>
+                            <input type="text" class="contact__input">
+                        </div>
+                        <div class="contact__content">
+                            <label for="" class="contact__label">Message</label>
+                            <textarea name="" id="" cols="0" rows="7" class="contact__input"></textarea>
+                        </div>
+                        
+                        <div>
+                            <a href="#" class="button button--flex">
+                                Send Message
+                                <i class="uil uil-message button__icon"></i>
+                            </a>
+                        </div>
+                    </form> -->
+                </div>
+
+            </section>
+        </main>
+
+        <!--==================== FOOTER ====================-->
+        <footer class="footer">
+            <div class="footer__bg">
+                <div class="footer__container container grid">
+                    <div>
+                        <h1 class="footer__title">Yashvi</h1>
+                        <span class="footer__subtitle">Data Scientist</span>
+                    </div>
+
+                    <ul class="footer__links">
+                        <li>
+                            <a href="/#about" class="footer__link">About</a>
+                        </li>
+                        <li>
+                            <a href="/projects" class="footer__link">Projects</a>
+                        </li>
+                        <li>
+                            <a href="/#contact" class="footer__link">Contact</a>
+                        </li>
+                    </ul>
+
+                    <!-- <div class="footer__socials">
+                        <a href="https://www.facebook.com/" target="_blank" class="footer__social">
+                            <i class="uil uil-facebook-f"></i>
+                        </a>
+                        <a href="https://www.instagram.com/" target="_blank" class="footer__social">
+                            <i class="uil uil-instagram"></i>
+                        </a>
+                        <a href="https://twitter.com/" target="_blank" class="footer__social">
+                            <i class="uil uil-twitter-alt"></i>
+                        </a>
+                    </div> -->
+                </div>
+
+                <p class="footer__copy">&#169; Template by Bedimcode.</p>
+            </div>
+        </footer>
+
+        <!--========== SCROLL TOP ==========-->
+        <a href="#" class="scrollup" id="scroll-top">
+            <i class="uil uil-arrow-up scrollup__icon"></i>
+        </a>
+
+        <!--=============== MIXITUP FILTER ===============-->
+        <script src="assets/js/mixitup.min.js"></script>
+
+        <!--==================== SWIPER JS ====================-->
+        <script src="assets/js/swiper-bundle.min.js"></script>
+
+        <!--==================== MAIN JS ====================-->
+        <script src="assets/js/main.js"></script>
+    </body>
+</html>
