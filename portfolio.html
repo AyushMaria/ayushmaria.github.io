@@ -2971,10 +2971,292 @@
       position: relative;
     }
 
+    /* Tavern Interior */
+    .tavern-interior {
+      max-width: 900px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, #3e2518 0%, #2a1a0e 100%);
+      border: 4px solid #5c3d2e;
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.5), 0 8px 32px var(--shadow);
+      position: relative;
+    }
+
+    .tavern-header {
+      text-align: center;
+      margin-bottom: var(--space-xl);
+    }
+
+    .tavern-header h2 {
+      font-family: var(--font-display);
+      font-size: var(--fs-2xl);
+      color: #f4e4c1;
+      margin-bottom: var(--space-sm);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+
+    .tavern-header p {
+      font-family: var(--font-body);
+      font-size: var(--fs-base);
+      color: #c9bfaf;
+      font-style: italic;
+    }
+
+    .fireplace {
+      width: 140px;
+      height: 160px;
+      margin: 0 auto var(--space-xl);
+      background: linear-gradient(180deg, #2a1a0e 0%, #1a0e0a 100%);
+      border: 3px solid #5c3d2e;
+      border-radius: 12px 12px 0 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .fireplace-glow {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 60%;
+      background: radial-gradient(ellipse at bottom, #ff6b35 0%, #ff8c42 30%, transparent 70%);
+      animation: fire-flicker 2s ease-in-out infinite;
+    }
+
+    @keyframes fire-flicker {
+      0%, 100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+      50% { opacity: 1; transform: translateX(-50%) scale(1.1); }
+    }
+
+    .flame {
+      position: absolute;
+      bottom: 10px;
+      width: 8px;
+      height: 20px;
+      background: linear-gradient(180deg, #ffd166 0%, #ff6b35 50%, transparent 100%);
+      border-radius: 50% 50% 0 0;
+      animation: flame-dance 1.5s ease-in-out infinite;
+    }
+
+    .flame:nth-child(1) { left: 30%; animation-delay: 0s; }
+    .flame:nth-child(2) { left: 50%; animation-delay: 0.3s; height: 26px; }
+    .flame:nth-child(3) { left: 70%; animation-delay: 0.6s; height: 18px; }
+
+    @keyframes flame-dance {
+      0%, 100% { transform: translateY(0) scaleY(1); }
+      50% { transform: translateY(-6px) scaleY(1.2); }
+    }
+
+    .guestbook {
+      background: #f4e4c1;
+      border: 2px solid #8b6914;
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+
+    .guestbook h3 {
+      font-family: var(--font-display);
+      font-size: var(--fs-lg);
+      color: #2b2d42;
+      margin-bottom: var(--space-md);
+      text-align: center;
+    }
+
+    .contact-links {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .contact-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-lg);
+      background: #2b2d42;
+      color: #f4e4c1;
+      border-radius: var(--radius-pill);
+      text-decoration: none;
+      font-family: var(--font-body);
+      font-weight: 600;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .contact-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(6, 214, 160, 0.4);
+    }
+
+    [data-theme="night"] .guestbook {
+      background: #1a1235;
+      border-color: #3a2d5c;
+    }
+
+    [data-theme="night"] .guestbook h3 {
+      color: #e0d6c8;
+    }
+
+    [data-theme="night"] .contact-link {
+      background: #3a3f5c;
+    }
+
+    /* Footer */
     #footer {
       padding: var(--space-xl) var(--space-md);
       text-align: center;
       position: relative;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--sky-top) 100%);
+      min-height: 40vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      transition: background 600ms ease;
+    }
+
+    .footer-stars {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 600ms ease;
+    }
+
+    [data-theme="night"] .footer-stars {
+      opacity: 1;
+    }
+
+    .footer-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .lantern-links {
+      display: flex;
+      gap: var(--space-lg);
+      justify-content: center;
+      margin-bottom: var(--space-md);
+    }
+
+    .lantern-link {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      background: var(--firefly);
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(255, 209, 102, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      font-size: 24px;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .lantern-link:hover {
+      transform: translateY(-4px) scale(1.1);
+      box-shadow: 0 8px 24px rgba(255, 209, 102, 0.6);
+    }
+
+    [data-theme="night"] .lantern-link {
+      box-shadow: 0 4px 12px rgba(255, 209, 102, 0.6), 0 0 20px rgba(255, 209, 102, 0.3);
+    }
+
+    .footer-credit {
+      font-family: var(--font-body);
+      font-size: var(--fs-sm);
+      color: var(--fg-light);
+      opacity: 0.7;
+    }
+
+    /* Town Map Mini-map */
+    .town-map {
+      position: fixed;
+      bottom: var(--space-md);
+      left: var(--space-md);
+      z-index: 900;
+      width: 180px;
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm);
+      box-shadow: 0 4px 16px var(--shadow);
+      opacity: 0.9;
+      transition: opacity var(--transition-fast);
+    }
+
+    .town-map:hover {
+      opacity: 1;
+    }
+
+    .town-map-title {
+      font-family: var(--font-display);
+      font-size: var(--fs-xs);
+      text-align: center;
+      margin-bottom: var(--space-xs);
+      color: var(--fg);
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 2px;
+    }
+
+    .map-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .map-link {
+      font-family: var(--font-body);
+      font-size: var(--fs-xs);
+      color: var(--fg);
+      text-decoration: none;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      transition: background var(--transition-fast);
+    }
+
+    .map-link:hover, .map-link.active {
+      background: var(--accent);
+      color: #0a0a1a;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .street, .research-street {
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-xl);
+      }
+      
+      .about-layout {
+        flex-direction: column;
+      }
+      
+      .town-map {
+        width: 140px;
+        bottom: var(--space-sm);
+        left: var(--space-sm);
+      }
+      
+      .modal-card {
+        width: 95%;
+        padding: var(--space-md);
+      }
+      
+      .toggle-bar {
+        top: var(--space-sm);
+        right: var(--space-sm);
+      }
+      
+      .toggle-btn {
+        width: 40px;
+        height: 40px;
+      }
     }
 
     .modal-overlay {
@@ -3665,8 +3947,62 @@
     </div>
     <div class="research-ground"></div>
   </section>
-  <section id="tavern"></section>
-  <footer id="footer"></footer>
+  <!-- Tavern Contact Section -->
+  <section id="tavern">
+    <div class="tavern-interior">
+      <div class="tavern-header">
+        <h2>🍺 The Tavern</h2>
+        <p>Rest here, traveller. Share your tale or leave a message.</p>
+      </div>
+      
+      <div class="fireplace">
+        <div class="fireplace-glow"></div>
+        <div class="flame"></div>
+        <div class="flame"></div>
+        <div class="flame"></div>
+      </div>
+      
+      <div class="guestbook">
+        <h3>📖 Leave a Message</h3>
+        <div class="contact-links">
+          <a href="https://github.com/AyushMaria" class="contact-link" target="_blank">
+            <span>🐙</span> GitHub
+          </a>
+          <a href="https://www.linkedin.com/in/ayushmaria" class="contact-link" target="_blank">
+            <span>💼</span> LinkedIn
+          </a>
+          <a href="mailto:ayush@example.com" class="contact-link">
+            <span>📧</span> Email
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer id="footer">
+    <div class="footer-stars" id="footer-stars"></div>
+    <div class="footer-content">
+      <div class="lantern-links">
+        <a href="https://github.com/AyushMaria" class="lantern-link" target="_blank" title="GitHub">🐙</a>
+        <a href="https://www.linkedin.com/in/ayushmaria" class="lantern-link" target="_blank" title="LinkedIn">💼</a>
+      </div>
+      <p class="footer-credit">Built by the settler • Ayush's Settlement © 2026</p>
+    </div>
+  </footer>
+
+  <!-- Town Map Mini-map -->
+  <div class="town-map">
+    <div class="town-map-title">Town Map</div>
+    <nav class="map-nav">
+      <a href="#hero" class="map-link">🏯 Gate</a>
+      <a href="#about" class="map-link">🗺️ Square</a>
+      <a href="#town" class="map-link">🏘️ Main St</a>
+      <a href="#research" class="map-link">🔬 Research</a>
+      <a href="#tavern" class="map-link">🍺 Tavern</a>
+    </nav>
+  </div>  
+  
 
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal-card">
@@ -3725,106 +4061,116 @@
     });
 
     const PROJECTS = {
-      mavpose: {
-        icon: '\uD83D\uDD27',
-        title: 'MAVPose — Drone Repair Workshop',
-        badges: ['Computer Vision', 'Pose Estimation', 'Rust'],
-        why: 'Built to push the boundaries of real-time drone pose estimation using multi-view geometry. MAVPose combines cutting-edge CV research with production-grade Rust performance for autonomous flight systems.',
-        stack: ['Rust', 'OpenCV', 'CUDA', 'ROS2', 'gRPC'],
-        stats: { COMPLEXITY: 88, ACTIVE: 95, ORIGINALITY: 92 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      ace: {
-        icon: '\uD83D\uDD2E',
-        title: 'Ace Concierge Parlour',
-        badges: ['AI Agent', 'LLM', 'Automation'],
-        why: 'Ace is an AI-powered concierge system that orchestrates multiple LLM agents to handle complex user requests. It represents the next generation of intelligent automation — where AI understands context, not just commands.',
-        stack: ['Python', 'LangChain', 'FastAPI', 'Redis', 'Docker'],
-        stats: { AI_POWER: 90, INTEGRATION: 85, UTILITY: 88 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      tinytots: {
-        icon: '\uD83C\uDFEB',
-        title: 'Tiny Tots Academy',
-        badges: ['Education', 'Web', 'SEO'],
-        why: 'A cheerful, accessible website for a children\'s learning center. Designed with warmth and playfulness in mind while maintaining professional polish and top-tier search visibility.',
-        stack: ['React', 'Next.js', 'Tailwind CSS', 'Vercel', 'Framer Motion'],
-        stats: { POLISH: 92, SEO: 88, LIVE: 100 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      volley: {
-        icon: '\uD83C\uDFD0',
-        title: 'Vibe Volley Court',
-        badges: ['Sports', 'Frontend', 'Real-time'],
-        why: 'A modern sports platform with real-time match tracking and vibrant UI. Vibe Volley brings the energy of the court to the web with fluid interactions and live scoring.',
-        stack: ['React', 'TypeScript', 'WebSocket', 'Tailwind CSS', 'Vite'],
-        stats: { FRONTEND: 85, UX: 80, LIVE: 100 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      tally: {
-        icon: '\u2696',
-        title: 'The Ledger Sanctum',
-        badges: ['FinTech', 'Bridge', 'AI'],
-        why: 'A financial infrastructure project bridging traditional accounting with AI-powered analytics. The Ledger Sanctum handles transaction bridging, reconciliation, and intelligent financial insights at scale.',
-        stack: ['Python', 'PostgreSQL', 'Docker', 'React', 'TensorFlow'],
-        stats: { COMPLEXITY: 78, UTILITY: 92, BUSINESS: 90 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      instillgcs: {
-        icon: '\uD83D\uDCE1',
-        title: "Navigator's Tower — InstillGCS",
-        badges: ['Cloud', 'Infrastructure', 'GCS'],
-        why: 'A cloud-scale navigation and ground control system for managing distributed infrastructure. InstillGCS provides real-time monitoring, intelligent routing, and automated incident response across complex deployments.',
-        stack: ['Go', 'Kubernetes', 'gRPC', 'Prometheus', 'Terraform'],
-        stats: { AMBITION: 95, TECHNICAL: 88, VISION: 90 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      xgfootball: {
-        icon: '\u26BD',
-        title: 'Prediction Colosseum',
-        badges: ['ML', 'Sports Analytics', 'Python'],
-        why: 'An expected goals (xG) prediction engine for football matches. Combines historical match data with machine learning models to forecast match outcomes with remarkable accuracy — turning the beautiful game into a data-driven spectacle.',
-        stack: ['Python', 'scikit-learn', 'Pandas', 'FastAPI', 'D3.js'],
-        stats: { PREDICTION: 88, DATA_POWER: 92, ACCURACY: 85 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      vortexcore: {
-        icon: '\uD83C\uDF00',
-        title: 'Vortex Observatory',
-        badges: ['Detection', 'Signal Processing', 'Rust'],
-        why: 'A high-performance vortex core detection system built in Rust for real-time fluid dynamics analysis. It processes complex vector fields to identify and track vortex structures at computational speeds that make real-time visualization possible.',
-        stack: ['Rust', 'CUDA', 'WebGPU', 'WASM', 'Plotly'],
-        stats: { COMPUTE: 94, PRECISION: 90, REALTIME: 88 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      },
-      awscloud: {
-        icon: '\u2601',
-        title: 'The Cloud Citadel',
-        badges: ['AWS', 'Distributed Systems', 'Infrastructure'],
-        why: 'A distributed computing framework built on AWS that orchestrates containerized workloads across multi-region deployments. The Cloud Citadel brings fortress-grade reliability to cloud infrastructure with auto-scaling and intelligent load balancing.',
-        stack: ['AWS', 'Terraform', 'Docker', 'Kubernetes', 'Python'],
-        stats: { SCALE: 92, RELIABILITY: 95, AUTOMATION: 88 },
-        github: '#',
-        demo: '#',
-        readme: '#'
-      }
-    };
+    // ── Main Street ────────────────────────────────────────────
+    mavpose: {
+      icon: '🛠',
+      title: 'MAVPose — Drone Repair Workshop',
+      badges: ['Computer Vision', 'Pose Estimation', 'Python'],
+      why: 'Built to push the boundaries of real-time drone telemetry visualization and pose estimation. MAVPose processes MAVLink logs to extract flight data and create interactive plots for analysis.',
+      stack: ['Python', 'Plotly', 'Pandas', 'ArduPilot', 'CLI'],
+      stats: { COMPLEXITY: 88, ACTIVE: 95, ORIGINALITY: 92 },
+      github: 'https://github.com/AyushMaria/MAVPose',
+      demo: 'https://github.com/AyushMaria/MAVPose#readme',
+      readme: 'https://github.com/AyushMaria/MAVPose#readme'
+    },
+
+    ace: {
+      icon: '🔮',
+      title: 'Ace — Concierge Parlour',
+      badges: ['AI Agent', 'WhatsApp', 'Booking'],
+      why: 'An autonomous AI concierge that lives inside WhatsApp. Ace handles end-to-end venue and service bookings, understands natural language, checks availability in real time, and confirms reservations — no human dispatcher required.',
+      stack: ['Python', 'Google AI', 'WhatsApp API', 'Supabase', 'LangChain'],
+      stats: { COMPLEXITY: 90, ACTIVE: 92, ORIGINALITY: 88 },
+      github: 'https://github.com/AyushMaria/Ace-booking-concierge',
+      demo: 'https://github.com/AyushMaria/Ace-booking-concierge#readme',
+      readme: 'https://github.com/AyushMaria/Ace-booking-concierge#readme'
+    },
+
+    tots: {
+      icon: '🏫',
+      title: 'TinyTots — Academy Hall',
+      badges: ['Web', 'SEO', 'Education'],
+      why: 'A production kindergarten website built for real-world use with structured data markup, semantic HTML, and full SEO optimization. Focused on accessibility and mobile-first design for parents finding a school.',
+      stack: ['HTML', 'CSS', 'JavaScript', 'Schema.org', 'SEO'],
+      stats: { COMPLEXITY: 62, ACTIVE: 78, ORIGINALITY: 65 },
+      github: 'https://github.com/AyushMaria/TinyTotsWebsite',
+      demo: 'https://github.com/AyushMaria/TinyTotsWebsite',
+      readme: 'https://github.com/AyushMaria/TinyTotsWebsite#readme'
+    },
+
+    volley: {
+      icon: '🏐',
+      title: 'Vibe & Volley — Sports Court',
+      badges: ['Full-Stack', 'Booking', 'JavaScript'],
+      why: 'A fully-featured sports court booking system for Vibe & Volley. Handles court selection, time-slot management, and real-time availability updates for players and administrators.',
+      stack: ['JavaScript', 'React', 'Node.js', 'CSS', 'REST API'],
+      stats: { COMPLEXITY: 74, ACTIVE: 80, ORIGINALITY: 70 },
+      github: 'https://github.com/AyushMaria/vibe-volley-fresh',
+      demo: 'https://github.com/AyushMaria/vibe-volley-fresh',
+      readme: 'https://github.com/AyushMaria/vibe-volley-fresh#readme'
+    },
+
+    ledger: {
+      icon: '📒',
+      title: 'Tally Bridge — Ledger House',
+      badges: ['Integration', 'Python', 'Accounting'],
+      why: 'Bridges the gap between modern retail management and Tally ERP. Parses Tally XML exports, syncs ledger data, and exposes a clean API layer — turning legacy accounting software into a programmable backend.',
+      stack: ['Python', 'XML', 'Tally ERP', 'REST API', 'Supabase'],
+      stats: { COMPLEXITY: 82, ACTIVE: 75, ORIGINALITY: 85 },
+      github: 'https://github.com/AyushMaria/tally-bridge',
+      demo: 'https://github.com/AyushMaria/tally-AI',
+      readme: 'https://github.com/AyushMaria/tally-bridge#readme'
+    },
+
+    gcs: {
+      icon: '🛰',
+      title: 'InstillGCS — Control Tower',
+      badges: ['Drone', 'MAVLink', 'GCS'],
+      why: 'A web-based Ground Control Station for ArduPilot and PX4 drones. Renders live telemetry, flight mode controls, and waypoint maps in the browser — replacing heavy desktop GCS software with a lightweight, URL-accessible alternative.',
+      stack: ['Python', 'JavaScript', 'MAVLink', 'WebSocket', 'Leaflet.js'],
+      stats: { COMPLEXITY: 93, ACTIVE: 85, ORIGINALITY: 90 },
+      github: 'https://github.com/AyushMaria/InstillGCS',
+      demo: 'https://github.com/AyushMaria/InstillGCS',
+      readme: 'https://github.com/AyushMaria/InstillGCS#readme'
+    },
+
+    // ── Research Quarter ───────────────────────────────────────
+    vortex: {
+      icon: '🌀',
+      title: 'Vortex Core Detection',
+      badges: ['ML', 'Computer Vision', 'YOLOv5'],
+      why: 'Detects and classifies vortex cores in fluid dynamics imagery using a YOLOv5 object detector followed by an AdaBoost ensemble classifier. Built on a Google Cloud VM with a custom HTML front end for image input.',
+      stack: ['Python', 'YOLOv5', 'AdaBoost', 'XGBoost', 'Google Cloud'],
+      stats: { COMPLEXITY: 85, ACTIVE: 40, ORIGINALITY: 88 },
+      github: 'https://github.com/AyushMaria/Vortex-Core-Detection',
+      demo: 'https://github.com/AyushMaria/Vortex-Core-Detection',
+      readme: 'https://github.com/AyushMaria/Vortex-Core-Detection#readme'
+    },
+
+    xg: {
+      icon: '⚽',
+      title: 'Expected Goals xG — Football Lab',
+      badges: ['Data Science', 'Football', 'Statistics'],
+      why: 'A statistical deep-dive into Expected Goals (xG) modelling for football. Analyses shot quality, spatial patterns, and team performance using event-level data — producing publication-quality visualizations and model comparisons.',
+      stack: ['Python', 'Pandas', 'Scikit-learn', 'Matplotlib', 'Jupyter'],
+      stats: { COMPLEXITY: 72, ACTIVE: 35, ORIGINALITY: 74 },
+      github: 'https://github.com/AyushMaria/Expected-xG-Goals-Football',
+      demo: 'https://github.com/AyushMaria/Expected-xG-Goals-Football',
+      readme: 'https://github.com/AyushMaria/Expected-xG-Goals-Football#readme'
+    },
+
+    aws: {
+      icon: '☁️',
+      title: 'Distributed AWS — Cloud Forge',
+      badges: ['Cloud', 'AWS', 'Distributed Systems'],
+      why: 'Implemented a distributed computing environment on AWS EC2 to benchmark parallel matrix operations. Explores the trade-offs of cloud-native task distribution versus single-node performance for dense linear algebra workloads.',
+      stack: ['Python', 'AWS EC2', 'MPI', 'NumPy', 'Bash'],
+      stats: { COMPLEXITY: 78, ACTIVE: 30, ORIGINALITY: 68 },
+      github: 'https://github.com/AyushMaria/Distributed-Computing-AWS',
+      demo: 'https://github.com/AyushMaria/Distributed-Computing-AWS',
+      readme: 'https://github.com/AyushMaria/Distributed-Computing-AWS#readme'
+    }
+  };
 
     const modalOverlay = document.getElementById('modal-overlay');
     const modalCloseBtn = document.getElementById('modal-close-btn');
