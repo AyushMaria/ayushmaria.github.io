@@ -4251,6 +4251,66 @@
         }, 150);
       });
     });
+
+    // ════════════════════════════════════════════════════════════
+    // Step 23 — Scroll-Triggered Street Reveal Animations
+    // ════════════════════════════════════════════════════════════
+    (function initReveal() {
+      // Activate CSS pre-reveal states (prevents FOUC if JS is slow)
+      document.documentElement.classList.add('js-reveal');
+
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Main Street: buildings + lamp posts, staggered left-to-right at 80ms
+      const streetChildren = document.querySelectorAll('.street > .building, .street > .lamp-post');
+      streetChildren.forEach((el, i) => {
+        el.classList.add('reveal-item');
+        if (!prefersReduced) el.style.transitionDelay = (i * 80) + 'ms';
+      });
+
+      // Section headers
+      const townHeader = document.querySelector('.town-header');
+      if (townHeader) townHeader.classList.add('reveal-item');
+
+      // District signpost
+      const districtTransition = document.querySelector('.district-transition');
+      if (districtTransition) districtTransition.classList.add('reveal-item');
+
+      // Research Quarter header
+      const researchHeader = document.querySelector('.research-header');
+      if (researchHeader) researchHeader.classList.add('reveal-item');
+
+      // Research Quarter buildings: fog variant, 100ms stagger
+      const researchBuildings = document.querySelectorAll('.research-street > .building');
+      researchBuildings.forEach((el, i) => {
+        el.classList.add('reveal-fog');
+        if (!prefersReduced) el.style.transitionDelay = (i * 100) + 'ms';
+      });
+
+      // Tavern header
+      const tavernHeader = document.querySelector('.tavern-header');
+      if (tavernHeader) tavernHeader.classList.add('reveal-item');
+
+      // IntersectionObserver
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            // Clear stagger delay after animation completes
+            entry.target.addEventListener('transitionend', function clearDelay() {
+              entry.target.style.transitionDelay = '';
+              entry.target.removeEventListener('transitionend', clearDelay);
+            }, { once: true });
+            observer.unobserve(entry.target);
+          }
+        });
+      }, {
+        threshold: 0.12,
+        rootMargin: '0px 0px -40px 0px'
+      });
+
+      document.querySelectorAll('.reveal-item, .reveal-fog').forEach(el => observer.observe(el));
+    })();
   </script>
 </body>
 </html>
