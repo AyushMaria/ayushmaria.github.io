@@ -3533,6 +3533,144 @@
       transform: scaleX(-1) rotate(10deg) !important;
     }
     @media (hover: none) { #chibi-cursor { display: none; } }
+
+    /* ================================================================
+       Step 26 — Town Map Mini-Map
+    ================================================================ */
+    #town-map {
+      position: fixed;
+      bottom: var(--space-md);
+      right: var(--space-md);
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0;
+    }
+
+    /* Map toggle button (always visible) */
+    #town-map-toggle {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-pill);
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 12px var(--shadow);
+      transition: transform var(--transition-fast), border-color var(--transition-fast);
+      z-index: 1;
+      position: relative;
+    }
+    #town-map-toggle:hover {
+      transform: scale(1.1);
+      border-color: var(--accent);
+    }
+
+    /* Expandable panel */
+    #town-map-panel {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-sm) var(--space-md) var(--space-md);
+      box-shadow: 0 8px 24px var(--shadow);
+      margin-bottom: var(--space-sm);
+      min-width: 160px;
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+      transition:
+        max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity    0.25s cubic-bezier(0.16, 1, 0.3, 1),
+        transform  0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    #town-map.open #town-map-panel {
+      max-height: 320px;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+
+    /* Panel title */
+    .map-title {
+      font-family: var(--font-display);
+      font-size: var(--fs-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding-bottom: var(--space-sm);
+      margin-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--card-border);
+      white-space: nowrap;
+    }
+
+    /* Each section row */
+    .map-entry {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 5px var(--space-xs);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      text-decoration: none;
+      color: var(--fg);
+      opacity: 0.55;
+      font-family: var(--font-body);
+      font-size: var(--fs-sm);
+      transition:
+        opacity var(--transition-fast),
+        background var(--transition-fast);
+    }
+    .map-entry:hover {
+      opacity: 1;
+      background: rgba(6, 214, 160, 0.07);
+    }
+    .map-entry.active {
+      opacity: 1;
+      font-weight: 700;
+    }
+
+    /* The dot */
+    .map-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--card-border);
+      flex-shrink: 0;
+      transition: background var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .map-entry.active .map-dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(6, 214, 160, 0.2), 0 0 8px rgba(6, 214, 160, 0.4);
+      animation: map-dot-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes map-dot-pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(6, 214, 160, 0.2), 0 0 8px rgba(6, 214, 160, 0.35); }
+      50%       { box-shadow: 0 0 0 5px rgba(6, 214, 160, 0.12), 0 0 16px rgba(6, 214, 160, 0.55); }
+    }
+
+    /* Night mode overrides */
+    [data-theme="night"] .map-entry.active .map-dot {
+      background: var(--firefly);
+      box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.2), 0 0 10px rgba(255, 209, 102, 0.4);
+      animation: map-dot-pulse-night 2s ease-in-out infinite;
+    }
+    @keyframes map-dot-pulse-night {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(255,209,102, 0.2), 0 0 8px rgba(255,209,102, 0.35); }
+      50%       { box-shadow: 0 0 0 5px rgba(255,209,102, 0.12), 0 0 18px rgba(255,209,102, 0.6); }
+    }
+    [data-theme="night"] .map-entry.active {
+      color: var(--firefly);
+    }
+
+    /* Hide on mobile */
+    @media (max-width: 640px) { #town-map { display: none; } }
   </style>
 </head>
 <body>
@@ -4420,6 +4558,99 @@
         requestAnimationFrame(tick);
       })();
     })();
+
+    // ================================================================
+    // Step 26 — Town Map Mini-Map
+    // ================================================================
+    (function initMiniMap() {
+      var mapEl    = document.getElementById('town-map');
+      var toggle   = document.getElementById('town-map-toggle');
+      var panel    = document.getElementById('town-map-panel');
+      var entries  = document.querySelectorAll('.map-entry');
+      var isOpen   = false;
+
+      // ── Toggle open/close ─────────────────────────────────────
+      function setOpen(open) {
+        isOpen = open;
+        mapEl.classList.toggle('open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      }
+
+      toggle.addEventListener('click', function() { setOpen(!isOpen); });
+
+      // Close when clicking a map entry
+      entries.forEach(function(a) {
+        a.addEventListener('click', function(e) {
+          e.preventDefault();
+          var id = a.getAttribute('data-section');
+          var target = document.getElementById(id);
+          if (target) target.scrollIntoView({ behavior: 'smooth' });
+          setOpen(false);
+        });
+      });
+
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (isOpen && !mapEl.contains(e.target)) setOpen(false);
+      });
+
+      // ── IntersectionObserver: track active section ────────────
+      var sectionIds = ['hero', 'about', 'town', 'research', 'tavern'];
+      var activeId = 'hero';
+
+      function setActive(id) {
+        if (id === activeId) return;
+        activeId = id;
+        entries.forEach(function(a) {
+          var active = a.getAttribute('data-section') === id;
+          a.classList.toggle('active', active);
+        });
+      }
+
+      var sectionObserver = new IntersectionObserver(function(entries_) {
+        // Pick the section closest to the centre of the viewport
+        var best = null, bestDist = Infinity;
+        entries_.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            var mid = entry.boundingClientRect.top + entry.boundingClientRect.height / 2;
+            var dist = Math.abs(mid - window.innerHeight / 2);
+            if (dist < bestDist) { bestDist = dist; best = entry.target.id; }
+          }
+        });
+        if (best) setActive(best);
+      }, { threshold: [0.1, 0.3, 0.5] });
+
+      sectionIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) sectionObserver.observe(el);
+      });
+    })();
   </script>
+
+  <!-- ================================================================
+       Step 26 — Town Map Mini-Map
+  ================================================================ -->
+  <div id="town-map" role="navigation" aria-label="Page mini-map">
+    <div id="town-map-panel" aria-hidden="true">
+      <div class="map-title">⚔ The Settlement</div>
+      <a class="map-entry active" href="#hero" data-section="hero">
+        <span class="map-dot"></span>Hero's Gate
+      </a>
+      <a class="map-entry" href="#about" data-section="about">
+        <span class="map-dot"></span>Town Square
+      </a>
+      <a class="map-entry" href="#town" data-section="town">
+        <span class="map-dot"></span>Main Street
+      </a>
+      <a class="map-entry" href="#research" data-section="research">
+        <span class="map-dot"></span>Research Quarter
+      </a>
+      <a class="map-entry" href="#tavern" data-section="tavern">
+        <span class="map-dot"></span>The Tavern
+      </a>
+    </div>
+    <button id="town-map-toggle" aria-label="Toggle map" aria-expanded="false">🗺</button>
+  </div>
 </body>
 </html>
