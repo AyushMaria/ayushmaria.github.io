@@ -1291,44 +1291,7 @@
 
     })();
   </script>
-
-  <!-- ================================================================
-       St
   
-    // ========================================
-  // UI/UX FIXES - JavaScript (April 11, 2026)
-  // ========================================
-
-  // Issue #6: Make Direction Boards Clickable
-  document.querySelectorAll('.map-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const target = link.getAttribute('href').replace('#', '');
-      const section = document.getElementById(target);
-      if (section) {
-        section.scrollIntoView({ behavior: 'smooth' });
-      }
-    });
-  });
-
-  // Issue #3: Ensure Modal Opens for ALL Buildings
-  +-  // Add click event listeners to all buildings
-  document.querySelectorAll('.building').forEach(building => {
-    const projectId = building.dataset.project;
-    if (projectId) {
-      building.addEventListener('click', () => openModal(projectId));
-      building.style.cursor = 'pointer';
-    }
-  });
-
-  // Issue #10: Bottom Right Button - Scroll to Top
-  const scrollTopBtn = document.querySelector('.scroll-top-btn');
-  if (scrollTopBtn) {
-    scrollTopBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }ep 26 — Town Map Mini-Map
-  ================================================================ -->
   <div id="town-map" role="navigation" aria-label="Page mini-map">
     <button id="town-map-toggle" aria-label="Toggle map" aria-expanded="false">🗺</button>
     <nav class="map-nav" id="town-map-panel" aria-hidden="true">
@@ -1559,7 +1522,7 @@
 
       function sync3DTheme() {
         const isDay = document.documentElement.getAttribute('data-theme') === 'day';
-        const sky = isDay ? { r: 1.0, g: 0.87, b: 0.77 } : { r: 0.04, g: 0.04, b: 0.16 };
+        const sky = isDay ? { r: 0.53, g: 0.81, b: 0.92 } : { r: 0.04, g: 0.04, b: 0.16 };
         if (typeof gsap !== 'undefined' && scene.background) {
           gsap.to(scene.background, { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
           gsap.to(scene.fog.color,  { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
@@ -1704,12 +1667,11 @@
       animate();         // start render loop ← was missing
     })();
   </script>
-  <script 
-    src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js">
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+  <script>
     function initTownWorld() {
       if (window._townWorldBooted) return;
       window._townWorldBooted = true;
-      renderer.setSize(window.innerWidth, window.innerHeight);
 
       // CSS2D label renderer
       const labelRenderer = new THREE.CSS2DRenderer();
