@@ -3999,7 +3999,7 @@
     max-width: 1200px;
   }
   </style>
-    <!-- Three.js CDN - Step 1: 3D Rendering Engine -->
+    <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN - Step 1: 3D Rendering Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
@@ -5874,7 +5874,23 @@
   syncTheme();
 
   // ============================================================
-  // Animation loop
+// Step 4: Village Buildings
+    function createBuildings() {
+      const bg = new THREE.Group();
+      [{x:-15,z:-20,h:8,w:4,c:0x8b4513},{x:15,z:-25,h:10,w:5,c:0x2f4f4f},{x:-10,z:-40,h:6,w:6,c:0x556b2f},{x:12,z:-45,h:12,w:4,c:0x483d8b},{x:0,z:-60,h:15,w:8,c:0xb22222}].forEach(d=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,d.w),new THREE.MeshStandardMaterial({color:d.c,roughness:0.7,metalness:0.2}));
+        m.position.set(d.x,d.h/2,d.z);m.castShadow=true;m.receiveShadow=true;bg.add(m);
+        const r=new THREE.Mesh(new THREE.ConeGeometry(d.w*0.8,4,4),new THREE.MeshStandardMaterial({color:0x333333}));
+        r.position.set(d.x,d.h+2,d.z);r.rotation.y=Math.PI/4;bg.add(r);
+      });scene.add(bg);
+    }
+    createBuildings();
+    // Step 6: GSAP Fly-Through
+    function introAnimation(){
+      if(typeof gsap!=='undefined')gsap.from(camera.position,{z:50,y:20,duration:3,ease:'power2.inOut',onUpdate:()=>camera.lookAt(0,5,-20)});
+    }
+    introAnimation();
+      // Animation loop
   // ============================================================
   const clock = new THREE.Clock();
   function animate() {
