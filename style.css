@@ -915,16 +915,6 @@
       opacity: 0.8;
     }
 
-    .street {
-      display: flex;
-      align-items: flex-end;
-      gap: 8rem;
-      padding: var(--space-lg) var(--space-2xl);
-      min-height: 420px;
-      position: relative;
-      z-index: 2;
-    }
-
     .street-ground {
       width: 100%;
       height: 60px;
@@ -3181,10 +3171,6 @@
         gap: var(--space-xl);
       }
       
-      .about-layout {
-        flex-direction: column;
-      }
-      
       .town-map {
         width: 140px;
         bottom: var(--space-sm);
@@ -3201,10 +3187,6 @@
         right: var(--space-sm);
       }
       
-      .toggle-btn {
-        width: 40px;
-        height: 40px;
-      }
     }
 
     .modal-overlay {
@@ -3848,6 +3830,13 @@
 
   /* Issue #2: Horizontal Scroll for Buildings */
   .street {
+    display: flex;
+    align-items: flex-end;
+    gap: 4rem; /* reduced from 8rem for better scroll UX */
+    padding: var(--space-lg) var(--space-2xl);
+    min-height: 420px;
+    position: relative;
+    z-index: 2;
     overflow-x: auto;
     overflow-y: hidden;
     scroll-behavior: smooth;
