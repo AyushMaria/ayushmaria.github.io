@@ -3522,7 +3522,7 @@
     #town-map-panel {
         position: absolute;
         bottom: 56px;
-        left: 0;    
+        right: 0;    
         background: var(--card-bg);
         border: 2px solid var(--card-border);
         border-radius: var(--radius-md);
@@ -3562,6 +3562,7 @@
 
     /* Each section row */
     .map-entry {
+        font-family: var(--font-display);
         padding: var(--space-xs) var(--space-sm);
         border-radius: var(--radius-sm);
         color: var(--fg);
@@ -3867,7 +3868,7 @@
   }
 
   .street::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
+    background: var(--accent-hover);
   }
 
   /* Issue #4: Remove ACE Concierge Border */
@@ -3933,24 +3934,6 @@
       transition: background 600ms ease;
     }
 
-    .building-light-pool {
-      position: absolute;
-      bottom: -18px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 140px;
-      height: 32px;
-      border-radius: 50%;
-      background: radial-gradient(ellipse, rgba(255, 204, 85, 0) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: -1;
-      transition: background 600ms ease;
-    }
-
-    [data-theme="night"] .building-light-pool {
-      background: radial-gradient(ellipse, rgba(255, 204, 85, 0.18) 0%, transparent 70%);
-    }
-
     [data-theme="day"] .building-light-pool {
       background: radial-gradient(ellipse, rgba(255, 204, 85, 0.06) 0%, transparent 70%);
     }
@@ -3987,13 +3970,6 @@
 
     .building-window--lit {
       box-shadow: 0 0 12px 3px rgba(255, 204, 85, 0.3) !important;
-    }
-
-    .lighting-overlay {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        z-index: 4;
     }
 
     .building-light-pool {
