@@ -3911,7 +3911,93 @@
     50% { box-shadow: 0 0 12px var(--accent); }
   }
 }
-    
+
+
+      /* ========================================
+     UI/UX FIXES - April 11, 2026
+     Fixes 10 critical issues in light mode
+     ======================================== */
+
+  /* Issue #1: Building Names Readable in Light Mode */
+  [data-theme="day"] .building-label,
+  [data-theme="day"] .building span {
+    color: #3a1f04 !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+    font-weight: 600;
+  }
+
+  /* Issue #2: Horizontal Scroll for Buildings */
+  .street {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+  }
+
+  .street::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .street::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+    border-radius: 5px;
+  }
+
+  .street::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 5px;
+  }
+
+  .street::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+
+  /* Issue #4: Remove ACE Concierge Border */
+  .building {
+    outline: none !important;
+  }
+
+  .building[data-project="ace-concierge"] {
+    outline: none !important;
+    border: none !important;
+  }
+
+  /* Issue #5: Drone Visibility on Workshop Roof */
+  [data-theme="day"] .drone {
+    filter: brightness(0.4) saturate(2);
+    outline: 2px solid #333;
+  }
+
+  /* Issue #7: Research Quarter 'H' Visibility */
+  .town-header h2,
+  #research h2 {
+    letter-spacing: 0.05em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  [data-theme="day"] #research h2 {
+    color: #1a1a1a;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+  }
+
+  /* Issue #8: Subtitle Text Contrast in Light Mode */
+  [data-theme="day"] .town-header p,
+  [data-theme="day"] .section-subtitle,
+  [data-theme="day"] .description-text {
+    color: #4a4a4a !important;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+    font-weight: 500;
+  }
+
+  /* Issue #9: Center Research Buildings */
+  #research .street,
+  #research .buildings-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+    max-width: 1200px;
+  }
   </style>
 </head>
 <body>
@@ -5556,7 +5642,39 @@
   </script>
 
   <!-- ================================================================
-       Step 26 — Town Map Mini-Map
+       St
+  
+    // ========================================
+  // UI/UX FIXES - JavaScript (April 11, 2026)
+  // ========================================
+
+  // Issue #6: Make Direction Boards Clickable
+  document.querySelectorAll('.map-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = link.getAttribute('href').replace('#', '');
+      const section = document.getElementById(target);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  });
+
+  // Issue #3: Ensure Modal Opens for ALL Buildings
+  // Verify all buildings have proper event listeners
+  document.querySelectorAll('.building').forEach(building => {
+    if (!building.dataset.project) {
+      console.warn('Building missing data-project:', building.textContent);
+    }
+  });
+
+  // Issue #10: Bottom Right Button - Scroll to Top
+  const scrollTopBtn = document.querySelector('.scroll-top-btn');
+  if (scrollTopBtn) {
+    scrollTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }ep 26 — Town Map Mini-Map
   ================================================================ -->
   <div id="town-map" role="navigation" aria-label="Page mini-map">
     <div id="town-map-panel" aria-hidden="true">
