@@ -2299,9 +2299,9 @@
       scene.add(plaza);
 
       [
-        { x: -7, z: Z-4, w: 5, h: 6,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7 }), roofColor: 0x2a2a3a, label: 'Prediction Colosseum', project: 'xgfootball' },
-        { x:  0, z: Z-6, w: 5, h: 8,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 }), roofColor: 0x1a2a3a, label: 'Vortex Observatory',   project: 'vortexcore' },
-        { x:  7, z: Z-4, w: 5, h: 5,  d: 4, mat: MAT.stone, roofColor: 0xb8a88a, label: 'Cloud Citadel', project: 'awscloud' },
+        { x: -7, z: Z-4, w: 5, h: 6,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7 }), roofColor: 0x2a2a3a, label: 'Prediction Colosseum', project: 'xg' },
+        { x:  0, z: Z-6, w: 5, h: 8,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 }), roofColor: 0x1a2a3a, label: 'Vortex Observatory',   project: 'vortex' },
+        { x:  7, z: Z-4, w: 5, h: 5,  d: 4, mat: MAT.stone, roofColor: 0xb8a88a, label: 'Cloud Citadel', project: 'aws' },
       ].forEach(opts => {
         const b = makeBuilding(opts);
         b.traverse(m => { if (m.isMesh) m.userData = { project: opts.project, label: opts.label }; });
