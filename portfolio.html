@@ -54,6 +54,9 @@
       --shadow: rgba(27, 27, 45, 0.4);
       --cobble: #9e8c6c;
       --cobble-light: #b8a88a;
+      --light-ambient: rgba(255, 153, 102, 0.06);
+      --light-directional: rgba(255, 228, 181, 0.1);
+      --lamp-color: #ffcc55;
 
       --font-display: 'Cinzel', serif;
       --font-body: 'Nunito', sans-serif;
@@ -99,6 +102,8 @@
       --cobble-light: #3a3055;
       --card-bg: #1a1235;
       --card-border: #3a2d5c;
+      --light-ambient: rgba(26, 10, 46, 0.1);
+      --light-directional: rgba(136, 136, 204, 0.08);
     }
 
     *, *::before, *::after {
@@ -3998,6 +4003,78 @@
     margin: 0 auto;
     max-width: 1200px;
   }
+
+    /* ================================================================
+       Step 5 — Three-Point Lighting System
+       ================================================================ */
+    .lighting-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      background:
+        radial-gradient(ellipse at 80% 5%, var(--light-directional) 0%, transparent 55%),
+        var(--light-ambient);
+      mix-blend-mode: soft-light;
+      transition: background 600ms ease;
+    }
+
+    .building-light-pool {
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140px;
+      height: 32px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(255, 204, 85, 0) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+      transition: background 600ms ease;
+    }
+
+    [data-theme="night"] .building-light-pool {
+      background: radial-gradient(ellipse, rgba(255, 204, 85, 0.18) 0%, transparent 70%);
+    }
+
+    [data-theme="day"] .building-light-pool {
+      background: radial-gradient(ellipse, rgba(255, 204, 85, 0.06) 0%, transparent 70%);
+    }
+
+    .lamp-glow {
+      background: radial-gradient(circle, rgba(255, 204, 85, 0.15) 0%, transparent 70%) !important;
+    }
+
+    .lamp-ground {
+      background: radial-gradient(ellipse, rgba(255, 204, 85, 0.1) 0%, transparent 70%) !important;
+    }
+
+    .lamp-head {
+      background: var(--lamp-color) !important;
+      box-shadow: 0 0 8px rgba(255, 204, 85, 0.5) !important;
+    }
+
+    [data-theme="night"] .lamp-glow {
+      background: radial-gradient(circle, rgba(255, 204, 85, 0.35) 0%, transparent 70%) !important;
+      opacity: 1 !important;
+    }
+
+    [data-theme="night"] .lamp-ground {
+      background: radial-gradient(ellipse, rgba(255, 204, 85, 0.22) 0%, transparent 70%) !important;
+    }
+
+    [data-theme="night"] .lamp-head {
+      box-shadow: 0 0 14px rgba(255, 204, 85, 0.9), 0 0 28px rgba(255, 204, 85, 0.4) !important;
+    }
+
+    [data-theme="night"] .building-window--lit {
+      box-shadow: 0 0 24px 10px rgba(255, 204, 85, 0.8) !important;
+    }
+
+    .building-window--lit {
+      box-shadow: 0 0 12px 3px rgba(255, 204, 85, 0.3) !important;
+    }
+
   </style>
     <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN - Step 1: 3D Rendering Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -4007,6 +4084,7 @@
     <button class="toggle-btn" id="theme-toggle" aria-label="Toggle day/night theme">🌙</button>
     <button class="toggle-btn" id="sound-toggle" aria-label="Toggle ambient sound" disabled>🔊</button>
   </div>
+  <div class="lighting-overlay" aria-hidden="true"></div>
   <div class="stars-layer">
     <span class="star" style="top:5%;left:8%;animation-delay:0s"></span>
     <span class="star" style="top:3%;left:22%;animation-delay:1.2s"></span>
@@ -4227,6 +4305,7 @@
           <div class="workshop-sign">Drone Repair<br>Workshop</div>
         </div>
         <div class="building-label">The Forge</div>
+        <div class="building-light-pool"></div>
       </div>
 
       <div class="lamp-post">
@@ -4249,6 +4328,7 @@
           <div class="parlour-sign">Ace<br>Concierge</div>
         </div>
         <div class="building-label">Concierge Parlour</div>
+        <div class="building-light-pool"></div>
       </div>
 
       <div class="lamp-post">
@@ -4332,6 +4412,7 @@
           <div class="scales-sign">Ledger<br>Sanctum</div>
         </div>
         <div class="building-label">The Ledger Sanctum</div>
+        <div class="building-light-pool"></div>
       </div>
 
       <div class="lamp-post">
@@ -4356,6 +4437,7 @@
           <div class="nav-sign">Navigator's<br>Tower</div>
         </div>
         <div class="building-label">Navigator's Tower</div>
+        <div class="building-light-pool"></div>
       </div>
     </div>
     <div class="street-ground"></div>
@@ -5807,7 +5889,7 @@
   // Step 3: LIGHTING
   // ============================================================
   // Ambient — warm fill
-  const ambient = new THREE.AmbientLight(0xff9966, 0.5);
+  const ambient = new THREE.AmbientLight(0xff9966, 0.4);
   scene.add(ambient);
 
   // Directional — moonlight / sunlight
@@ -5822,6 +5904,24 @@
   const gateLight = new THREE.PointLight(0xff6b35, 1.5, 8);
   gateLight.position.set(0, 2, 12.5);
   scene.add(gateLight);
+
+  // Step 5: Street Lamp PointLights — #ffcc55, warm pools on cobblestones
+  var lampLights = [];
+  [{x:-4,y:2.5,z:14},{x:4,y:2.5,z:14},{x:-3,y:2.5,z:8},{x:3,y:2.5,z:8}].forEach(function(pos) {
+    var pl = new THREE.PointLight(0xffcc55, 0.6, 6);
+    pl.position.set(pos.x, pos.y, pos.z);
+    scene.add(pl);
+    lampLights.push(pl);
+  });
+
+  // Step 5: Building Window PointLights — increase intensity at night
+  var windowLights = [];
+  [{x:-15,y:5,z:-18},{x:15,y:6,z:-23},{x:0,y:9,z:-58}].forEach(function(pos) {
+    var wl = new THREE.PointLight(0xffcc55, 0.3, 5);
+    wl.position.set(pos.x, pos.y, pos.z);
+    scene.add(wl);
+    windowLights.push(wl);
+  });
 
   // Stars — particle system beyond gate
   const starGeo = new THREE.BufferGeometry();
@@ -5850,25 +5950,29 @@
   // Day / Night sync with existing theme toggle
   // ============================================================
   function syncTheme() {
-    const isDay = document.documentElement.getAttribute('data-theme') === 'day';
-    if (isDay) {
-      scene.background = new THREE.Color(0xffecd2);
-      scene.fog.color.set(0xffecd2);
-      ambient.color.set(0xffe4b5);
-      ambient.intensity = 0.8;
-      dirLight.color.set(0xfff7e6);
-      dirLight.intensity = 2.0;
-      gateLight.color.set(0xff9944);
-    } else {
-      scene.background = new THREE.Color(0x1a0a2e);
-      scene.fog.color.set(0x1a0a2e);
-      ambient.color.set(0xff9966);
-      ambient.intensity = 0.5;
-      dirLight.color.set(0xffe4b5);
-      dirLight.intensity = 1.2;
-      gateLight.color.set(0xff6b35);
+      const isDay = document.documentElement.getAttribute('data-theme') === 'day';
+      if (isDay) {
+        scene.background = new THREE.Color(0xffecd2);
+        scene.fog.color.set(0xffecd2);
+        ambient.color.set(0xff9966);
+        ambient.intensity = 0.4;
+        dirLight.color.set(0xffe4b5);
+        dirLight.intensity = 1.2;
+        gateLight.color.set(0xffcc55);
+        lampLights.forEach(function(l) { l.color.set(0xffcc55); l.intensity = 0.6; });
+        windowLights.forEach(function(l) { l.intensity = 0.3; });
+      } else {
+        scene.background = new THREE.Color(0x1a0a2e);
+        scene.fog.color.set(0x1a0a2e);
+        ambient.color.set(0x1a0a2e);
+        ambient.intensity = 0.3;
+        dirLight.color.set(0x8888cc);
+        dirLight.intensity = 0.6;
+        gateLight.color.set(0xff6b35);
+        lampLights.forEach(function(l) { l.color.set(0xffcc55); l.intensity = 1.2; });
+        windowLights.forEach(function(l) { l.intensity = 1.5; });
+      }
     }
-  }
   const themeBtn = document.getElementById('theme-toggle');
   
   syncTheme();
@@ -5879,8 +5983,12 @@
       if (typeof gsap !== 'undefined' && scene.background) {
         gsap.to(scene.background, { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
         gsap.to(scene.fog.color,  { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
-        gsap.to(ambient,   { intensity: isDay ? 0.8 : 0.5, duration: 1.2 });
-        gsap.to(dirLight,  { intensity: isDay ? 2.0 : 1.2, duration: 1.2 });
+        gsap.to(ambient.color, isDay ? { r: 1, g: 0.6, b: 0.4, duration: 1.2 } : { r: 0.1, g: 0.04, b: 0.18, duration: 1.2 });
+        gsap.to(ambient,   { intensity: isDay ? 0.4 : 0.3, duration: 1.2 });
+        gsap.to(dirLight.color, isDay ? { r: 1, g: 0.89, b: 0.71, duration: 1.2 } : { r: 0.53, g: 0.53, b: 0.8, duration: 1.2 });
+        gsap.to(dirLight,  { intensity: isDay ? 1.2 : 0.6, duration: 1.2 });
+        lampLights.forEach(function(l) { gsap.to(l, { intensity: isDay ? 0.6 : 1.2, duration: 1.2 }); });
+        windowLights.forEach(function(l) { gsap.to(l, { intensity: isDay ? 0.3 : 1.5, duration: 1.2 }); });
       }
     }
     if (themeBtn) themeBtn.addEventListener('click', () => { setTimeout(syncTheme, 50); sync3DTheme(); });
