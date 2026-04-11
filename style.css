@@ -3952,3 +3952,24 @@
         display: block !important;
         z-index: 3 !important;
     }
+
+    .hud-btn {
+        padding: var(--space-sm) var(--space-lg);
+        background: var(--card-bg);
+        border: 2px solid var(--card-border);
+        border-radius: var(--radius-pill);
+        font-family: var(--font-display);
+        font-size: var(--fs-sm);
+        color: var(--fg);
+        cursor: pointer;
+        transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+        box-shadow: 0 4px 16px var(--shadow);
+        backdrop-filter: blur(8px);
+    }
+
+    .hud-btn:hover, .hud-btn.active {
+        background: var(--accent);
+        color: #0a0a1a;
+        border-color: var(--accent);
+        transform: translateY(-2px);
+    }
