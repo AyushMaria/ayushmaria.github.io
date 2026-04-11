@@ -1942,6 +1942,7 @@
 
       buildings.forEach(opts => {
         const b = makeBuilding(opts);
+        b.rotation.y = opts.x < 0 ? -Math.PI / 2 : Math.PI / 2;
         b.traverse(m => { if (m.isMesh) m.userData = { project: opts.project, label: opts.label }; });
         // Glowing windows
         const win = new THREE.Mesh(
