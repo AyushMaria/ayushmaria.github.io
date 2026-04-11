@@ -4035,3 +4035,27 @@
     .building-window--lit {
       box-shadow: 0 0 12px 3px rgba(255, 204, 85, 0.3) !important;
     }
+
+    .lighting-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 4;
+    }
+
+    .building-light-pool {
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100px;
+        height: 40px;
+        background: radial-gradient(ellipse, rgba(255, 204, 85, 0.15) 0%, transparent 70%);
+        pointer-events: none;
+        border-radius: 50%;
+        transition: background 600ms ease;
+    }
+
+    [data-theme="night"] .building-light-pool {
+        background: radial-gradient(ellipse, rgba(255, 204, 85, 0.35) 0%, transparent 70%);
+    }

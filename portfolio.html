@@ -1727,6 +1727,8 @@
 // THREE.JS HERO — Steps 2 & 3: Scene + Camera + Torii Gate
 // ============================================================
 (function initThreeHero() {
+  var lampLights = [];
+  var windowLights = [];
   if (typeof THREE === 'undefined') { console.warn('Three.js not loaded'); return; }
 
   const canvas = document.getElementById('three-canvas');
@@ -1867,7 +1869,6 @@
   scene.add(gateLight);
 
   // Step 5: Street Lamp PointLights — #ffcc55, warm pools on cobblestones
-  var lampLights = [];
   [{x:-4,y:2.5,z:14},{x:4,y:2.5,z:14},{x:-3,y:2.5,z:8},{x:3,y:2.5,z:8}].forEach(function(pos) {
     var pl = new THREE.PointLight(0xffcc55, 0.6, 6);
     pl.position.set(pos.x, pos.y, pos.z);
@@ -1876,7 +1877,6 @@
   });
 
   // Step 5: Building Window PointLights — increase intensity at night
-  var windowLights = [];
   [{x:-15,y:5,z:-18},{x:15,y:6,z:-23},{x:0,y:9,z:-58}].forEach(function(pos) {
     var wl = new THREE.PointLight(0xffcc55, 0.3, 5);
     wl.position.set(pos.x, pos.y, pos.z);
