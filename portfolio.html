@@ -5870,8 +5870,60 @@
     }
   }
   const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(syncTheme, 50));
+  
   syncTheme();
+    // Step 9: Day/Night Cycle Sync — GSAP animated 3D sky
+    function sync3DTheme() {
+      const isDay = document.documentElement.getAttribute('data-theme') === 'day';
+      const sky = isDay ? { r: 1.0, g: 0.87, b: 0.77 } : { r: 0.04, g: 0.04, b: 0.16 };
+      if (typeof gsap !== 'undefined' && scene.background) {
+        gsap.to(scene.background, { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
+        gsap.to(scene.fog.color,  { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
+        gsap.to(ambient,   { intensity: isDay ? 0.8 : 0.5, duration: 1.2 });
+        gsap.to(dirLight,  { intensity: isDay ? 2.0 : 1.2, duration: 1.2 });
+      }
+    }
+    if (themeBtn) themeBtn.addEventListener('click', () => { setTimeout(syncTheme, 50); sync3DTheme(); });
+    sync3DTheme();
+    // Step 7: Raycaster Interaction — Clickable 3D Buildings
+    const raycaster = new THREE.Raycaster();
+    const mouse3D = new THREE.Vector2();
+    const heroCanvas = renderer.domElement;
+    heroCanvas.addEventListener('mousemove', (e) => {
+      const rect = heroCanvas.getBoundingClientRect();
+      mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse3D, camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+      heroCanvas.style.cursor = hits.length > 0 ? 'pointer' : 'default';
+    });
+    heroCanvas.addEventListener('click', (e) => {
+      const rect = heroCanvas.getBoundingClientRect();
+      mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse3D, camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+      if (hits.length > 0) {
+        const target = document.querySelector('#projects');
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+    // Step 8: Scroll-Linked Camera Depth
+    let scrollTicking = false;
+    window.addEventListener('scroll', () => {
+      if (!scrollTicking) {
+        requestAnimationFrame(() => {
+          const heroSection = document.getElementById('hero');
+          if (!heroSection) { scrollTicking = false; return; }
+          const pct = Math.min(window.scrollY, heroSection.offsetHeight) / heroSection.offsetHeight;
+          camera.position.z = 15 - pct * 40;
+          camera.position.y = 5 + pct * 8;
+          camera.lookAt(0, 5, -20);
+          scrollTicking = false;
+        });
+        scrollTicking = true;
+      }
+    });
 
   // ============================================================
 // Step 4: Village Buildings
