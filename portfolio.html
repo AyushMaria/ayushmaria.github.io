@@ -1727,33 +1727,33 @@
 // THREE.JS HERO — Steps 2 & 3: Scene + Camera + Torii Gate
 // ============================================================
 (function initThreeHero() {
-  var lampLights = [];
-  var windowLights = [];
+  // ── Guards ──────────────────────────────────────────────────
   if (typeof THREE === 'undefined') { console.warn('Three.js not loaded'); return; }
-
   const canvas = document.getElementById('three-canvas');
   if (!canvas) return;
 
-  // --- Renderer ---
+  // ── Arrays declared first (used by syncTheme) ───────────────
+  var lampLights = [];
+  var windowLights = [];
+
+  // ── Renderer ────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  // --- Scene ---
+  // ── Scene ───────────────────────────────────────────────────
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a0a2e);
   scene.fog = new THREE.FogExp2(0x1a0a2e, 0.018);
 
-  // --- Step 2: PerspectiveCamera ---
-  // Position: (0, 3, 18) — just outside gate
-  // Target:   (0, 2, 0)  — city centre
+  // ── Camera ──────────────────────────────────────────────────
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
   camera.position.set(0, 3, 18);
   const target = new THREE.Vector3(0, 2, 0);
   camera.lookAt(target);
 
-  // --- Resize handler ---
+  // ── Resize ──────────────────────────────────────────────────
   function onResize() {
     const hero = canvas.parentElement;
     const w = hero.clientWidth || window.innerWidth;
@@ -1765,37 +1765,39 @@
   onResize();
   window.addEventListener('resize', onResize);
 
-  // ============================================================
-  // Step 3: TORII GATE — 3D geometry at z = 12
-  // ============================================================
+  // ── Ground ──────────────────────────────────────────────────
+  const groundGeo = new THREE.PlaneGeometry(60, 80);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.95, metalness: 0 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, 0, -10);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // ── Torii Gate ──────────────────────────────────────────────
   const gateGroup = new THREE.Group();
   gateGroup.position.set(0, 0, 12);
   scene.add(gateGroup);
 
-  // Materials
   const redMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6, metalness: 0.1 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.8 });
 
-  // Left pillar
   const pillarGeo = new THREE.CylinderGeometry(0.22, 0.26, 8, 12);
   const pillarL = new THREE.Mesh(pillarGeo, redMat);
   pillarL.position.set(-2.5, 4, 0);
   pillarL.castShadow = true;
   gateGroup.add(pillarL);
 
-  // Right pillar
   const pillarR = pillarL.clone();
   pillarR.position.set(2.5, 4, 0);
   gateGroup.add(pillarR);
 
-  // Kasagi — top crossbeam (wider, slightly upswept)
   const kasagiGeo = new THREE.BoxGeometry(7.2, 0.3, 0.5);
   const kasagi = new THREE.Mesh(kasagiGeo, redMat);
   kasagi.position.set(0, 8.3, 0);
   kasagi.castShadow = true;
   gateGroup.add(kasagi);
 
-  // Kasagi ends (angled up at tips)
   const kasagiEndGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
   [-3.4, 3.4].forEach(x => {
     const end = new THREE.Mesh(kasagiEndGeo, redMat);
@@ -1803,20 +1805,17 @@
     gateGroup.add(end);
   });
 
-  // Shimaki — lower crossbeam
   const shimakiGeo = new THREE.BoxGeometry(6.0, 0.22, 0.4);
   const shimaki = new THREE.Mesh(shimakiGeo, redMat);
   shimaki.position.set(0, 7.2, 0);
   shimaki.castShadow = true;
   gateGroup.add(shimaki);
 
-  // Nuki — tie-beam between pillars
   const nukiGeo = new THREE.BoxGeometry(5.0, 0.18, 0.35);
   const nuki = new THREE.Mesh(nukiGeo, darkMat);
   nuki.position.set(0, 5.5, 0);
   gateGroup.add(nuki);
 
-  // Name tablet — canvas texture with "アユシュ / AYUSH"
   const tabletCanvas = document.createElement('canvas');
   tabletCanvas.width = 256; tabletCanvas.height = 80;
   const ctx = tabletCanvas.getContext('2d');
@@ -1831,7 +1830,7 @@
   ctx.fillText('アユシュ / AYUSH', 128, 36);
   ctx.font = '14px serif';
   ctx.fillStyle = '#ff6b35';
-  ctx.fillText('Ayush\'s Settlement', 128, 62);
+  ctx.fillText("Ayush's Settlement", 128, 62);
   const tabletTex = new THREE.CanvasTexture(tabletCanvas);
   const tabletMat = new THREE.MeshBasicMaterial({ map: tabletTex });
   const tabletGeo = new THREE.PlaneGeometry(2.2, 0.7);
@@ -1839,52 +1838,33 @@
   tablet.position.set(0, 6.3, 0.22);
   gateGroup.add(tablet);
 
-  // Ground plane (stone path)
-  const groundGeo = new THREE.PlaneGeometry(60, 80);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.95, metalness: 0 });
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(0, 0, -10);
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // ── Village Buildings ────────────────────────────────────────
+  function createBuildings() {
+    const bg = new THREE.Group();
+    [{x:-15,z:-20,h:8,w:4,c:0x8b4513},{x:15,z:-25,h:10,w:5,c:0x2f4f4f},
+     {x:-10,z:-40,h:6,w:6,c:0x556b2f},{x:12,z:-45,h:12,w:4,c:0x483d8b},
+     {x:0,z:-60,h:15,w:8,c:0xb22222}].forEach(d => {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(d.w, d.h, d.w),
+        new THREE.MeshStandardMaterial({ color: d.c, roughness: 0.7, metalness: 0.2 })
+      );
+      m.position.set(d.x, d.h / 2, d.z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      bg.add(m);
+      const r = new THREE.Mesh(
+        new THREE.ConeGeometry(d.w * 0.8, 4, 4),
+        new THREE.MeshStandardMaterial({ color: 0x333333 })
+      );
+      r.position.set(d.x, d.h + 2, d.z);
+      r.rotation.y = Math.PI / 4;
+      bg.add(r);
+    });
+    scene.add(bg);
+  }
+  createBuildings();
 
-  // ============================================================
-  // Step 3: LIGHTING
-  // ============================================================
-  // Ambient — warm fill
-  const ambient = new THREE.AmbientLight(0xff9966, 0.4);
-  scene.add(ambient);
-
-  // Directional — moonlight / sunlight
-  const dirLight = new THREE.DirectionalLight(0xffe4b5, 1.2);
-  dirLight.position.set(5, 12, 8);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
-  scene.add(dirLight);
-
-  // Gate warm glow from below
-  const gateLight = new THREE.PointLight(0xff6b35, 1.5, 8);
-  gateLight.position.set(0, 2, 12.5);
-  scene.add(gateLight);
-
-  // Step 5: Street Lamp PointLights — #ffcc55, warm pools on cobblestones
-  [{x:-4,y:2.5,z:14},{x:4,y:2.5,z:14},{x:-3,y:2.5,z:8},{x:3,y:2.5,z:8}].forEach(function(pos) {
-    var pl = new THREE.PointLight(0xffcc55, 0.6, 6);
-    pl.position.set(pos.x, pos.y, pos.z);
-    scene.add(pl);
-    lampLights.push(pl);
-  });
-
-  // Step 5: Building Window PointLights — increase intensity at night
-  [{x:-15,y:5,z:-18},{x:15,y:6,z:-23},{x:0,y:9,z:-58}].forEach(function(pos) {
-    var wl = new THREE.PointLight(0xffcc55, 0.3, 5);
-    wl.position.set(pos.x, pos.y, pos.z);
-    scene.add(wl);
-    windowLights.push(wl);
-  });
-
-  // Stars — particle system beyond gate
+  // ── Stars ────────────────────────────────────────────────────
   const starGeo = new THREE.BufferGeometry();
   const starCount = 800;
   const starPositions = new Float32Array(starCount * 3);
@@ -1898,140 +1878,163 @@
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
 
-  // ============================================================
-  // Mouse parallax — subtle camera sway
-  // ============================================================
+  // ── Lights ───────────────────────────────────────────────────
+  // These must exist BEFORE syncTheme() is called
+  const ambient = new THREE.AmbientLight(0xff9966, 0.4);
+  scene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0xffe4b5, 1.2);
+  dirLight.position.set(5, 12, 8);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  scene.add(dirLight);
+
+  const gateLight = new THREE.PointLight(0xff6b35, 1.5, 8);
+  gateLight.position.set(0, 2, 12.5);
+  scene.add(gateLight);
+
+  // Step 5: Street lamp PointLights
+  [{x:-4,y:2.5,z:14},{x:4,y:2.5,z:14},{x:-3,y:2.5,z:8},{x:3,y:2.5,z:8}].forEach(function(pos) {
+    var pl = new THREE.PointLight(0xffcc55, 0.6, 6);
+    pl.position.set(pos.x, pos.y, pos.z);
+    scene.add(pl);
+    lampLights.push(pl);
+  });
+
+  // Step 5: Building window PointLights
+  [{x:-15,y:5,z:-18},{x:15,y:6,z:-23},{x:0,y:9,z:-58}].forEach(function(pos) {
+    var wl = new THREE.PointLight(0xffcc55, 0.3, 5);
+    wl.position.set(pos.x, pos.y, pos.z);
+    scene.add(wl);
+    windowLights.push(wl);
+  });
+
+  // ── Mouse parallax ───────────────────────────────────────────
   let mouseX = 0, mouseY = 0;
   document.addEventListener('mousemove', (e) => {
     mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
     mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
   });
 
-  // ============================================================
-  // Day / Night sync with existing theme toggle
-  // ============================================================
+  // ── Theme sync ───────────────────────────────────────────────
+  // Defined AFTER lights, called AFTER definition
   function syncTheme() {
-      const isDay = document.documentElement.getAttribute('data-theme') === 'day';
-      if (isDay) {
-        scene.background = new THREE.Color(0xffecd2);
-        scene.fog.color.set(0xffecd2);
-        ambient.color.set(0xff9966);
-        ambient.intensity = 0.4;
-        dirLight.color.set(0xffe4b5);
-        dirLight.intensity = 1.2;
-        gateLight.color.set(0xffcc55);
-        lampLights.forEach(function(l) { l.color.set(0xffcc55); l.intensity = 0.6; });
-        windowLights.forEach(function(l) { l.intensity = 0.3; });
-      } else {
-        scene.background = new THREE.Color(0x1a0a2e);
-        scene.fog.color.set(0x1a0a2e);
-        ambient.color.set(0x1a0a2e);
-        ambient.intensity = 0.3;
-        dirLight.color.set(0x8888cc);
-        dirLight.intensity = 0.6;
-        gateLight.color.set(0xff6b35);
-        lampLights.forEach(function(l) { l.color.set(0xffcc55); l.intensity = 1.2; });
-        windowLights.forEach(function(l) { l.intensity = 1.5; });
-      }
+    const isDay = document.documentElement.getAttribute('data-theme') === 'day';
+    if (isDay) {
+      scene.background = new THREE.Color(0xffecd2);
+      scene.fog.color.set(0xffecd2);
+      ambient.color.set(0xff9966);    ambient.intensity = 0.4;
+      dirLight.color.set(0xffe4b5);   dirLight.intensity = 1.2;
+      gateLight.color.set(0xffcc55);
+      lampLights.forEach(function(l)   { l.color.set(0xffcc55); l.intensity = 0.6; });
+      windowLights.forEach(function(l) { l.intensity = 0.3; });
+    } else {
+      scene.background = new THREE.Color(0x1a0a2e);
+      scene.fog.color.set(0x1a0a2e);
+      ambient.color.set(0x1a0a2e);    ambient.intensity = 0.3;
+      dirLight.color.set(0x8888cc);   dirLight.intensity = 0.6;
+      gateLight.color.set(0xff6b35);
+      lampLights.forEach(function(l)   { l.color.set(0xffcc55); l.intensity = 1.2; });
+      windowLights.forEach(function(l) { l.intensity = 1.5; });
     }
-  const themeBtn = document.getElementById('theme-toggle');
-  
-  syncTheme();
-    // Step 9: Day/Night Cycle Sync — GSAP animated 3D sky
-    function sync3DTheme() {
-      const isDay = document.documentElement.getAttribute('data-theme') === 'day';
-      const sky = isDay ? { r: 1.0, g: 0.87, b: 0.77 } : { r: 0.04, g: 0.04, b: 0.16 };
-      if (typeof gsap !== 'undefined' && scene.background) {
-        gsap.to(scene.background, { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
-        gsap.to(scene.fog.color,  { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
-        gsap.to(ambient.color, isDay ? { r: 1, g: 0.6, b: 0.4, duration: 1.2 } : { r: 0.1, g: 0.04, b: 0.18, duration: 1.2 });
-        gsap.to(ambient,   { intensity: isDay ? 0.4 : 0.3, duration: 1.2 });
-        gsap.to(dirLight.color, isDay ? { r: 1, g: 0.89, b: 0.71, duration: 1.2 } : { r: 0.53, g: 0.53, b: 0.8, duration: 1.2 });
-        gsap.to(dirLight,  { intensity: isDay ? 1.2 : 0.6, duration: 1.2 });
-        lampLights.forEach(function(l) { gsap.to(l, { intensity: isDay ? 0.6 : 1.2, duration: 1.2 }); });
-        windowLights.forEach(function(l) { gsap.to(l, { intensity: isDay ? 0.3 : 1.5, duration: 1.2 }); });
-      }
-    }
-    if (themeBtn) themeBtn.addEventListener('click', () => { setTimeout(syncTheme, 50); sync3DTheme(); });
-    sync3DTheme();
-    // Step 7: Raycaster Interaction — Clickable 3D Buildings
-    const raycaster = new THREE.Raycaster();
-    const mouse3D = new THREE.Vector2();
-    const heroCanvas = renderer.domElement;
-    heroCanvas.addEventListener('mousemove', (e) => {
-      const rect = heroCanvas.getBoundingClientRect();
-      mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse3D, camera);
-      const hits = raycaster.intersectObjects(scene.children, true);
-      heroCanvas.style.cursor = hits.length > 0 ? 'pointer' : 'default';
-    });
-    heroCanvas.addEventListener('click', (e) => {
-      const rect = heroCanvas.getBoundingClientRect();
-      mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse3D, camera);
-      const hits = raycaster.intersectObjects(scene.children, true);
-      if (hits.length > 0) {
-        const target = document.querySelector('#projects');
-        if (target) target.scrollIntoView({ behavior: 'smooth' });
-      }
-    });
-    // Step 8: Scroll-Linked Camera Depth
-    let scrollTicking = false;
-    window.addEventListener('scroll', () => {
-      if (!scrollTicking) {
-        requestAnimationFrame(() => {
-          const heroSection = document.getElementById('hero');
-          if (!heroSection) { scrollTicking = false; return; }
-          const pct = Math.min(window.scrollY, heroSection.offsetHeight) / heroSection.offsetHeight;
-          camera.position.z = 15 - pct * 40;
-          camera.position.y = 5 + pct * 8;
-          camera.lookAt(0, 5, -20);
-          scrollTicking = false;
-        });
-        scrollTicking = true;
-      }
-    });
+  }
 
-  // ============================================================
-// Step 4: Village Buildings
-    function createBuildings() {
-      const bg = new THREE.Group();
-      [{x:-15,z:-20,h:8,w:4,c:0x8b4513},{x:15,z:-25,h:10,w:5,c:0x2f4f4f},{x:-10,z:-40,h:6,w:6,c:0x556b2f},{x:12,z:-45,h:12,w:4,c:0x483d8b},{x:0,z:-60,h:15,w:8,c:0xb22222}].forEach(d=>{
-        const m=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,d.w),new THREE.MeshStandardMaterial({color:d.c,roughness:0.7,metalness:0.2}));
-        m.position.set(d.x,d.h/2,d.z);m.castShadow=true;m.receiveShadow=true;bg.add(m);
-        const r=new THREE.Mesh(new THREE.ConeGeometry(d.w*0.8,4,4),new THREE.MeshStandardMaterial({color:0x333333}));
-        r.position.set(d.x,d.h+2,d.z);r.rotation.y=Math.PI/4;bg.add(r);
-      });scene.add(bg);
+  function sync3DTheme() {
+    const isDay = document.documentElement.getAttribute('data-theme') === 'day';
+    const sky = isDay ? { r: 1.0, g: 0.87, b: 0.77 } : { r: 0.04, g: 0.04, b: 0.16 };
+    if (typeof gsap !== 'undefined' && scene.background) {
+      gsap.to(scene.background, { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
+      gsap.to(scene.fog.color,  { r: sky.r, g: sky.g, b: sky.b, duration: 1.2, ease: 'power1.inOut' });
+      gsap.to(ambient.color,  isDay ? { r: 1, g: 0.6, b: 0.4,    duration: 1.2 } : { r: 0.1, g: 0.04, b: 0.18, duration: 1.2 });
+      gsap.to(ambient,        { intensity: isDay ? 0.4 : 0.3, duration: 1.2 });
+      gsap.to(dirLight.color, isDay ? { r: 1, g: 0.89, b: 0.71, duration: 1.2 } : { r: 0.53, g: 0.53, b: 0.8, duration: 1.2 });
+      gsap.to(dirLight,       { intensity: isDay ? 1.2 : 0.6, duration: 1.2 });
+      lampLights.forEach(function(l)   { gsap.to(l, { intensity: isDay ? 0.6 : 1.2, duration: 1.2 }); });
+      windowLights.forEach(function(l) { gsap.to(l, { intensity: isDay ? 0.3 : 1.5, duration: 1.2 }); });
     }
-    createBuildings();
-    // Step 6: GSAP Fly-Through
-    function introAnimation(){
-      if(typeof gsap!=='undefined')gsap.from(camera.position,{z:50,y:20,duration:3,ease:'power2.inOut',onUpdate:()=>camera.lookAt(0,5,-20)});
+  }
+
+  // ── Raycaster ────────────────────────────────────────────────
+  const raycaster = new THREE.Raycaster();
+  const mouse3D = new THREE.Vector2();
+  const heroCanvas = renderer.domElement;
+
+  heroCanvas.addEventListener('mousemove', (e) => {
+    const rect = heroCanvas.getBoundingClientRect();
+    mouse3D.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse3D, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    heroCanvas.style.cursor = hits.length > 0 ? 'pointer' : 'default';
+  });
+
+  heroCanvas.addEventListener('click', (e) => {
+    const rect = heroCanvas.getBoundingClientRect();
+    mouse3D.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse3D, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    if (hits.length > 0) {
+      const t = document.querySelector('#projects');
+      if (t) t.scrollIntoView({ behavior: 'smooth' });
     }
-    introAnimation();
-      // Animation loop
-  // ============================================================
+  });
+
+  // ── Scroll-linked camera depth ───────────────────────────────
+  let scrollTicking = false;
+  window.addEventListener('scroll', () => {
+    if (!scrollTicking) {
+      requestAnimationFrame(() => {
+        const heroSection = document.getElementById('hero');
+        if (!heroSection) { scrollTicking = false; return; }
+        const pct = Math.min(window.scrollY, heroSection.offsetHeight) / heroSection.offsetHeight;
+        camera.position.z = 15 - pct * 40;
+        camera.position.y = 5 + pct * 8;
+        camera.lookAt(0, 5, -20);
+        scrollTicking = false;
+      });
+      scrollTicking = true;
+    }
+  });
+
+  // ── GSAP intro fly-through ───────────────────────────────────
+  function introAnimation() {
+    if (typeof gsap !== 'undefined') {
+      gsap.from(camera.position, {
+        z: 50, y: 20, duration: 3, ease: 'power2.inOut',
+        onUpdate: () => camera.lookAt(0, 5, -20)
+      });
+    }
+  }
+
+  // ── Animate loop ─────────────────────────────────────────────
   const clock = new THREE.Clock();
   function animate() {
     requestAnimationFrame(animate);
     const elapsed = clock.getElapsedTime();
-
-    // Subtle gate glow pulse
     gateLight.intensity = 1.2 + Math.sin(elapsed * 1.5) * 0.4;
-
-    // Mouse parallax — gentle camera sway
     camera.position.x += (mouseX * 1.2 - camera.position.x) * 0.04;
     camera.position.y += (-mouseY * 0.6 + 3 - camera.position.y) * 0.04;
     camera.lookAt(target);
-
-    // Slow star rotation
     stars.rotation.y = elapsed * 0.008;
-
     renderer.render(scene, camera);
   }
-  animate();
+
+  // ── Theme toggle listener ────────────────────────────────────
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+      setTimeout(syncTheme, 50);
+      sync3DTheme();
+    });
+  }
+
+  // ── Boot sequence (always last) ──────────────────────────────
+  syncTheme();       // apply correct colours for current theme
+  sync3DTheme();     // GSAP-animate to correct sky
+  introAnimation();  // fly-through
+  animate();         // start render loop ← was missing
 })();
 </script>
 </body>
