@@ -3684,6 +3684,206 @@
       border-color: var(--firefly);
       box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.18), 0 2px 8px var(--shadow);
     }
+
+    /* ============================================================================
+   MOBILE RESPONSIVENESS (Step 28)
+   ============================================================================ */
+
+/* Tablet: 768px */
+@media (max-width: 768px) {
+  .street, .research-street {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-lg) var(--space-md);
+    gap: var(--space-xl);
+    scroll-padding: var(--space-md);
+  }
+  
+  .building {
+    scroll-snap-align: center;
+    min-width: 75vw;
+    flex-shrink: 0;
+  }
+  
+  .about-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .stat-card, .bulletin-board {
+    max-width: 100%;
+  }
+}
+
+/* Mobile: 640px and below */
+@media (max-width: 640px) {
+  /* Modal: Full-screen on mobile */
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: var(--space-md);
+  }
+  
+  .modal-close {
+    position: sticky;
+    top: 0;
+    right: 0;
+    z-index: 10;
+  }
+  
+  .modal-badges, .modal-stack {
+    flex-wrap: wrap;
+  }
+  
+  /* Toggle bar: Smaller buttons */
+  .toggle-btn {
+    width: 40px;
+    height: 40px;
+    font-size: var(--fs-sm);
+  }
+  
+  .toggle-bar {
+    top: var(--space-sm);
+    right: var(--space-sm);
+    gap: var(--space-xs);
+  }
+}
+
+/* Small Mobile: 390px */
+@media (max-width: 390px) {
+  /* Streets: Horizontal scroll with snap */
+  .street, .research-street {
+    padding: var(--space-md) var(--space-sm);
+    gap: var(--space-lg);
+  }
+  
+  .building {
+    min-width: 85vw;
+  }
+  
+  /* Hero: Scaled down torii */
+  .torii-gate {
+    width: 200px;
+    height: 175px;
+  }
+  
+  .torii-post {
+    height: 140px;
+  }
+  
+  .torii-name {
+    font-size: var(--fs-sm);
+  }
+  
+  .hero-subtitle {
+    font-size: var(--fs-base);
+  }
+  
+  /* Reduced font sizes */
+  .about-header h2, .town-header h2, .research-header h2 {
+    font-size: var(--fs-xl);
+  }
+  
+  .modal-title {
+    font-size: var(--fs-lg);
+  }
+}
+
+/* Extra Small: 375px */
+@media (max-width: 375px) {
+  .torii-gate {
+    width: 180px;
+    height: 160px;
+  }
+  
+  .building {
+    min-width: 90vw;
+  }
+  
+  .stat-card {
+    padding: var(--space-md);
+  }
+  
+  .modal-card {
+    padding: var(--space-sm);
+  }
+}
+
+/* Performance: Disable parallax and reduce fireflies on mobile */
+@media (max-width: 768px) {
+  .parallax-layer {
+    transform: none !important;
+  }
+  
+  /* Hide excess fireflies (keep only first 5) */
+  .firefly:nth-child(n+6) {
+    display: none;
+  }
+  
+  /* Disable chibi cursor follow on touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    .chibi-character {
+      pointer-events: none;
+    }
+  }
+}
+
+/* Scroll hint arrow for streets */
+@media (max-width: 768px) {
+  .street::after, .research-street::after {
+    content: '›';
+    position: sticky;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 3rem;
+    color: var(--accent);
+    opacity: 0.5;
+    pointer-events: none;
+    text-shadow: -2px 0 4px var(--bg);
+    animation: scroll-hint-pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes scroll-hint-pulse {
+    0%, 100% { opacity: 0.3; transform: translateY(-50%) translateX(0); }
+    50% { opacity: 0.7; transform: translateY(-50%) translateX(-4px); }
+  }
+  
+  /* Hide arrow when scrolled to end */
+  .street::-webkit-scrollbar, .research-street::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Sticky progress bar (replaces mini-map on mobile) */
+@media (max-width: 640px) {
+  .town-map {
+    display: none;
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--firefly) 100%);
+    z-index: 1001;
+    transition: width 0.1s ease;
+    animation: progress-glow 2s ease-in-out infinite;
+  }
+  
+  @keyframes progress-glow {
+    0%, 100% { box-shadow: 0 0 4px var(--accent); }
+    50% { box-shadow: 0 0 12px var(--accent); }
+  }
+}
+    
   </style>
 </head>
 <body>
@@ -5301,6 +5501,28 @@
   window.addEventListener('egg:triggered', (e) => {
     console.log(`🎉 Easter Egg: ${e.detail.id}`);
   });
+
+      // ============================================================================
+  // MOBILE PROGRESS BAR TRACKING (Step 28)
+  // ============================================================================
+  
+  // Track scroll progress and update the progress bar width on mobile
+  if (window.matchMedia('(max-width: 640px)').matches) {
+    window.addEventListener('scroll', () => {
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrolled = (window.scrollY / scrollHeight) * 100;
+      document.body.style.setProperty('--scroll-progress', `${scrolled}%`);
+    });
+    
+    // Apply the CSS custom property
+    const progressStyle = document.createElement('style');
+    progressStyle.textContent = `
+      body::before {
+        width: var(--scroll-progress, 0%) !important;
+      }
+    `;
+    document.head.appendChild(progressStyle);
+  }
 
     })();
   </script>
