@@ -3171,56 +3171,7 @@
       opacity: 0.7;
     }
 
-    /* Town Map Mini-map */
-    .town-map {
-      position: fixed;
-      bottom: var(--space-md);
-      left: var(--space-md);
-      z-index: 900;
-      width: 180px;
-      background: var(--card-bg);
-      border: 2px solid var(--card-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-sm);
-      box-shadow: 0 4px 16px var(--shadow);
-      opacity: 0.9;
-      transition: opacity var(--transition-fast);
-    }
 
-    .town-map:hover {
-      opacity: 1;
-    }
-
-    .town-map-title {
-      font-family: var(--font-display);
-      font-size: var(--fs-xs);
-      text-align: center;
-      margin-bottom: var(--space-xs);
-      color: var(--fg);
-      border-bottom: 1px solid var(--card-border);
-      padding-bottom: 2px;
-    }
-
-    .map-nav {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .map-link {
-      font-family: var(--font-body);
-      font-size: var(--fs-xs);
-      color: var(--fg);
-      text-decoration: none;
-      padding: 4px 8px;
-      border-radius: var(--radius-sm);
-      transition: background var(--transition-fast);
-    }
-
-    .map-link:hover, .map-link.active {
-      background: var(--accent);
-      color: #0a0a1a;
-    }
 
     /* Mobile Responsive */
     @media (max-width: 768px) {
@@ -3547,50 +3498,53 @@
 
     /* Map toggle button (always visible) */
     #town-map-toggle {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-pill);
-      background: var(--card-bg);
-      border: 2px solid var(--card-border);
-      font-size: 1.2rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 12px var(--shadow);
-      transition: transform var(--transition-fast), border-color var(--transition-fast);
-      z-index: 1;
-      position: relative;
+        width: 48px;
+        height: 48px;
+        border: 2px solid var(--card-border);
+        border-radius: var(--radius-pill);
+        background: var(--card-bg);
+        color: var(--fg);
+        font-size: var(--fs-md);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px var(--shadow);
+        transition: transform var(--transition-fast), border-color var(--transition-fast);
     }
+    
     #town-map-toggle:hover {
-      transform: scale(1.1);
-      border-color: var(--accent);
+        transform: scale(1.1);
+        border-color: var(--accent);
     }
 
     /* Expandable panel */
     #town-map-panel {
-      background: var(--card-bg);
-      border: 2px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-sm) var(--space-md) var(--space-md);
-      box-shadow: 0 8px 24px var(--shadow);
-      margin-bottom: var(--space-sm);
-      min-width: 160px;
-      overflow: hidden;
-      max-height: 0;
-      opacity: 0;
-      transform: translateY(8px) scale(0.97);
-      transition:
-        max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-        opacity    0.25s cubic-bezier(0.16, 1, 0.3, 1),
-        transform  0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: none;
+        position: absolute;
+        bottom: 56px;
+        left: 0;    
+        background: var(--card-bg);
+        border: 2px solid var(--card-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-sm);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        box-shadow: 0 4px 16px var(--shadow);
+        min-width: 130px;
+        transition: opacity var(--transition-fast), transform var(--transition-fast);
     }
-    #town-map.open #town-map-panel {
-      max-height: 320px;
-      opacity: 1;
-      transform: none;
-      pointer-events: auto;
+
+    #town-map-panel[aria-hidden="true"] {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+    }
+
+    #town-map-panel[aria-hidden="false"] {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
     }
 
     /* Panel title */
@@ -3608,28 +3562,24 @@
 
     /* Each section row */
     .map-entry {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: 5px var(--space-xs);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      text-decoration: none;
-      color: var(--fg);
-      opacity: 0.55;
-      font-family: var(--font-body);
-      font-size: var(--fs-sm);
-      transition:
-        opacity var(--transition-fast),
-        background var(--transition-fast);
+        padding: var(--space-xs) var(--space-sm);
+        border-radius: var(--radius-sm);
+        color: var(--fg);
+        text-decoration: none;
+        font-size: var(--fs-xs);
+        letter-spacing: 0.08em;
+        transition: background var(--transition-fast), color var(--transition-fast);
     }
+
     .map-entry:hover {
-      opacity: 1;
-      background: rgba(6, 214, 160, 0.07);
+        background: var(--accent);
+        color: #0a0a1a;
     }
+
     .map-entry.active {
-      opacity: 1;
-      font-weight: 700;
+        background: rgba(6, 214, 160, 0.15);
+        color: var(--accent);
+        border-left: 2px solid var(--accent);
     }
 
     /* The dot */
