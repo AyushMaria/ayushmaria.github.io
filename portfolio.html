@@ -2037,6 +2037,11 @@
     });
   }
 
+  window.addEventListener('scroll', () => {
+    const pct = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+    document.documentElement.style.setProperty('--scroll-progress', pct + '%');
+  }, { passive: true });
+
   // ── Boot sequence (always last) ──────────────────────────────
   syncTheme();       // apply correct colours for current theme
   sync3DTheme();     // GSAP-animate to correct sky
