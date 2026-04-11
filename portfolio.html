@@ -368,7 +368,7 @@
         <div class="lamp-ground"></div>
       </div>
 
-      <div class="building building--ledger" data-project="tally">
+      <div class="building building--ledger" data-project="ledger">
         <div class="building-top"></div>
         <div class="building-body">
           <div class="building-window building-window--lit"></div>
@@ -541,12 +541,13 @@
   <!-- Town Map Mini-map -->
   <div class="town-map">
     <div class="town-map-title">Town Map</div>
-    <nav class="map-nav">
-      <a href="#hero" class="map-link">🏯 Gate</a>
-      <a href="#about" class="map-link">🗺️ Square</a>
-      <a href="#town" class="map-link">🏘️ Main St</a>
-      <a href="#research" class="map-link">🔬 Research</a>
-      <a href="#tavern" class="map-link">🍺 Tavern</a>
+    <!-- AFTER -->
+    <nav class="map-nav" id="town-map-panel" aria-hidden="true">
+      <a href="#hero"     class="map-link map-entry active" data-section="hero">🏯 Gate</a>
+      <a href="#about"    class="map-link map-entry"        data-section="about">🗺️ Square</a>
+      <a href="#town"     class="map-link map-entry"        data-section="town">🏘️ Main St</a>
+      <a href="#research" class="map-link map-entry"        data-section="research">🔬 Research</a>
+      <a href="#tavern"   class="map-link map-entry"        data-section="tavern">🍺 Tavern</a>
     </nav>
   </div>  
   
@@ -1722,31 +1723,13 @@
   }ep 26 — Town Map Mini-Map
   ================================================================ -->
   <div id="town-map" role="navigation" aria-label="Page mini-map">
-    <div id="town-map-panel" aria-hidden="true">
-      <div class="map-title">⚔ The Settlement</div>
-      <a class="map-entry active" href="#hero" data-section="hero">
-        <span class="map-dot"></span>Hero's Gate
-      </a>
-      <a class="map-entry" href="#about" data-section="about">
-        <span class="map-dot"></span>Town Square
-      </a>
-      <a class="map-entry" href="#town" data-section="town">
-        <span class="map-dot"></span>Main Street
-      </a>
-      <a class="map-entry" href="#research" data-section="research">
-        <span class="map-dot"></span>Research Quarter
-      </a>
-      <a class="map-entry" href="#tavern" data-section="tavern">
-        <span class="map-dot"></span>The Tavern
-      </a>
-    </div>
     <button id="town-map-toggle" aria-label="Toggle map" aria-expanded="false">🗺</button>
-      <nav id="town-map-panel" aria-hidden="true">
-        <a class="map-entry" data-section="hero">Gate</a>
-        <a class="map-entry" data-section="about">Square</a>
-        <a class="map-entry" data-section="town">Main St</a>
-        <a class="map-entry" data-section="research">Research</a>
-        <a class="map-entry" data-section="tavern">Tavern</a>
+    <nav class="map-nav" id="town-map-panel" aria-hidden="true">
+      <a href="#hero"     class="map-link map-entry active" data-section="hero">🏯 Gate</a>
+      <a href="#about"    class="map-link map-entry"        data-section="about">🗺️ Square</a>
+      <a href="#town"     class="map-link map-entry"        data-section="town">🏘️ Main St</a>
+      <a href="#research" class="map-link map-entry"        data-section="research">🔬 Research</a>
+      <a href="#tavern"   class="map-link map-entry"        data-section="tavern">🍺 Tavern</a>
     </nav>
   </div>
   <script>
@@ -2128,7 +2111,7 @@
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf4e4c1);
-    scene.fog = new THREE.Fog(0xf4e4c1, 30, 120);
+    scene.fog = new THREE.FogExp2(0xf4e4c1, 0.012);
 
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 300);
     camera.position.set(0, 6, 30);
