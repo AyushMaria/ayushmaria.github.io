@@ -1858,6 +1858,7 @@
       }
 
       g.position.set(opts.x, 0, opts.z);
+      g.rotation.y = Math.PI;
       return g;
     }
 
@@ -2003,7 +2004,7 @@
     (() => {
       const Z = -120;
       // The tavern building itself
-      const tavern = makeBuilding({ x: 0, z: Z, w: 10, h: 7, d: 8, mat: MAT.wood, roofColor: 0x3d2b1f });
+      const tavern = makeBuilding({ x: 0, z: Z, w: 10, h: 7, d: 8, mat: MAT.wood, roofColor: 0x3d2b1f, chimney: true });
       scene.add(tavern);
 
       // Fireplace glow inside
