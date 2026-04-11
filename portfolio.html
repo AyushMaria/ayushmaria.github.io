@@ -5661,10 +5661,12 @@
   });
 
   // Issue #3: Ensure Modal Opens for ALL Buildings
-  // Verify all buildings have proper event listeners
+  +-  // Add click event listeners to all buildings
   document.querySelectorAll('.building').forEach(building => {
-    if (!building.dataset.project) {
-      console.warn('Building missing data-project:', building.textContent);
+    const projectId = building.dataset.project;
+    if (projectId) {
+      building.addEventListener('click', () => openModal(projectId));
+      building.style.cursor = 'pointer';
     }
   });
 
