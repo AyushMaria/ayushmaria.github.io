@@ -3973,3 +3973,18 @@
         border-color: var(--accent);
         transform: translateY(-2px);
     }
+
+    .building-label-3d {
+        font-family: 'Cinzel', serif;
+        font-size: 11px;
+        font-weight: 700;
+        color: #ffd166;
+        background: rgba(10, 5, 30, 0.82);
+        border: 1px solid rgba(255, 209, 102, 0.4);
+        border-radius: 6px;
+        padding: 4px 10px;
+        pointer-events: none;
+        white-space: nowrap;
+        text-shadow: 0 0 8px rgba(255, 209, 102, 0.7);
+        letter-spacing: 0.05em;
+    }
