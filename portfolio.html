@@ -159,7 +159,6 @@
     </nav>
   </div>  
   
-
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal-card">
       <button class="modal-close" id="modal-close-btn">&times; Return to Town</button>
@@ -1780,24 +1779,84 @@
     }
 
     // Helper: labeled building
+    // Helper: labeled building with windows, door, optional chimney
     function makeBuilding(opts) {
       const g = new THREE.Group();
+
+      // Body
       const body = new THREE.Mesh(new THREE.BoxGeometry(opts.w, opts.h, opts.d), opts.mat);
       body.position.y = opts.h / 2;
       body.castShadow = true;
       body.receiveShadow = true;
       body.userData = opts.userData || {};
       g.add(body);
-      if (opts.roofColor !== undefined) {
+
+      // Roof
+      if (opts.roofColor !== undefined && opts.roofColor !== null) {
+        const roofMat = new THREE.MeshStandardMaterial({ color: opts.roofColor, roughness: 0.7 });
+        // Use a pyramid (4-sided cone) for most buildings
+        const roofSegs = opts.roofSegs || 4;
         const roof = new THREE.Mesh(
-          new THREE.ConeGeometry(opts.w * 0.75, opts.h * 0.5, 4),
-          new THREE.MeshStandardMaterial({ color: opts.roofColor, roughness: 0.7 })
+          new THREE.ConeGeometry(opts.w * 0.78, opts.h * 0.55, roofSegs),
+          roofMat
         );
-        roof.position.y = opts.h + opts.h * 0.25;
+        roof.position.y = opts.h + opts.h * 0.275;
         roof.rotation.y = Math.PI / 4;
         roof.castShadow = true;
         g.add(roof);
+
+        // Roof overhang trim
+        const trim = new THREE.Mesh(
+          new THREE.BoxGeometry(opts.w + 0.4, 0.15, opts.d + 0.4),
+          roofMat
+        );
+        trim.position.y = opts.h + 0.05;
+        g.add(trim);
       }
+
+      // Windows (two on front face)
+      const winMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.9 });
+      const winGeo = new THREE.BoxGeometry(0.55, 0.65, 0.06);
+      [-opts.w * 0.22, opts.w * 0.22].forEach(wx => {
+        const win = new THREE.Mesh(winGeo, winMat);
+        win.position.set(wx, opts.h * 0.58, -(opts.d / 2));
+        g.add(win);
+        // Window frame
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 });
+        const frameH = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.07), frameMat);
+        frameH.position.set(wx, opts.h * 0.58 + 0.35, -(opts.d / 2));
+        g.add(frameH);
+        const frameH2 = frameH.clone();
+        frameH2.position.y = opts.h * 0.58 - 0.35;
+        g.add(frameH2);
+      });
+
+      // Door (centred, on front face)
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.85 });
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, opts.h * 0.3, 0.07), doorMat);
+      door.position.set(0, opts.h * 0.15, -(opts.d / 2));
+      g.add(door);
+      // Door arch top
+      const arch = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.35, 0.07, 8, 1, false, 0, Math.PI),
+        doorMat
+      );
+      arch.rotation.z = Math.PI / 2;
+      arch.rotation.x = Math.PI / 2;
+      arch.position.set(0, opts.h * 0.3, -(opts.d / 2));
+      g.add(arch);
+
+      // Optional chimney
+      if (opts.chimney) {
+        const chim = new THREE.Mesh(
+          new THREE.BoxGeometry(0.35, opts.h * 0.35, 0.35),
+          new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 })
+        );
+        chim.position.set(opts.w * 0.25, opts.h + opts.h * 0.45, 0);
+        chim.castShadow = true;
+        g.add(chim);
+      }
+
       g.position.set(opts.x, 0, opts.z);
       return g;
     }
@@ -1866,12 +1925,18 @@
       scene.add(road);
 
       const buildings = [
-        { x: -7, z: Z-8,  w: 5, h: 7,  d: 4, mat: MAT.wood,   roofColor: 0x3d2b1f, label: 'The Forge',           project: 'mavpose' },
-        { x:  7, z: Z-8,  w: 5, h: 8,  d: 4, mat: MAT.purple, roofColor: 0x2a1548, label: 'Concierge Parlour',    project: 'ace'     },
-        { x: -7, z: Z,    w: 5, h: 6,  d: 4, mat: MAT.red,    roofColor: 0xa93226, label: 'Tiny Tots Academy',    project: 'tinytots'},
-        { x:  7, z: Z,    w: 5, h: 6,  d: 4, mat: MAT.teal,   roofColor: 0x05c493, label: 'The Volley Court',     project: 'volley'  },
-        { x: -7, z: Z+8,  w: 5, h: 7,  d: 4, mat: MAT.stone,  roofColor: 0x2c2c3e, label: 'Ledger Sanctum',       project: 'ledger'   },
-        { x:  7, z: Z+8,  w: 4, h:12,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x1c2b3a, roughness: 0.7 }), roofColor: null, label: "Navigator's Tower", project: 'instillgcs' },
+        // The Forge — dark wood, smoking chimney, squat & wide
+        { x: -7, z: Z-8,  w: 5.5, h: 6,  d: 5, mat: MAT.wood,   roofColor: 0x3d2b1f, roofSegs: 4, chimney: true,  label: 'The Forge',           project: 'mavpose'    },
+        // Concierge Parlour — purple, tall, 6-sided mystical roof
+        { x:  7, z: Z-8,  w: 4.5, h: 9,  d: 4, mat: MAT.purple, roofColor: 0x6a0dad, roofSegs: 6, chimney: false, label: 'Concierge Parlour',    project: 'ace'        },
+        // Tiny Tots Academy — red, wide & low, rounded roof segments
+        { x: -7, z: Z,    w: 6,   h: 5,  d: 5, mat: MAT.red,    roofColor: 0xe74c3c, roofSegs: 4, chimney: false, label: 'Tiny Tots Academy',    project: 'tinytots'   },
+        // The Volley Court — teal, wide flat shed shape (no roof cone)
+        { x:  7, z: Z,    w: 6,   h: 4.5,d: 6, mat: MAT.teal,   roofColor: null,     chimney: false, label: 'The Volley Court',  project: 'volley'     },
+        // Ledger Sanctum — stone, solid & square with dark roof
+        { x: -7, z: Z+8,  w: 5,   h: 7,  d: 4, mat: MAT.stone,  roofColor: 0x2c2c3e, roofSegs: 4, chimney: true,  label: 'Ledger Sanctum',       project: 'ledger'     },
+        // Navigator's Tower — tall dark tower, no roof (flat battlements implied)
+        { x:  7, z: Z+8,  w: 3.5, h:14,  d: 3.5, mat: new THREE.MeshStandardMaterial({ color: 0x1c2b3a, roughness: 0.7 }), roofColor: null, chimney: false, label: "Navigator's Tower", project: 'instillgcs' },
       ];
 
       buildings.forEach(opts => {
@@ -1907,9 +1972,12 @@
       scene.add(plaza);
 
       [
-        { x: -7, z: Z-4, w: 5, h: 6,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7 }), roofColor: 0x2a2a3a, label: 'Prediction Colosseum', project: 'xg' },
-        { x:  0, z: Z-6, w: 5, h: 8,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 }), roofColor: 0x1a2a3a, label: 'Vortex Observatory',   project: 'vortex' },
-        { x:  7, z: Z-4, w: 5, h: 5,  d: 4, mat: MAT.stone, roofColor: 0xb8a88a, label: 'Cloud Citadel', project: 'aws' },
+        // Prediction Colosseum — dark slate, wide oval-ish (8-seg roof = octagonal feel)
+        { x: -7, z: Z-4, w: 6,   h: 5,  d: 6, mat: new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7 }), roofColor: 0x1a1a2a, roofSegs: 8, chimney: false, label: 'Prediction Colosseum', project: 'xg'     },
+        // Vortex Observatory — tall deep-blue dome tower, 16-seg roof = rounded dome
+        { x:  0, z: Z-6, w: 4.5, h:10,  d: 4.5, mat: new THREE.MeshStandardMaterial({ color: 0x1a2a4a, roughness: 0.5, metalness: 0.3 }), roofColor: 0x0a1428, roofSegs: 16, chimney: false, label: 'Vortex Observatory', project: 'vortex' },
+        // Cloud Citadel — bright stone, wide & low like a server bunker, flat top
+        { x:  7, z: Z-4, w: 6,   h: 4,  d: 6, mat: new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.9 }), roofColor: null, chimney: false, label: 'Cloud Citadel', project: 'aws'    },
       ].forEach(opts => {
         const b = makeBuilding(opts);
         b.traverse(m => { if (m.isMesh) m.userData = { project: opts.project, label: opts.label }; });
