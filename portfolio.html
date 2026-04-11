@@ -3999,6 +3999,8 @@
     max-width: 1200px;
   }
   </style>
+    <!-- Three.js CDN - Step 1: 3D Rendering Engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div class="toggle-bar">
@@ -4073,36 +4075,14 @@
       <span class="firefly" style="top:75%;left:55%;animation-duration:8.5s,4s;animation-delay:1.1s,2.6s"></span>
     </div>
 
-    <div class="hero-content">
-      <div class="torii-gate">
-        <div class="torii-beam torii-beam--top">
-          <span class="torii-name">アユシュ / Ayush</span>
-        </div>
-        <div class="torii-beam torii-beam--mid"></div>
-        <div class="torii-post torii-post--left"></div>
-        <div class="torii-post torii-post--right"></div>
+      <!-- Step 2 & 3: Three.js Canvas Hero — Torii Gate + 3D Scene -->
+      <canvas id="three-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
+
+      <!-- Hero UI overlay (sits on top of canvas) -->
+      <div class="hero-content" style="position:relative;z-index:10;pointer-events:none;">
+        <p class="hero-subtitle" style="pointer-events:auto;">Traveller, welcome to Ayush&#39;s Settlement.</p>
+        <button class="hero-cta" id="enter-town-btn" style="pointer-events:auto;">Enter Town &rarr;</button>
       </div>
-
-      <p class="hero-subtitle">Traveller, welcome to Ayush's Settlement.</p>
-
-      <button class="hero-cta" id="enter-town-btn">Enter Town &rarr;</button>
-
-      <div class="chibi-character">
-        <svg viewBox="0 0 48 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="24" cy="12" r="10" fill="#2b2d42"/>
-          <rect x="18" y="20" width="12" height="28" rx="4" fill="#3a3f5c"/>
-          <rect x="16" y="48" width="6" height="20" rx="2" fill="#2b2d42"/>
-          <rect x="26" y="48" width="6" height="20" rx="2" fill="#2b2d42"/>
-          <rect x="10" y="24" width="8" height="4" rx="2" fill="#2b2d42"/>
-          <rect x="30" y="24" width="8" height="4" rx="2" fill="#2b2d42"/>
-          <line x1="38" y1="26" x2="42" y2="16" stroke="#8b6914" stroke-width="2"/>
-          <rect x="38" y="8" width="8" height="10" rx="2" fill="#ffd166" class="lantern-glow"/>
-          <rect x="39" y="9" width="6" height="8" rx="1" fill="#ffb833" opacity="0.8"/>
-          <circle cx="24" cy="12" r="2" fill="#f8f0dd"/>
-          <circle cx="26" cy="11" r="1" fill="#f8f0dd"/>
-        </svg>
-      </div>
-    </div>
   </section>
   <section id="about">
     <div class="paper-scrap paper-scrap--1"></div>
@@ -5699,5 +5679,223 @@
     </div>
     <button id="town-map-toggle" aria-label="Toggle map" aria-expanded="false">🗺</button>
   </div>
+  <script>
+// ============================================================
+// THREE.JS HERO — Steps 2 & 3: Scene + Camera + Torii Gate
+// ============================================================
+(function initThreeHero() {
+  if (typeof THREE === 'undefined') { console.warn('Three.js not loaded'); return; }
+
+  const canvas = document.getElementById('three-canvas');
+  if (!canvas) return;
+
+  // --- Renderer ---
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // --- Scene ---
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a0a2e);
+  scene.fog = new THREE.FogExp2(0x1a0a2e, 0.018);
+
+  // --- Step 2: PerspectiveCamera ---
+  // Position: (0, 3, 18) — just outside gate
+  // Target:   (0, 2, 0)  — city centre
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
+  camera.position.set(0, 3, 18);
+  const target = new THREE.Vector3(0, 2, 0);
+  camera.lookAt(target);
+
+  // --- Resize handler ---
+  function onResize() {
+    const hero = canvas.parentElement;
+    const w = hero.clientWidth || window.innerWidth;
+    const h = hero.clientHeight || window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  onResize();
+  window.addEventListener('resize', onResize);
+
+  // ============================================================
+  // Step 3: TORII GATE — 3D geometry at z = 12
+  // ============================================================
+  const gateGroup = new THREE.Group();
+  gateGroup.position.set(0, 0, 12);
+  scene.add(gateGroup);
+
+  // Materials
+  const redMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6, metalness: 0.1 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, roughness: 0.8 });
+
+  // Left pillar
+  const pillarGeo = new THREE.CylinderGeometry(0.22, 0.26, 8, 12);
+  const pillarL = new THREE.Mesh(pillarGeo, redMat);
+  pillarL.position.set(-2.5, 4, 0);
+  pillarL.castShadow = true;
+  gateGroup.add(pillarL);
+
+  // Right pillar
+  const pillarR = pillarL.clone();
+  pillarR.position.set(2.5, 4, 0);
+  gateGroup.add(pillarR);
+
+  // Kasagi — top crossbeam (wider, slightly upswept)
+  const kasagiGeo = new THREE.BoxGeometry(7.2, 0.3, 0.5);
+  const kasagi = new THREE.Mesh(kasagiGeo, redMat);
+  kasagi.position.set(0, 8.3, 0);
+  kasagi.castShadow = true;
+  gateGroup.add(kasagi);
+
+  // Kasagi ends (angled up at tips)
+  const kasagiEndGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  [-3.4, 3.4].forEach(x => {
+    const end = new THREE.Mesh(kasagiEndGeo, redMat);
+    end.position.set(x, 8.5, 0);
+    gateGroup.add(end);
+  });
+
+  // Shimaki — lower crossbeam
+  const shimakiGeo = new THREE.BoxGeometry(6.0, 0.22, 0.4);
+  const shimaki = new THREE.Mesh(shimakiGeo, redMat);
+  shimaki.position.set(0, 7.2, 0);
+  shimaki.castShadow = true;
+  gateGroup.add(shimaki);
+
+  // Nuki — tie-beam between pillars
+  const nukiGeo = new THREE.BoxGeometry(5.0, 0.18, 0.35);
+  const nuki = new THREE.Mesh(nukiGeo, darkMat);
+  nuki.position.set(0, 5.5, 0);
+  gateGroup.add(nuki);
+
+  // Name tablet — canvas texture with "アユシュ / AYUSH"
+  const tabletCanvas = document.createElement('canvas');
+  tabletCanvas.width = 256; tabletCanvas.height = 80;
+  const ctx = tabletCanvas.getContext('2d');
+  ctx.fillStyle = '#1a0a2e';
+  ctx.fillRect(0, 0, 256, 80);
+  ctx.strokeStyle = '#ff6b35';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(4, 4, 248, 72);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 22px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('アユシュ / AYUSH', 128, 36);
+  ctx.font = '14px serif';
+  ctx.fillStyle = '#ff6b35';
+  ctx.fillText('Ayush\'s Settlement', 128, 62);
+  const tabletTex = new THREE.CanvasTexture(tabletCanvas);
+  const tabletMat = new THREE.MeshBasicMaterial({ map: tabletTex });
+  const tabletGeo = new THREE.PlaneGeometry(2.2, 0.7);
+  const tablet = new THREE.Mesh(tabletGeo, tabletMat);
+  tablet.position.set(0, 6.3, 0.22);
+  gateGroup.add(tablet);
+
+  // Ground plane (stone path)
+  const groundGeo = new THREE.PlaneGeometry(60, 80);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.95, metalness: 0 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, 0, -10);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // ============================================================
+  // Step 3: LIGHTING
+  // ============================================================
+  // Ambient — warm fill
+  const ambient = new THREE.AmbientLight(0xff9966, 0.5);
+  scene.add(ambient);
+
+  // Directional — moonlight / sunlight
+  const dirLight = new THREE.DirectionalLight(0xffe4b5, 1.2);
+  dirLight.position.set(5, 12, 8);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  scene.add(dirLight);
+
+  // Gate warm glow from below
+  const gateLight = new THREE.PointLight(0xff6b35, 1.5, 8);
+  gateLight.position.set(0, 2, 12.5);
+  scene.add(gateLight);
+
+  // Stars — particle system beyond gate
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 800;
+  const starPositions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount * 3; i += 3) {
+    starPositions[i]     = (Math.random() - 0.5) * 120;
+    starPositions[i + 1] = Math.random() * 40 + 5;
+    starPositions[i + 2] = (Math.random() - 0.5) * 120 - 20;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, sizeAttenuation: true });
+  const stars = new THREE.Points(starGeo, starMat);
+  scene.add(stars);
+
+  // ============================================================
+  // Mouse parallax — subtle camera sway
+  // ============================================================
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  // ============================================================
+  // Day / Night sync with existing theme toggle
+  // ============================================================
+  function syncTheme() {
+    const isDay = document.documentElement.getAttribute('data-theme') === 'day';
+    if (isDay) {
+      scene.background = new THREE.Color(0xffecd2);
+      scene.fog.color.set(0xffecd2);
+      ambient.color.set(0xffe4b5);
+      ambient.intensity = 0.8;
+      dirLight.color.set(0xfff7e6);
+      dirLight.intensity = 2.0;
+      gateLight.color.set(0xff9944);
+    } else {
+      scene.background = new THREE.Color(0x1a0a2e);
+      scene.fog.color.set(0x1a0a2e);
+      ambient.color.set(0xff9966);
+      ambient.intensity = 0.5;
+      dirLight.color.set(0xffe4b5);
+      dirLight.intensity = 1.2;
+      gateLight.color.set(0xff6b35);
+    }
+  }
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) themeBtn.addEventListener('click', () => setTimeout(syncTheme, 50));
+  syncTheme();
+
+  // ============================================================
+  // Animation loop
+  // ============================================================
+  const clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
+    const elapsed = clock.getElapsedTime();
+
+    // Subtle gate glow pulse
+    gateLight.intensity = 1.2 + Math.sin(elapsed * 1.5) * 0.4;
+
+    // Mouse parallax — gentle camera sway
+    camera.position.x += (mouseX * 1.2 - camera.position.x) * 0.04;
+    camera.position.y += (-mouseY * 0.6 + 3 - camera.position.y) * 0.04;
+    camera.lookAt(target);
+
+    // Slow star rotation
+    stars.rotation.y = elapsed * 0.008;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
 </body>
 </html>
