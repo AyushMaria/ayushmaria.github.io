@@ -156,10 +156,12 @@
         var(--sky-horizon) 100%
       );
       transition: background 600ms ease;
+      display: none;
     }
 
     #clouds-layer {
       z-index: 2;
+      display: none;
     }
 
     #ground-layer {
@@ -167,6 +169,7 @@
       top: auto;
       bottom: 0;
       height: 120px;
+      display: none;
       background:
         repeating-linear-gradient(
           90deg,
@@ -4058,4 +4061,14 @@
 
     [data-theme="night"] .building-light-pool {
         background: radial-gradient(ellipse, rgba(255, 204, 85, 0.35) 0%, transparent 70%);
+    }
+
+    #three-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        z-index: 3; /* above sky(1) and clouds(2), below fireflies(10) */
     }
