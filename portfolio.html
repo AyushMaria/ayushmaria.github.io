@@ -603,38 +603,7 @@
       }
     });
 
-    // In portfolio.html, REPLACE the enter-town-btn listener:
-    document.getElementById('enter-town-btn').addEventListener('click', () => {
-      // Disable button during animation
-      const btn = document.getElementById('enter-town-btn');
-      btn.disabled = true;
-      btn.textContent = 'Entering...';
 
-      // Phase 1: Zoom camera through the Torii gate (z: 18 → -5)
-      gsap.to(camera.position, {
-        z: -5,
-        y: 2,
-        duration: 2.2,
-        ease: 'power2.in',
-        onUpdate: () => camera.lookAt(0, 2, -20),
-        onComplete: () => {
-          // Phase 2: Fade out the hero canvas
-          gsap.to('#three-canvas', {
-            opacity: 0,
-            duration: 0.6,
-            onComplete: () => {
-              // Phase 3: Show the 3D town world
-              document.getElementById('hero').style.display = 'none';
-              document.getElementById('town-world').style.display = 'block';
-              initTownWorld(); // boot the 3D town scene
-            }
-          });
-        }
-      });
-
-      // Fog thickens as you approach the gate
-      gsap.to(scene.fog, { density: 0.06, duration: 2.2, ease: 'power2.in' });
-    });
 
     const PROJECTS = {
     // ── Main Street ────────────────────────────────────────────
@@ -662,7 +631,7 @@
       readme: 'https://github.com/AyushMaria/Ace-booking-concierge#readme'
     },
 
-    tots: {
+    tinytots: {
       icon: '🏫',
       title: 'TinyTots — Academy Hall',
       badges: ['Web', 'SEO', 'Education'],
@@ -698,7 +667,7 @@
       readme: 'https://github.com/AyushMaria/tally-bridge#readme'
     },
 
-    gcs: {
+    instillgcs: {
       icon: '🛰',
       title: 'InstillGCS — Control Tower',
       badges: ['Drone', 'MAVLink', 'GCS'],
@@ -2106,6 +2075,38 @@
     document.documentElement.style.setProperty('--scroll-progress', pct + '%');
   }, { passive: true });
 
+  document.getElementById('enter-town-btn').addEventListener('click', () => {
+      // Disable button during animation
+      const btn = document.getElementById('enter-town-btn');
+      btn.disabled = true;
+      btn.textContent = 'Entering...';
+
+      // Phase 1: Zoom camera through the Torii gate (z: 18 → -5)
+      gsap.to(camera.position, {
+        z: -5,
+        y: 2,
+        duration: 2.2,
+        ease: 'power2.in',
+        onUpdate: () => camera.lookAt(0, 2, -20),
+        onComplete: () => {
+          // Phase 2: Fade out the hero canvas
+          gsap.to('#three-canvas', {
+            opacity: 0,
+            duration: 0.6,
+            onComplete: () => {
+              // Phase 3: Show the 3D town world
+              document.getElementById('hero').style.display = 'none';
+              document.getElementById('town-world').style.display = 'block';
+              initTownWorld(); // boot the 3D town scene
+            }
+          });
+        }
+      });
+
+      // Fog thickens as you approach the gate
+      gsap.to(scene.fog, { density: 0.06, duration: 2.2, ease: 'power2.in' });
+    });
+
   // ── Boot sequence (always last) ──────────────────────────────
   syncTheme();       // apply correct colours for current theme
   sync3DTheme();     // GSAP-animate to correct sky
@@ -2278,7 +2279,7 @@
         { x:  7, z: Z-8,  w: 5, h: 8,  d: 4, mat: MAT.purple, roofColor: 0x2a1548, label: 'Concierge Parlour',    project: 'ace'     },
         { x: -7, z: Z,    w: 5, h: 6,  d: 4, mat: MAT.red,    roofColor: 0xa93226, label: 'Tiny Tots Academy',    project: 'tinytots'},
         { x:  7, z: Z,    w: 5, h: 6,  d: 4, mat: MAT.teal,   roofColor: 0x05c493, label: 'The Volley Court',     project: 'volley'  },
-        { x: -7, z: Z+8,  w: 5, h: 7,  d: 4, mat: MAT.stone,  roofColor: 0x2c2c3e, label: 'Ledger Sanctum',       project: 'tally'   },
+        { x: -7, z: Z+8,  w: 5, h: 7,  d: 4, mat: MAT.stone,  roofColor: 0x2c2c3e, label: 'Ledger Sanctum',       project: 'ledger'   },
         { x:  7, z: Z+8,  w: 4, h:12,  d: 4, mat: new THREE.MeshStandardMaterial({ color: 0x1c2b3a, roughness: 0.7 }), roofColor: null, label: "Navigator's Tower", project: 'instillgcs' },
       ];
 
