@@ -1,4 +1,4 @@
-# 🏘️ Ayush Settlement
+# 🏘️ Portfolio.md
 ### A 3D Isekai Town Experience
 
 Welcome to the **Ayush Settlement**, an interactive 3D web experience built with modern JavaScript and a touch of another world. This project serves as a personal playground for exploring 3D environments, physics-based interactions, and Progressive Web App (PWA) features.
