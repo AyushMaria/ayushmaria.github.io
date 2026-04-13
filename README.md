@@ -71,5 +71,5 @@ Simply open index.html in your favorite browser (or use a Live Server extension 
 
 ## 🗺️ Roadmap
 [x] Phase 1: 3D Town & Drivable Cart.
-[ ] Phase 2: Isekai Aesthetic Upgrades
-[ ] Phase 3: Interaction System
+[ ] Phase 2: Isekai Aesthetic Upgrades.
+[ ] Phase 3: Interaction System.
