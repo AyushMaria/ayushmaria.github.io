@@ -40,3 +40,13 @@ If you'd like to run this settlement locally:
 1. **Clone the repo:**
    ```bash
    git clone [https://github.com/AyushMaria/ayushmaria.github.io.git](https://github.com/AyushMaria/ayushmaria.github.io.git)
+
+---
+
+## Open the gates:
+Simply open index.html in your favorite browser (or use a Live Server extension in VS Code for the best experience).
+
+---
+
+## 🗺️ Roadmap
+[x] Phase 1: 3D Town & Drivable Cart.
