@@ -1,0 +1,316 @@
+/* ════════════════════════════════════════════════════════════════
+   town-styles.css — 3D Town World UI Styles
+   Cart navigation overlays, labels, joystick, interaction prompts
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Labels ─────────────────────────────────────────────────── */
+
+.labels-container {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 550;
+}
+
+.building-label-3d {
+  position: absolute;
+  top: 0; left: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd166;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8), 0 0 12px rgba(255,209,102,0.3);
+  background: rgba(10, 5, 30, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,209,102,0.3);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+/* ── Controls Overlay ───────────────────────────────────────── */
+
+.controls-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 700;
+  pointer-events: all;
+  background: rgba(0,0,0,0.35);
+  transition: opacity 0.8s;
+}
+
+.controls-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.controls-card {
+  background: rgba(20, 12, 45, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,209,102,0.3);
+  border-radius: 18px;
+  padding: 30px 40px;
+  text-align: center;
+  color: #f8f0dd;
+  font-family: var(--font-body);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5),
+              0 0 60px rgba(255,209,102,0.06);
+  animation: controls-pop 0.5s ease-out;
+}
+
+@keyframes controls-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.controls-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin-bottom: 18px;
+  color: #ffd166;
+  letter-spacing: 0.06em;
+}
+
+.controls-grid {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.control-row kbd {
+  display: inline-block;
+  min-width: 32px;
+  padding: 3px 9px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 5px;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  text-align: center;
+  color: #ffd166;
+}
+
+.control-row span {
+  color: #c9bfaf;
+}
+
+.controls-hint {
+  font-size: 0.8rem;
+  color: #06d6a0;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+/* ── Interaction Prompt ─────────────────────────────────────── */
+
+.interact-prompt {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 10px;
+  z-index: 650;
+  animation: prompt-bob 2s ease-in-out infinite;
+}
+
+@keyframes prompt-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-6px); }
+}
+
+.interact-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--accent);
+  color: #0a0a1a;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(6,214,160,0.5);
+}
+
+.interact-text {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: #f8f0dd;
+  background: rgba(10,5,30,0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,209,102,0.25);
+}
+
+/* ── Zone Indicator ─────────────────────────────────────────── */
+
+.zone-indicator {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffd166;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  background: rgba(10,5,30,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 26px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,209,102,0.2);
+  z-index: 620;
+  transition: opacity 0.3s;
+}
+
+/* ── HUD Navigation (redesigned) ────────────────────────────── */
+
+.town-hud-nav {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 600;
+}
+
+.town-hud-nav .hud-btn {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  border: 1px solid rgba(255,209,102,0.3);
+  border-radius: 12px;
+  background: rgba(20,12,45,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #c9bfaf;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.town-hud-nav .hud-btn:hover {
+  background: rgba(255,209,102,0.15);
+  color: #ffd166;
+  border-color: rgba(255,209,102,0.6);
+  transform: translateY(-2px);
+}
+
+.town-hud-nav .hud-btn.active {
+  background: var(--accent);
+  color: #0a0a1a;
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(6,214,160,0.4);
+}
+
+/* ── Mobile Joystick ────────────────────────────────────────── */
+
+.mobile-joystick {
+  display: none;
+  position: absolute;
+  bottom: 100px;
+  left: 36px;
+  z-index: 660;
+}
+
+.joystick-base {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  position: relative;
+  touch-action: none;
+}
+
+.joystick-handle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(6, 214, 160, 0.55);
+  border: 2px solid rgba(6, 214, 160, 0.75);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+
+/* ── Mobile Interact Button ─────────────────────────────────── */
+
+.mobile-interact-btn {
+  position: absolute;
+  bottom: 120px;
+  right: 36px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0a0a1a;
+  border: 3px solid rgba(255,255,255,0.3);
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  z-index: 660;
+  box-shadow: 0 4px 16px rgba(6,214,160,0.4);
+  display: none;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .controls-card {
+    padding: 20px 24px;
+  }
+  .controls-card h3 {
+    font-size: 1.1rem;
+  }
+  .control-row {
+    font-size: 0.82rem;
+  }
+  .town-hud-nav {
+    gap: 6px;
+    bottom: 16px;
+  }
+  .town-hud-nav .hud-btn {
+    font-size: 0.6rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+  }
+  .zone-indicator {
+    font-size: 0.8rem;
+    padding: 6px 16px;
+    top: 12px;
+  }
+}

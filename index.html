@@ -37,8 +37,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-    <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN - Step 1: 3D Rendering Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="stylesheet" href="./town-styles.css">
+    <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
 </head>
 <body>
   <div class="toggle-bar">
@@ -127,23 +128,51 @@
   <div id="town-world" style="display:none; position:fixed; inset:0; z-index:500;">
     <canvas id="town-canvas" style="width:100%;height:100%;display:block;"></canvas>
 
-    <!-- HUD Navigation -->
-    <nav id="town-hud" style="
-      position:absolute; bottom:32px; left:50%; transform:translateX(-50%);
-      display:flex; gap:16px; z-index:600;
-    ">
+    <!-- Labels container (3D-projected HTML labels) -->
+    <div id="labels-container" class="labels-container"></div>
+
+    <!-- Controls overlay (auto-hides after 5s) -->
+    <div id="controls-overlay" class="controls-overlay">
+      <div class="controls-card">
+        <h3>🎮 Cart Controls</h3>
+        <div class="controls-grid">
+          <div class="control-row"><kbd>W</kbd><kbd>↑</kbd><span>Forward</span></div>
+          <div class="control-row"><kbd>S</kbd><kbd>↓</kbd><span>Brake</span></div>
+          <div class="control-row"><kbd>A</kbd><kbd>←</kbd><span>Left</span></div>
+          <div class="control-row"><kbd>D</kbd><kbd>→</kbd><span>Right</span></div>
+          <div class="control-row"><kbd>Space</kbd><span>Handbrake</span></div>
+          <div class="control-row"><kbd>E</kbd><span>Interact</span></div>
+        </div>
+        <p class="controls-hint">Drive to buildings to explore projects</p>
+      </div>
+    </div>
+
+    <!-- Interaction prompt (shown near buildings) -->
+    <div id="interact-prompt" class="interact-prompt" style="display:none;">
+      <span class="interact-key">E</span>
+      <span class="interact-text">Enter <strong id="interact-name"></strong></span>
+    </div>
+
+    <!-- Zone indicator -->
+    <div id="zone-indicator" class="zone-indicator">Town Square</div>
+
+    <!-- HUD Navigation (fast-travel) -->
+    <nav id="town-hud" class="town-hud-nav">
       <button class="hud-btn" data-zone="square">🗺 Town Square</button>
       <button class="hud-btn" data-zone="settlement">🏘 Settlement</button>
       <button class="hud-btn" data-zone="research">🔬 Research</button>
       <button class="hud-btn" data-zone="tavern">🍺 Tavern</button>
     </nav>
 
-    <!-- Info Panel (shown on building click) -->
-    <div id="town-info-panel" style="
-      position:absolute; top:50%; right:32px; transform:translateY(-50%);
-      width:320px; background:var(--card-bg); border:2px solid var(--card-border);
-      border-radius:16px; padding:24px; display:none;
-    "></div>
+    <!-- Mobile joystick (touch devices only) -->
+    <div id="mobile-joystick" class="mobile-joystick">
+      <div class="joystick-base" id="joystick-base">
+        <div class="joystick-handle" id="joystick-handle"></div>
+      </div>
+    </div>
+
+    <!-- Mobile interact button (touch devices only) -->
+    <button id="mobile-interact-btn" class="mobile-interact-btn" style="display:none;">⚡ Enter</button>
   </div>
 
   <!-- Town Map Mini-map -->
@@ -1667,424 +1696,7 @@
       animate();         // start render loop ← was missing
     })();
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
-  <script>
-    function initTownWorld() {
-      if (window._townWorldBooted) return;
-      window._townWorldBooted = true;
-
-      // CSS2D label renderer
-      const labelRenderer = new THREE.CSS2DRenderer();
-      labelRenderer.setSize(window.innerWidth, window.innerHeight);
-      labelRenderer.domElement.style.position = 'absolute';
-      labelRenderer.domElement.style.top = '0';
-      labelRenderer.domElement.style.left = '0';
-      labelRenderer.domElement.style.pointerEvents = 'none';
-      document.getElementById('town-world').appendChild(labelRenderer.domElement);
-
-      window.addEventListener('resize', () => {
-        labelRenderer.setSize(innerWidth, innerHeight);
-      });
-
-      const canvas = document.getElementById('town-canvas');
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.setSize(window.innerWidth, window.innerHeight);
-
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x87ceeb);
-      scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
-
-      const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 300);
-      camera.position.set(0, 6, 30);
-      camera.lookAt(0, 2, 0);
-
-      window.addEventListener('resize', () => {
-        renderer.setSize(innerWidth, innerHeight);
-        camera.aspect = innerWidth / innerHeight;
-        camera.updateProjectionMatrix();
-      });
-
-      // ── Shared Materials ─────────────────────────────────────────
-      const MAT = {
-        cobble:   new THREE.MeshStandardMaterial({ color: 0x9e8c6c, roughness: 0.9 }),
-        wood:     new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 }),
-        red:      new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }),
-        teal:     new THREE.MeshStandardMaterial({ color: 0x06d6a0, roughness: 0.5, metalness: 0.2 }),
-        purple:   new THREE.MeshStandardMaterial({ color: 0x3b1f5e, roughness: 0.7 }),
-        stone:    new THREE.MeshStandardMaterial({ color: 0xd4c9b0, roughness: 0.95 }),
-        darkwood: new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 }),
-        glowYellow: new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.6 }),
-        glowTeal:   new THREE.MeshStandardMaterial({ color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 0.5 }),
-      };
-
-      // ── Ground Plane ──────────────────────────────────────────────
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0x9e8c6c, roughness: 1 })
-      );
-      ground.rotation.x = -Math.PI / 2;
-      ground.receiveShadow = true;
-      scene.add(ground);
-
-      // ── Lighting ─────────────────────────────────────────────────
-      scene.add(new THREE.AmbientLight(0xffe4b5, 0.6));
-      const sun = new THREE.DirectionalLight(0xffd580, 1.4);
-      sun.position.set(10, 20, 10);
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048);
-      sun.shadow.camera.far = 150;
-      scene.add(sun);
-
-      // Helper: add a lamp post
-      function addLamp(x, z) {
-        const g = new THREE.Group();
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.5, 8), MAT.darkwood);
-        pole.position.y = 1.75;
-        g.add(pole);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), MAT.glowYellow);
-        head.position.y = 3.6;
-        g.add(head);
-        const light = new THREE.PointLight(0xffd166, 0.8, 8);
-        light.position.y = 3.6;
-        g.add(light);
-        g.position.set(x, 0, z);
-        g.traverse(m => { if (m.isMesh) { m.castShadow = true; } });
-        scene.add(g);
-      }
-      // Helper: attach a floating CSS2D label to a group
-      function addLabel(group, text, yOffset) {
-        const div = document.createElement('div');
-        div.className = 'building-label-3d';
-        div.textContent = text;
-        const label = new THREE.CSS2DObject(div);
-        label.position.set(0, yOffset, 0);
-        group.add(label);
-      }
-      // Helper: labeled building
-      // Helper: labeled building with windows, door, optional chimney
-      function makeBuilding(opts) {
-        const g = new THREE.Group();
-
-        // Body
-        const body = new THREE.Mesh(new THREE.BoxGeometry(opts.w, opts.h, opts.d), opts.mat);
-        body.position.y = opts.h / 2;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        body.userData = opts.userData || {};
-        g.add(body);
-
-        // Roof
-        if (opts.roofColor !== undefined && opts.roofColor !== null) {
-          const roofMat = new THREE.MeshStandardMaterial({ color: opts.roofColor, roughness: 0.7 });
-          // Use a pyramid (4-sided cone) for most buildings
-          const roofSegs = opts.roofSegs || 4;
-          const roof = new THREE.Mesh(
-            new THREE.ConeGeometry(opts.w * 0.78, opts.h * 0.55, roofSegs),
-            roofMat
-          );
-          roof.position.y = opts.h + opts.h * 0.275;
-          roof.rotation.y = Math.PI / 4;
-          roof.castShadow = true;
-          g.add(roof);
-
-          // Roof overhang trim
-          const trim = new THREE.Mesh(
-            new THREE.BoxGeometry(opts.w + 0.4, 0.15, opts.d + 0.4),
-            roofMat
-          );
-          trim.position.y = opts.h + 0.05;
-          g.add(trim);
-        }
-
-        // Windows (two on front face)
-        const winMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.9 });
-        const winGeo = new THREE.BoxGeometry(0.55, 0.65, 0.06);
-        [-opts.w * 0.22, opts.w * 0.22].forEach(wx => {
-          const win = new THREE.Mesh(winGeo, winMat);
-          win.position.set(wx, opts.h * 0.58, -(opts.d / 2));
-          g.add(win);
-          // Window frame
-          const frameMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 });
-          const frameH = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.07), frameMat);
-          frameH.position.set(wx, opts.h * 0.58 + 0.35, -(opts.d / 2));
-          g.add(frameH);
-          const frameH2 = frameH.clone();
-          frameH2.position.y = opts.h * 0.58 - 0.35;
-          g.add(frameH2);
-        });
-
-        // Door (centred, on front face)
-        const doorMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.85 });
-        const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, opts.h * 0.3, 0.07), doorMat);
-        door.position.set(0, opts.h * 0.15, -(opts.d / 2));
-        g.add(door);
-        // Door arch top
-        const arch = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.35, 0.35, 0.07, 8, 1, false, 0, Math.PI),
-          doorMat
-        );
-        arch.rotation.z = Math.PI / 2;
-        arch.rotation.x = Math.PI / 2;
-        arch.position.set(0, opts.h * 0.3, -(opts.d / 2));
-        g.add(arch);
-
-        // Optional chimney
-        if (opts.chimney) {
-          const chim = new THREE.Mesh(
-            new THREE.BoxGeometry(0.35, opts.h * 0.35, 0.35),
-            new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 })
-          );
-          chim.position.set(opts.w * 0.25, opts.h + opts.h * 0.45, 0);
-          chim.castShadow = true;
-          g.add(chim);
-        }
-
-        g.position.set(opts.x, 0, opts.z);
-        g.rotation.y = Math.PI;
-        return g;
-      }
-
-      // ── ZONES ────────────────────────────────────────────────────
-      // Each zone is a group positioned along the Z axis
-      // Camera flies between zones via GSAP
-
-      const ZONES = {
-        square:     { x: 0,   z: 0,   camY: 6, camZ: 20,  label: 'Town Square'       },
-        settlement: { x: 0,   z: -40, camY: 6, camZ: -20, label: 'The Settlement'     },
-        research:   { x: 0,   z: -80, camY: 6, camZ: -60, label: 'Research Quarter'   },
-        tavern:     { x: 0,   z: -120,camY: 5, camZ: -100,label: 'The Tavern'         },
-      };
-
-      // ── Zone 1: Town Square ───────────────────────────────────────
-      (() => {
-        // Central fountain
-        const fountain = new THREE.Mesh(
-          new THREE.CylinderGeometry(2.5, 2.8, 0.6, 16),
-          MAT.stone
-        );
-        fountain.position.set(0, 0.3, 0);
-        fountain.castShadow = true;
-        scene.add(fountain);
-
-        const water = new THREE.Mesh(
-          new THREE.CylinderGeometry(2.2, 2.2, 0.1, 16),
-          new THREE.MeshStandardMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.7, roughness: 0.1, metalness: 0.3 })
-        );
-        water.position.set(0, 0.65, 0);
-        scene.add(water);
-
-        // Stat card building (about section)
-        const statCard = makeBuilding({ x: -6, z: -2, w: 4, h: 5, d: 3, mat: MAT.stone, roofColor: 0x8b7355, userData: { zone: 'square', project: null, label: 'Adventurer Stats' } });
-        scene.add(statCard);
-
-        // Guild bulletin board building
-        const guild = makeBuilding({ x: 6, z: -2, w: 4, h: 5, d: 3, mat: MAT.wood, roofColor: 0x3e2518, userData: { zone: 'square', project: null, label: 'Guild Board' } });
-        scene.add(guild);
-
-        // Add a sign-post in the middle
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2, 8), MAT.darkwood);
-        post.position.set(0, 1, 5);
-        scene.add(post);
-        const sign = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 0.1), MAT.wood);
-        sign.position.set(0, 2.2, 5);
-        sign.rotation.y = 0.2;
-        scene.add(sign);
-
-        // Lamps around fountain
-        [[-3.5, 3.5], [3.5, 3.5], [-3.5, -3.5], [3.5, -3.5]].forEach(([x, z]) => addLamp(x, z));
-      })();
-
-      // ── Zone 2: The Settlement (Main Street) ─────────────────────
-      (() => {
-        const Z = -40;
-        // Road
-        const road = new THREE.Mesh(
-          new THREE.PlaneGeometry(8, 30),
-          new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 1 })
-        );
-        road.rotation.x = -Math.PI / 2;
-        road.position.set(0, 0.01, Z);
-        road.receiveShadow = true;
-        scene.add(road);
-
-        const buildings = [
-          // The Forge — dark wood, smoking chimney, squat & wide
-          { x: -7, z: Z-8,  w: 5.5, h: 6,  d: 5, mat: MAT.wood,   roofColor: 0x3d2b1f, roofSegs: 4, chimney: true,  label: 'The Forge',           project: 'mavpose'    },
-          // Concierge Parlour — purple, tall, 6-sided mystical roof
-          { x:  7, z: Z-8,  w: 4.5, h: 9,  d: 4, mat: MAT.purple, roofColor: 0x6a0dad, roofSegs: 6, chimney: false, label: 'Concierge Parlour',    project: 'ace'        },
-          // Tiny Tots Academy — red, wide & low, rounded roof segments
-          { x: -7, z: Z,    w: 6,   h: 5,  d: 5, mat: MAT.red,    roofColor: 0xe74c3c, roofSegs: 4, chimney: false, label: 'Tiny Tots Academy',    project: 'tinytots'   },
-          // The Volley Court — teal, wide flat shed shape (no roof cone)
-          { x:  7, z: Z,    w: 6,   h: 4.5,d: 6, mat: MAT.teal,   roofColor: null,     chimney: false, label: 'The Volley Court',  project: 'volley'     },
-          // Ledger Sanctum — stone, solid & square with dark roof
-          { x: -7, z: Z+8,  w: 5,   h: 7,  d: 4, mat: MAT.stone,  roofColor: 0x2c2c3e, roofSegs: 4, chimney: true,  label: 'Ledger Sanctum',       project: 'ledger'     },
-          // Navigator's Tower — tall dark tower, no roof (flat battlements implied)
-          { x:  7, z: Z+8,  w: 3.5, h:14,  d: 3.5, mat: new THREE.MeshStandardMaterial({ color: 0x1c2b3a, roughness: 0.7 }), roofColor: null, chimney: false, label: "Navigator's Tower", project: 'instillgcs' },
-        ];
-
-        buildings.forEach(opts => {
-          const b = makeBuilding(opts);
-          b.rotation.y = opts.x < 0 ? -Math.PI / 2 : Math.PI / 2;
-          b.traverse(m => { if (m.isMesh) m.userData = { project: opts.project, label: opts.label }; });
-          addLabel(b, opts.label, opts.h + 1.2);
-          // Glowing windows
-          const win = new THREE.Mesh(
-            new THREE.BoxGeometry(0.8, 0.8, 0.05),
-            new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.8 })
-          );
-          win.position.set(opts.x, opts.h * 0.6, opts.z - opts.d / 2 - 0.01);
-          scene.add(win);
-          scene.add(b);
-          const light = new THREE.PointLight(0xffd166, 0.5, 5);
-          light.position.set(opts.x, opts.h * 0.5, opts.z);
-          scene.add(light);
-        });
-
-        [-4, -1, 2, 5].forEach(dz => addLamp(-3.5, Z + dz * 3));
-        [-4, -1, 2, 5].forEach(dz => addLamp( 3.5, Z + dz * 3));
-      })();
-
-      // ── Zone 3: Research Quarter ──────────────────────────────────
-      (() => {
-        const Z = -80;
-        // Stone-paved ground
-        const plaza = new THREE.Mesh(
-          new THREE.PlaneGeometry(20, 20),
-          new THREE.MeshStandardMaterial({ color: 0x7a7a8a, roughness: 0.95 })
-        );
-        plaza.rotation.x = -Math.PI / 2;
-        plaza.position.set(0, 0.01, Z);
-        scene.add(plaza);
-
-        [
-          // Prediction Colosseum — dark slate, wide oval-ish (8-seg roof = octagonal feel)
-          { x: -7, z: Z-4, w: 6,   h: 5,  d: 6, mat: new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7 }), roofColor: 0x1a1a2a, roofSegs: 8, chimney: false, label: 'Prediction Colosseum', project: 'xg'     },
-          // Vortex Observatory — tall deep-blue dome tower, 16-seg roof = rounded dome
-          { x:  0, z: Z-6, w: 4.5, h:10,  d: 4.5, mat: new THREE.MeshStandardMaterial({ color: 0x1a2a4a, roughness: 0.5, metalness: 0.3 }), roofColor: 0x0a1428, roofSegs: 16, chimney: false, label: 'Vortex Observatory', project: 'vortex' },
-          // Cloud Citadel — bright stone, wide & low like a server bunker, flat top
-          { x:  7, z: Z-4, w: 6,   h: 4,  d: 6, mat: new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.9 }), roofColor: null, chimney: false, label: 'Cloud Citadel', project: 'aws'    },
-        ].forEach(opts => {
-          const b = makeBuilding(opts);
-          b.traverse(m => { if (m.isMesh) m.userData = { project: opts.project, label: opts.label }; });
-          addLabel(b, opts.label, opts.h + 1.2);
-          scene.add(b);
-        });
-
-        // Vortex spinning orb above Observatory
-        const orb = new THREE.Mesh(
-          new THREE.SphereGeometry(0.5, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 1 })
-        );
-        orb.position.set(0, 9.5, Z - 6);
-        orb.userData._spin = true;
-        scene.add(orb);
-        const orbLight = new THREE.PointLight(0x06d6a0, 1.2, 10);
-        orbLight.position.set(0, 9.5, Z - 6);
-        scene.add(orbLight);
-
-        addLamp(-3.5, Z); addLamp(3.5, Z);
-      })();
-
-      // ── Zone 4: Tavern ────────────────────────────────────────────
-      (() => {
-        const Z = -120;
-        // The tavern building itself
-        const tavern = makeBuilding({ x: 0, z: Z, w: 10, h: 7, d: 8, mat: MAT.wood, roofColor: 0x3d2b1f, chimney: true });
-        scene.add(tavern);
-
-        // Fireplace glow inside
-        const fireGlow = new THREE.PointLight(0xff6b35, 2, 10);
-        fireGlow.position.set(0, 2, Z);
-        scene.add(fireGlow);
-
-        // Warm ground
-        const warmGround = new THREE.Mesh(
-          new THREE.PlaneGeometry(20, 20),
-          new THREE.MeshStandardMaterial({ color: 0x5c3d2e, roughness: 1 })
-        );
-        warmGround.rotation.x = -Math.PI / 2;
-        warmGround.position.set(0, 0.01, Z);
-        scene.add(warmGround);
-
-        // Tables
-        [[-3, Z+2], [3, Z+2], [0, Z-2]].forEach(([x, z]) => {
-          const table = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.15, 8), MAT.wood);
-          table.position.set(x, 0.9, z);
-          scene.add(table);
-          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 8), MAT.darkwood);
-          leg.position.set(x, 0.45, z);
-          scene.add(leg);
-        });
-
-        addLamp(-5, Z + 4); addLamp(5, Z + 4);
-      })();
-
-      // ── Clickable Buildings Raycaster ────────────────────────────
-      const raycaster = new THREE.Raycaster();
-      const mouse = new THREE.Vector2();
-      const clickables = [];
-      scene.traverse(obj => { if (obj.isMesh && obj.userData.project) clickables.push(obj); });
-
-      canvas.addEventListener('mousemove', e => {
-        mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
-        mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-        raycaster.setFromCamera(mouse, camera);
-        const hits = raycaster.intersectObjects(clickables);
-        canvas.style.cursor = hits.length ? 'pointer' : 'default';
-      });
-
-      canvas.addEventListener('click', e => {
-        mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
-        mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-        raycaster.setFromCamera(mouse, camera);
-        const hits = raycaster.intersectObjects(clickables);
-        if (hits.length) {
-          const { project, label } = hits[0].object.userData;
-          if (project) openModal(project); // reuse existing modal system
-        }
-      });
-
-      // ── HUD Zone Navigation ───────────────────────────────────────
-      let currentZone = 'square';
-      function flyToZone(zoneKey) {
-        const z = ZONES[zoneKey];
-        currentZone = zoneKey;
-        document.querySelectorAll('.hud-btn').forEach(b => b.classList.toggle('active', b.dataset.zone === zoneKey));
-        gsap.to(camera.position, {
-          x: z.x, y: z.camY, z: z.camZ,
-          duration: 1.8,
-          ease: 'power2.inOut',
-          onUpdate: () => camera.lookAt(z.x, 2, z.z)
-        });
-      }
-
-      document.querySelectorAll('.hud-btn').forEach(btn => {
-        btn.addEventListener('click', () => flyToZone(btn.dataset.zone));
-      });
-      document.querySelector('.hud-btn[data-zone="square"]')?.classList.add('active');
-
-      // ── Animate Loop ─────────────────────────────────────────────
-      const clock = new THREE.Clock();
-      function animate() {
-        requestAnimationFrame(animate);
-        const t = clock.getElapsedTime();
-         // Pulse fireGlow in tavern
-        scene.traverse(obj => {
-          if (obj.isPointLight && obj.color.r > 0.9) obj.intensity = 1.6 + Math.sin(t * 3) * 0.4;
-          if (obj.isMesh && obj.userData._spin) obj.rotation.y = t * 1.5;
-        });
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);  // ← renders HTML labels in 3D space
-      }
-      animate();
-
-      // Fly in from the gate
-      gsap.from(camera.position, { z: 80, y: 12, duration: 2.5, ease: 'power2.out',
-        onUpdate: () => camera.lookAt(0, 2, 0) });
-    }
-  </script>
+  <!-- Town world module (ES module) -->
+  <script type="module" src="./town-world.js"></script>
 </body>
 </html>
