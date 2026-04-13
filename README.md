@@ -9,6 +9,27 @@ Welcome to the **Ayush Settlement**, an interactive 3D web experience built with
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+graph TD
+    A["index.html"] --> B["Hero Scene (existing)"]
+    A --> C["Enter Town Button"]
+    C --> D["town-world.js (module)"]
+    D --> E["cart.js (module)"]
+    D --> F["Scene Setup"]
+    D --> G["Zone Definitions"]
+    D --> H["Interaction System"]
+    E --> I["Cart Model"]
+    E --> J["Physics/Controls"]
+    E --> K["Camera Follow"]
+    H --> L["openModal() (existing)"]
+    D --> M["Mini-map"]
+    D --> N["Particle Effects"]
+```
+
+---
+
 ## 🚀 Current Status: Phase 1
 We have successfully transitioned from a static void into a living settlement.
 
@@ -50,3 +71,5 @@ Simply open index.html in your favorite browser (or use a Live Server extension 
 
 ## 🗺️ Roadmap
 [x] Phase 1: 3D Town & Drivable Cart.
+[ ] Phase 2: Isekai Aesthetic Upgrades
+[ ] Phase 3: Interaction System
