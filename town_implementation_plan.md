@@ -277,15 +277,6 @@ From Bruno Simon's reference — techniques that require significant effort but 
 
 ---
 
-## Open Questions
-
-1. **Mobile support** — Full joystick controls, or fallback to current HUD button navigation on touch devices?
-2. **Horse or magic cart?** — Should the cart be pulled by a chibi horse/donkey, or self-propelled (magic cart)?
-3. **Audio scope** — Start with basic cart sounds, or include full ambient zone audio from Phase 1?
-4. **Three.js version** — Upgrade from r150 to r160+ is recommended. Any concerns?
-
----
-
 ## Verification Plan
 
 ### Automated
