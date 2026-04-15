@@ -8,14 +8,23 @@ Transform the 3D town into a **fully navigable isekai village** where the user d
 
 ## Current State
 
-A Three.js hero scene with a Torii gate, and a 3D town world (triggered by "Enter Town") with labeled buildings across 4 zones (Town Square, Settlement, Research, Tavern). Navigation is currently **HUD button-based** — you click a zone and the camera flies there via GSAP.
+A Three.js hero scene with a Torii gate, and a 3D town world (triggered by "Enter Town") with labeled buildings across 4 zones arranged in a hub-and-spoke layout. Navigation is currently **HUD button-based** — you click a zone and the camera flies there via GSAP.
+
+### Zone Layout (Circular Hub + 3 Spoke Arms)
+
+| Zone | Direction | Buildings | Theme |
+|------|-----------|-----------|-------|
+| **Town Square** | South (entry, z > 0) | The Tavern, Adventurer Stats, Guild Board | Central hub, fountain, market stalls, campfire |
+| **North Arm** | North (z < 0) | The Forge, Ledger Sanctum, Tiny Tots Academy | Main Street — workshops, commerce, education |
+| **East Arm** | East (x > 0) | Prediction Colosseum, Cloud Citadel, Vortex Observatory | Research Quarter — science, magic, observation |
+| **West Arm** | West (x < 0) | Concierge Parlour, The Volley Court, Navigator's Tower | Services — hospitality, recreation, navigation |
 
 ### Architecture Comparison
 
 | Aspect | Bruno Simon (Reference) | Current Town | Target |
 |--------|--------------------------|-------------|--------|
 | **Build system** | Vite + npm modules | Vanilla HTML + CDN scripts | ES modules (no bundler) |
-| **Three.js version** | `three/webgpu` (r170+, WebGPU) | r128 CDN (WebGL) | r160+ CDN (WebGL) |
+| **Three.js version** | `three/webgpu` (r170+, WebGPU) | r150 CDN (WebGL) | r160+ CDN (WebGL) |
 | **Architecture** | Singleton `Game` class orchestrating 40+ modules | `initTownWorld()` function + `Cart` class | Singleton `TownGame` + modular files |
 | **Physics** | Rapier 3D (`@dimforge/rapier3d`) | Custom bicycle-model + AABB | Custom physics (lightweight) |
 | **Asset pipeline** | GLTF models + KTX compressed textures | Procedural geometry only | Procedural + optional GLTF |
@@ -23,7 +32,7 @@ A Three.js hero scene with a Torii gate, and a 3D town world (triggered by "Ente
 | **Camera** | Spherical coords, zoom, cinematic, speed-based | Basic lerp follow | Spherical + zoom + cinematic |
 | **Materials** | Centralized registry with shared instances | New material per building | Shared materials map |
 | **Events** | Priority-based event emitter | Direct function calls | Custom event emitter |
-| **File count** | ~50 JS modules, ~20 styles | 4 files total | ~6-8 JS modules |
+| **File count** | ~50 JS modules, ~20 styles | 5 JS modules | ~6-8 JS modules |
 
 ---
 
@@ -140,7 +149,7 @@ events.on('tick', () => { particles.update(); }, 30);  // effects last
 - Update "Enter Town" button to initialize `TownGame`
 - Add controls hint overlay (fades out after 5s)
 - Keep HUD zone buttons as **fast-travel** (auto-drives cart along road spline)
-- Upgrade Three.js CDN from r128 → r160+
+- Upgrade Three.js CDN from r150 → r160+
 
 ---
 
@@ -153,25 +162,25 @@ events.on('tick', () => { particles.update(); }, 30);  // effects last
 
 #### [MODIFY] `town-game.js` — Zone Visual Details
 
-**Town Square:**
+**Town Square (South — Entry Hub):**
 - Animated fountain with particle water spray
 - Wooden sign posts with hand-painted text textures
 - Flower beds (instanced colored planes with wind sway)
 - NPC silhouettes (flat billboard sprites) that wave when cart is near
 
-**Settlement (Main Street):**
+**North Arm (Main Street):**
 - Timber framing lines, flower boxes under windows, swinging inn signs
 - Smoke particles rising from chimneys (The Forge, Ledger Sanctum)
 - Street barrels, crates, hanging lanterns
 - Wooden market stalls between buildings
 
-**Research Quarter:**
+**East Arm (Research Quarter):**
 - Glowing rune circles on ground (animated ring geometry with emissive shader)
 - Floating books/crystals orbiting the Vortex Observatory
 - Lightning particle effects between towers
 - Misty/eerie fog density higher here
 
-**Tavern:**
+**West Arm (Services Quarter):**
 - Warm interior light spilling from windows (volumetric cone lights)
 - Mugs and plates on outdoor tables
 - Bard's stage with musical note particle emitter
@@ -273,7 +282,7 @@ From Bruno Simon's reference — techniques that require significant effort but 
 1. **Mobile support** — Full joystick controls, or fallback to current HUD button navigation on touch devices?
 2. **Horse or magic cart?** — Should the cart be pulled by a chibi horse/donkey, or self-propelled (magic cart)?
 3. **Audio scope** — Start with basic cart sounds, or include full ambient zone audio from Phase 1?
-4. **Three.js version** — Upgrade from r128 to r160+ is recommended. Any concerns?
+4. **Three.js version** — Upgrade from r150 to r160+ is recommended. Any concerns?
 
 ---
 
