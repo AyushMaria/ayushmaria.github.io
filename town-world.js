@@ -8,14 +8,18 @@
 
 import { Cart, FollowCamera } from './cart.js';
 import { ParticleSystem } from './particles.js';
+import { PostProcessing } from './post-processing.js';
+import { AudioSystem } from './audio.js';
 
-const THREE = window.THREE;
+import * as THREE from 'three';
 const gsap  = window.gsap;
 
 // ════════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════
 // BUILDING DATA  (circular layout — hub + 3 spoke arms)
 // ════════════════════════════════════════════════════════════════
+
+export const animatedProps = [];
 
 const BUILDINGS = [
   // Town Square — entry area (south of roundabout, z > 0)
@@ -87,6 +91,51 @@ function makeBuilding(o) {
     g.add(trim);
   }
 
+  // Timber framing (Phase 2.5)
+  if (o.roof !== null && (!o.roofSegs || o.roofSegs === 4)) {
+    const timberMat = new THREE.MeshStandardMaterial({ color: 0x4a2a18, roughness: 0.95 });
+    const tThick = 0.15;
+    // Corners
+    [ [-o.w/2, -o.d/2], [o.w/2, -o.d/2], [-o.w/2, o.d/2], [o.w/2, o.d/2] ].forEach(([x,z]) => {
+      const col = new THREE.Mesh(new THREE.BoxGeometry(tThick, o.h + 0.1, tThick), timberMat);
+      col.position.set(x, o.h/2, z);
+      g.add(col);
+    });
+    // Horizontal bands
+    [ 0.1, o.h - 0.1 ].forEach(y => {
+      const hBand = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.1, tThick, o.d + 0.1), timberMat);
+      hBand.position.y = y;
+      g.add(hBand);
+    });
+  }
+
+  // Hanging animated sign (Phase 2.5)
+  if (o.label === 'The Tavern' || o.label === 'The Forge') {
+    const isTavern = o.label === 'The Tavern';
+    const sPivot = new THREE.Group();
+    // Hang off the right side
+    sPivot.position.set(o.w/2 + 0.1, o.h * 0.7, o.d/2 - 1.0); 
+    
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.1), new THREE.MeshStandardMaterial({color:0x333333}));
+    bracket.position.set(0.6, 0, 0); // stick out right
+    sPivot.add(bracket);
+    
+    const signGroup = new THREE.Group();
+    signGroup.position.set(1.0, -0.05, 0); // hook loop pos
+    const signMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 1.2, 1.0), 
+      new THREE.MeshStandardMaterial({color: isTavern ? 0x8B0000 : 0x555555})
+    );
+    signMesh.position.set(0, -0.6, 0); // hang down
+    signGroup.add(signMesh);
+    sPivot.add(signGroup);
+    
+    g.add(sPivot);
+    animatedProps.push({
+      update: (t) => { signGroup.rotation.z = Math.sin(t * 1.5 + o.x) * 0.2; }
+    });
+  }
+
   // Windows (front face)
   const winMat = new THREE.MeshStandardMaterial({
     color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.8,
@@ -119,6 +168,25 @@ function makeBuilding(o) {
   }
 
   g.position.set(o.x, 0, o.z);
+  
+  // Phase 3.1: Floating interactive marker
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      new THREE.MeshStandardMaterial({color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5})
+    );
+    marker.position.y = o.h + 2;
+    g.add(marker);
+    g.userData.marker = marker;
+    animatedProps.push({
+      update: (t) => {
+        marker.rotation.y = t * 1.5;
+        marker.position.y = o.h + 2.5 + Math.sin(t * 2.5 + o.x) * 0.3;
+      }
+    });
+  }
+  g.userData.body = body; // For emissive highlighting
+
   return g;
 }
 
@@ -474,10 +542,14 @@ function initTownWorld() {
   camera.position.set(0, 8, 40);
   camera.lookAt(0, 2, 0);
 
+  // ── Post-Processing ──────────────────────────────────────────
+  const postFx = new PostProcessing(renderer, scene, camera);
+
   window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
+    postFx.resize(innerWidth, innerHeight);
   });
 
   // ── Sky ─────────────────────────────────────────────────────
@@ -645,6 +717,7 @@ function initTownWorld() {
     buildingMeta.push({
       data: o,
       position: new THREE.Vector3(o.x, 0, o.z),
+      mesh: b
     });
 
     if (o.chimney) {
@@ -683,6 +756,10 @@ function initTownWorld() {
   );
   water.position.set(0, 0.65, 0);
   scene.add(water);
+
+  // Audio system integration
+  const audioSys = new AudioSystem(camera);
+  audioSys.attachFountain(water);
 
   // Fountain spout
   const spout = new THREE.Mesh(
@@ -728,6 +805,7 @@ function initTownWorld() {
   scene.add(fireGlow);
 
   particleSystem.createCampfire(new THREE.Vector3(-10, 0.2, 30), 40);
+  audioSys.attachFire(fireGlow);
 
   // ── Lamps (circular layout) ─────────────────────────────────
   // Roundabout perimeter
@@ -771,6 +849,94 @@ function initTownWorld() {
     [48, -20], [-48, 18], [20, -48], [-18, 48],
     [55, 35], [-55, -40], [38, -55], [-40, 55],
   ].forEach(([x, z]) => scene.add(createRock(x, z, 0.6 + Math.random() * 0.8)));
+
+  // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
+
+  // Flower Beds (Town Square)
+  const flowerGeo = new THREE.BoxGeometry(2, 0.4, 2);
+  const flowerMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 1 });
+  [[-10, 8], [10, 8], [-10, 24], [10, 24]].forEach(([x,z]) => {
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 2.4), new THREE.MeshStandardMaterial({color: 0x5c3d2e}));
+    bed.position.set(x, 0.15, z);
+    scene.add(bed);
+    const flowers = new THREE.Mesh(flowerGeo, flowerMat);
+    flowers.position.set(x, 0.35, z);
+    scene.add(flowers);
+    animatedProps.push({
+      update: (t) => { flowers.rotation.y = Math.sin(t + x) * 0.1; }
+    });
+  });
+
+  // Market Stalls (Town Square)
+  const stallGroup = new THREE.Group();
+  const table = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 1.5), new THREE.MeshStandardMaterial({color:0x8B4513}));
+  table.position.y = 0.8;
+  stallGroup.add(table);
+  const legGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.8);
+  [-1.4, 1.4].forEach(x => [-0.6, 0.6].forEach(z => {
+    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({color:0x3e2518}));
+    leg.position.set(x, 0.4, z);
+    stallGroup.add(leg);
+  }));
+  const canopy = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 2.5), new THREE.MeshStandardMaterial({color: 0xc0392b, side: THREE.DoubleSide}));
+  canopy.position.set(0, 2.0, 0);
+  canopy.rotation.x = -Math.PI/3;
+  stallGroup.add(canopy);
+  
+  [[-4, 24, Math.PI/2], [4, 24, -Math.PI/2]].forEach(([x,z,r]) => {
+    const s = stallGroup.clone();
+    s.position.set(x, 0, z);
+    s.rotation.y = r;
+    scene.add(s);
+  });
+
+  // Glowing Rune Circles & Floating Books (Research Quarter - East Arm)
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 0.8,
+    transparent: true, opacity: 0.6
+  });
+  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(8, 0.1, 3, 32), runeMat);
+  runeRing.rotation.x = -Math.PI/2;
+  runeRing.position.set(40, 0.05, 0);
+  scene.add(runeRing);
+  animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
+
+  const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
+  const bookMat = new THREE.MeshStandardMaterial({ color: 0x5e35b1, roughness: 0.4 });
+  const books = new THREE.Group();
+  books.position.set(40, 3, 0);
+  scene.add(books);
+  for(let i=0; i<3; i++) {
+    const b = new THREE.Mesh(bookGeo, bookMat);
+    b.position.set(Math.sin(i * Math.PI*2/3) * 6, Math.sin(i) * 2, Math.cos(i * Math.PI*2/3) * 6);
+    b.rotation.set(Math.random(), Math.random(), Math.random());
+    books.add(b);
+  }
+  animatedProps.push({ update: (t) => { 
+    books.rotation.y = t * 0.5;
+    books.children.forEach((b, i) => {
+      b.position.y += Math.sin(t * 2 + i) * 0.02;
+      b.rotation.x += 0.01;
+      b.rotation.z += 0.015;
+    });
+  }});
+
+  // Tavern Mugs and Barrels (South Arm - Tavern)
+  const mugGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
+  const mugMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness:0.2 });
+  [[-14.2, 25.8], [-13.8, 26.1], [-6.1, 31.9], [-12.8, 33.2]].forEach(([x,z]) => {
+    const mug = new THREE.Mesh(mugGeo, mugMat);
+    mug.position.set(x, 1.05, z);
+    scene.add(mug);
+  });
+  
+  const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 12);
+  const barrelMat = new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 });
+  [[-12, 28], [-12, 29], [-11, 28.5]].forEach(([x,z]) => {
+    const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+    barrel.position.set(x, 0.5, z);
+    scene.add(barrel);
+  });
 
   // ── Label System ────────────────────────────────────────────
   const labelsContainer = document.getElementById('labels-container');
@@ -958,6 +1124,10 @@ function initTownWorld() {
     // Day/Night cycle
     dayCycle.update(delta);
 
+    // Post-processing sync with day/night
+    postFx.setTimeOfDay(dayCycle.isNight());
+    postFx.update();
+
     // Particles
     particleSystem.update(delta, elapsed);
     if (cartDust && cartDust.sys) {
@@ -965,7 +1135,7 @@ function initTownWorld() {
     }
 
     // Camera
-    followCam.update(cart.getPosition(), cart.getRotation(), cart.getSpeed());
+    followCam.update(cart);
 
     // Labels
     labelSys.update(canvas.clientWidth, canvas.clientHeight);
@@ -977,6 +1147,14 @@ function initTownWorld() {
     if (minimap) minimap.update(cart.getPosition(), cart.getRotation());
 
     // Animated props
+    for (let p of animatedProps) {
+      if (p.update) p.update(elapsed);
+    }
+    
+    // Audio system
+    audioSys.update(delta, elapsed, cart, dayCycle.isNight());
+
+    // Existing animated props
     orb.rotation.y   = elapsed * 1.5;
     orb.position.y   = 12 + Math.sin(elapsed * 2) * 0.3;
     orbLight.position.copy(orb.position);
@@ -985,7 +1163,8 @@ function initTownWorld() {
     // Water shimmer
     water.rotation.y = elapsed * 0.3;
 
-    renderer.render(scene, camera);
+    // Render through post-processing pipeline
+    postFx.render();
   }
 
   // ── Entry fly-in ────────────────────────────────────────────

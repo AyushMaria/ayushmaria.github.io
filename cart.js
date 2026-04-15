@@ -8,7 +8,7 @@
  * For local dev, serve via `npx serve .` or VS Code Live Server.
  */
 
-const THREE = window.THREE;
+import * as THREE from 'three';
 
 // ════════════════════════════════════════════════════════════════
 // CART CLASS
@@ -208,6 +208,11 @@ export class Cart {
     gsap.delayedCall(duration, () => { this.teleporting = false; });
   }
 
+  // ── Cinematic Focus ───────────────────────────────────────────
+  setFocusTarget(targetPos) {
+    this.focusTarget = targetPos;
+  }
+
   // ── Physics update (called every frame) ───────────────────
   update(delta, colliders) {
     // Teleport: just sync transform, skip physics
@@ -292,8 +297,14 @@ export class Cart {
       }
     }
 
-    if (!collided) this.position.copy(newPos);
-    else           this.velocity *= -0.25;
+    this.justCollided = false;
+    if (!collided) {
+      this.position.copy(newPos);
+    } else {
+      // Bounce and flag for camera shake
+      if (Math.abs(this.velocity) > 0.05) this.justCollided = true;
+      this.velocity *= -0.25;
+    }
 
     // ── Sync transform ───────────────────────────────────────
     this.group.position.copy(this.position);
@@ -327,24 +338,97 @@ export class Cart {
 export class FollowCamera {
   constructor(camera) {
     this.camera     = camera;
-    this.distance   = 14;
+    
+    // Zoom limits and base settings
+    this.minDistance = 8;
+    this.maxDistance = 25;
+    this.baseDistance = 14;     // Target distance controlled by scroll wheel
+    this.currentDistance = 14;  // Lerped dynamic distance
+    
     this.height     = 7;
     this.lookHeight = 1.8;
     this.smoothness = 0.05;
-    this.speedBoost = 6;
+    this.speedBoost = 12;       // How much the camera zooms out at speed
+    
+    // Phase 2.4 Features
+    this.isIsometric = false;
+    this.shakeIntensity = 0;
+    
     this._pos    = new THREE.Vector3();
     this._lookAt = new THREE.Vector3();
     this._ready  = false;
+
+    this.setupEvents();
   }
 
-  update(cartPos, cartRot, cartSpeed) {
-    const behind = new THREE.Vector3(
-      -Math.sin(cartRot) * this.distance,
-      this.height + cartSpeed * this.speedBoost,
-      -Math.cos(cartRot) * this.distance
+  setupEvents() {
+    // Scroll-wheel zoom
+    window.addEventListener('wheel', (e) => {
+      if (this.isIsometric) return; // Disallow manual zoom in iso mode
+      this.baseDistance += e.deltaY * 0.01;
+      this.baseDistance = THREE.MathUtils.clamp(this.baseDistance, this.minDistance, this.maxDistance);
+    });
+
+    // Keyboard toggle for Isometric 'Q'
+    window.addEventListener('keydown', (e) => {
+      // Prevent triggering if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      if (e.key.toLowerCase() === 'q') {
+        this.isIsometric = !this.isIsometric;
+        // Snap out of ready state to force a smooth pan to new perspective
+        if (this.isIsometric) this.smoothness = 0.03; // Even smoother transition
+      }
+    });
+  }
+
+  // Called when cart hits a wall
+  addShake() {
+    this.shakeIntensity = 0.4;
+  }
+
+  update(cart) {
+    const cartPos = cart.getPosition();
+    const cartRot = cart.getRotation();
+    const cartSpeed = cart.getSpeed();
+
+    // Trigger shake on collision
+    if (cart.justCollided) {
+      this.addShake();
+    }
+
+    // Dynamic zoom based on speed (camera pulls back when fast)
+    this.currentDistance = THREE.MathUtils.lerp(
+      this.currentDistance, 
+      this.baseDistance + cartSpeed * this.speedBoost, 
+      0.03
     );
-    const desiredPos  = cartPos.clone().add(behind);
-    const desiredLook = cartPos.clone().add(new THREE.Vector3(0, this.lookHeight, 0));
+    
+    let desiredPos, desiredLook;
+
+    if (this.isIsometric) {
+      // Fixed angle, fixed distance (Classic ARPG view)
+      const isoOffset = new THREE.Vector3(15, 20, 15);
+      desiredPos = cartPos.clone().add(isoOffset);
+      desiredLook = cartPos.clone();
+    } else {
+      // Standard Follow Camera
+      const behind = new THREE.Vector3(
+        -Math.sin(cartRot) * this.currentDistance,
+        this.height + cartSpeed * 2, // Slight height boost based on speed
+        -Math.cos(cartRot) * this.currentDistance
+      );
+      desiredPos  = cartPos.clone().add(behind);
+      desiredLook = cartPos.clone().add(new THREE.Vector3(0, this.lookHeight, 0));
+    }
+
+    // Cinematic teleport or snap smoothing
+    if (cart.teleporting) {
+      this.smoothness = 0.15; // Faster snap while teleporting so camera keeps up
+    } else {
+      // Normal smoothness but slowly recover if we changed modes
+      this.smoothness = THREE.MathUtils.lerp(this.smoothness, 0.05, 0.01);
+    }
 
     if (!this._ready) {
       this._pos.copy(desiredPos);
@@ -358,5 +442,18 @@ export class FollowCamera {
 
     this.camera.position.copy(this._pos);
     this.camera.lookAt(this._lookAt);
+
+    // Apply Shake Effect
+    if (this.shakeIntensity > 0) {
+      this.camera.position.x += (Math.random() - 0.5) * this.shakeIntensity;
+      this.camera.position.y += (Math.random() - 0.5) * this.shakeIntensity;
+      this.camera.position.z += (Math.random() - 0.5) * this.shakeIntensity;
+      
+      // Roll shake
+      this.camera.rotation.z += (Math.random() - 0.5) * this.shakeIntensity * 0.1;
+      
+      this.shakeIntensity -= 0.02; // Decay over frames
+      if (this.shakeIntensity < 0) this.shakeIntensity = 0;
+    }
   }
 }

@@ -55,6 +55,24 @@
   pointer-events: none;
 }
 
+/* Zone Name overlay */
+.zone-name {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display, serif);
+  font-size: 3rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(6, 214, 160, 0.8), 2px 2px 5px rgba(0,0,0,0.8);
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none;
+  z-index: 100;
+  letter-spacing: 2px;
+}
+
 .controls-card {
   background: rgba(20, 12, 45, 0.88);
   backdrop-filter: blur(18px);

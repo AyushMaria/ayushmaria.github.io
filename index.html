@@ -39,7 +39,13 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./town-styles.css">
     <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.module.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <div class="toggle-bar">
@@ -146,6 +152,9 @@
         <p class="controls-hint">Drive to buildings to explore projects</p>
       </div>
     </div>
+
+    <!-- Zone transition text -->
+    <div id="zone-name" class="zone-name"></div>
 
     <!-- Interaction prompt (shown near buildings) -->
     <div id="interact-prompt" class="interact-prompt" style="display:none;">
@@ -1324,13 +1333,15 @@
       <a href="#tavern"   class="map-link map-entry"        data-section="tavern">🍺 Tavern</a>
     </nav>
   </div>
-  <script>
+  <script type="module">
+    import * as THREE from 'three';
+    window.THREE = THREE; // Expose for any other script relying on the global
+
     // ============================================================
     // THREE.JS HERO — Steps 2 & 3: Scene + Camera + Torii Gate
     // ============================================================
     (function initThreeHero() {
       // ── Guards ──────────────────────────────────────────────────
-      if (typeof THREE === 'undefined') { console.warn('Three.js not loaded'); return; }
       const canvas = document.getElementById('three-canvas');
       if (!canvas) return;
 

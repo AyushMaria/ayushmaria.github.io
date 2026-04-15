@@ -3,7 +3,7 @@
  * Custom THREE.Points based particle systems with simple shaders and pooling
  */
 
-const THREE = window.THREE;
+import * as THREE from 'three';
 
 export class ParticleSystem {
   constructor(scene) {
