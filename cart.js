@@ -47,6 +47,10 @@ export class Cart {
     // ── Input ─────────────────────────────────────────────────
     this.keys = { forward: false, backward: false, left: false, right: false, brake: false };
     this.joystick = { x: 0, y: 0, active: false };
+    // Set by town-world while a project modal is open: driving input is
+    // ignored and the cart coasts to a stop (keys are still tracked so
+    // nothing is "stuck" when the modal closes).
+    this.inputLocked = false;
 
     this._buildModel();
     this._setupKeyboard();
@@ -238,6 +242,7 @@ export class Cart {
       if (this.keys.left)  inSteer =  1;
       if (this.keys.right) inSteer = -1;
     }
+    if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; }
 
     // ── Acceleration ─────────────────────────────────────────
     if (inFwd > 0)
@@ -353,6 +358,7 @@ export class FollowCamera {
     // Phase 2.4 Features
     this.isIsometric = false;
     this.shakeIntensity = 0;
+    this.reducedMotion = false;   // set by town-world from prefers-reduced-motion
     
     this._pos    = new THREE.Vector3();
     this._lookAt = new THREE.Vector3();
@@ -365,6 +371,8 @@ export class FollowCamera {
     // Scroll-wheel zoom
     window.addEventListener('wheel', (e) => {
       if (this.isIsometric) return; // Disallow manual zoom in iso mode
+      // Don't zoom the camera while scrolling inside a modal / HUD panel
+      if (e.target && e.target.closest && e.target.closest('.modal-overlay, .zone-hud')) return;
       this.baseDistance += e.deltaY * 0.01;
       this.baseDistance = THREE.MathUtils.clamp(this.baseDistance, this.minDistance, this.maxDistance);
     });
@@ -384,6 +392,7 @@ export class FollowCamera {
 
   // Called when cart hits a wall
   addShake() {
+    if (this.reducedMotion) return;
     this.shakeIntensity = 0.4;
   }
 

@@ -10,9 +10,37 @@ import { Cart, FollowCamera } from './cart.js';
 import { ParticleSystem } from './particles.js';
 import { PostProcessing } from './post-processing.js';
 import { AudioSystem } from './audio.js';
+import { Achievements } from './achievements.js';
 
 import * as THREE from 'three';
 const gsap  = window.gsap;
+
+// Accessibility: honour the OS "reduce motion" preference for camera shake,
+// idle bobbing and UI slide-ins (the world itself still animates).
+const REDUCED_MOTION = window.matchMedia &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ════════════════════════════════════════════════════════════════
+// PERFORMANCE TIER (Phase 4.3 — mobile scaling)
+// Picked once at boot. `?lowperf` / `?highperf` force a tier for testing.
+// ════════════════════════════════════════════════════════════════
+
+function detectPerfTier() {
+  const q = new URLSearchParams(location.search);
+  if (q.has('lowperf'))  return 'low';
+  if (q.has('highperf')) return 'high';
+  const touch  = 'ontouchstart' in window;
+  const cores  = navigator.hardwareConcurrency || 8;
+  const memory = navigator.deviceMemory || 8;
+  const small  = Math.min(innerWidth, innerHeight) < 700;
+  if (touch && (small || cores <= 4 || memory <= 4)) return 'low';
+  return 'high';
+}
+
+const PERF_PRESETS = {
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true },
+};
 
 // ════════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════
@@ -21,39 +49,115 @@ const gsap  = window.gsap;
 
 export const animatedProps = [];
 
+// Zone names are shared with audio.js zone detection, the fast-travel HUD,
+// achievements and the project modal's contextual header.
+export const ZONES = {
+  square:   { name: 'Town Square',      spawn: { x: 0,   z: 30, rot:  Math.PI     } },
+  north:    { name: 'Main Street',      spawn: { x: 0,   z: -12, rot: Math.PI     } },
+  east:     { name: 'Research Quarter', spawn: { x: 14,  z: 0,  rot:  Math.PI / 2 } },
+  west:     { name: 'Services Quarter', spawn: { x: -14, z: 0,  rot: -Math.PI / 2 } },
+};
+
 const BUILDINGS = [
   // Town Square — entry area (south of roundabout, z > 0)
   { x: -10, z: 28, w: 10, h: 7, d: 8, color: 0x6b4226, roof: 0x3d2b1f,
-    chimney: true, label: 'The Tavern', project: null },
+    chimney: true, label: 'The Tavern', project: null, zone: 'square', tavern: true },
   { x: -7, z: 16, w: 4, h: 5, d: 3, color: 0xd4c9b0, roof: 0x8b7355,
-    label: 'Adventurer Stats', project: null },
+    label: 'Adventurer Stats', project: null, zone: 'square' },
   { x: 7, z: 16, w: 4, h: 5, d: 3, color: 0x6b4226, roof: 0x3e2518,
-    label: 'Guild Board', project: null },
+    label: 'Guild Board', project: null, zone: 'square' },
 
   // North Arm
   { x: -7, z: -14, w: 5.5, h: 6, d: 5, color: 0x6b4226, roof: 0x3d2b1f,
-    chimney: true, label: 'The Forge', project: 'mavpose' },
+    chimney: true, label: 'The Forge', project: 'mavpose', zone: 'north' },
   { x: 7, z: -20, w: 5, h: 7, d: 4, color: 0xd4c9b0, roof: 0x2c2c3e,
-    chimney: true, label: 'Ledger Sanctum', project: 'ledger' },
+    chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'north' },
   { x: -5, z: -36, w: 6, h: 5, d: 5, color: 0xc0392b, roof: 0xe74c3c,
-    label: 'Tiny Tots Academy', project: 'tinytots' },
+    label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },
 
   // East Arm
   { x: 18, z: -7, w: 6, h: 5, d: 6, color: 0x3a3a4a, roof: 0x1a1a2a,
-    roofSegs: 8, label: 'Prediction Colosseum', project: 'xg' },
+    roofSegs: 8, label: 'Prediction Colosseum', project: 'xg', zone: 'east' },
   { x: 22, z: 7, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,
-    label: 'Cloud Citadel', project: 'aws' },
+    label: 'Cloud Citadel', project: 'aws', zone: 'east' },
   { x: 40, z: 0, w: 4.5, h: 10, d: 4.5, color: 0x1a2a4a, roof: 0x0a1428,
-    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex' },
+    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'east' },
 
   // West Arm
   { x: -20, z: 7, w: 4.5, h: 9, d: 4, color: 0x3b1f5e, roof: 0x6a0dad,
-    roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
+    roofSegs: 6, label: 'Concierge Parlour', project: 'ace', zone: 'west' },
   { x: -18, z: -7, w: 6, h: 4.5, d: 6, color: 0x06d6a0, roof: null,
-    label: 'The Volley Court', project: 'volley' },
+    label: 'The Volley Court', project: 'volley', zone: 'west' },
   { x: -40, z: 0, w: 3.5, h: 14, d: 3.5, color: 0x1c2b3a, roof: null,
-    label: "Navigator's Tower", project: 'instillgcs' },
+    label: "Navigator's Tower", project: 'instillgcs', zone: 'west' },
 ];
+
+// ════════════════════════════════════════════════════════════════
+// SHARED MATERIALS for Phase 2.5 additions
+// (small step toward the planned materials.js registry — every new
+//  prop below reuses these instead of allocating per-object materials)
+// ════════════════════════════════════════════════════════════════
+
+const SHARED = {
+  planterWood: new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.9 }),
+  foliage:     new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.85 }),
+  // vertexColors would be simpler but instanceColor keeps one geometry + one material
+  bloom:       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+};
+
+// Reference-image bloom palette: pink / red / white / lilac / marigold
+const BLOOM_PALETTE = [0xff4d6d, 0xff7b9c, 0xffb3c6, 0xfff1f5, 0xc77dff, 0xffa94d, 0xe63946];
+
+// Wind sway — vertex displacement injected into MeshStandardMaterial.
+// Works for both instanced (phase from instanceMatrix) and plain meshes.
+const windUniforms = { uTime: { value: 0 } };
+function applyWindSway(material, amplitude, yOffset) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime  = windUniforms.uTime;
+    shader.uniforms.uAmp   = { value: amplitude };
+    shader.uniforms.uYOff  = { value: yOffset };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        uniform float uTime; uniform float uAmp; uniform float uYOff;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          #ifdef USE_INSTANCING
+            vec2 wp = instanceMatrix[3].xz;
+          #else
+            vec2 wp = modelMatrix[3].xz;
+          #endif
+          float phase = (wp.x + wp.y) * 0.6;
+          float w = clamp(position.y + uYOff, 0.0, 1.0);
+          transformed.x += sin(uTime * 1.6 + phase) * uAmp * w;
+          transformed.z += cos(uTime * 1.1 + phase * 1.3) * uAmp * 0.5 * w;
+        }`);
+  };
+  // Same program for every material using this helper (only uniforms differ)
+  material.customProgramCacheKey = () => 'windsway';
+  return material;
+}
+applyWindSway(SHARED.bloom,   0.05, 0.5);
+applyWindSway(SHARED.foliage, 0.04, 0.5);
+
+// Which zone a world position falls in (same partition as audio.js).
+export function zoneKeyAt(x, z) {
+  if (Math.hypot(x, z) < 18) return 'square';
+  const a = Math.atan2(x, z);                    // 0 = south (+z), ±PI = north
+  if (Math.abs(a) < Math.PI / 4) return 'square';
+  if (a > Math.PI / 4 && a < 3 * Math.PI / 4) return 'east';
+  if (a < -Math.PI / 4 && a > -3 * Math.PI / 4) return 'west';
+  return 'north';
+}
+
+// Collected during building construction, instanced once the scene is built
+const flowerBoxSlots = [];   // { x, y, z, rotY }
+
+// Tavern cone lights & ground pools (driven by DayCycle nightness)
+const coneLightRefs = [];    // ShaderMaterial refs with uIntensity uniform
+
+// NPC sprite materials (tinted by DayCycle) and sprites (waved by proximity)
+const npcMats = [];
+const npcs    = [];          // { sprite, idle, wave, phase }
 
 // ════════════════════════════════════════════════════════════════
 // HELPER: Build a building mesh group
@@ -142,10 +246,21 @@ function makeBuilding(o) {
   });
   windowMats.push(winMat);
   const winGeo = new THREE.BoxGeometry(0.5, 0.6, 0.06);
+  const isTudor = o.roof !== null && (!o.roofSegs || o.roofSegs === 4);
   [-o.w * 0.22, o.w * 0.22].forEach(wx => {
     const win = new THREE.Mesh(winGeo, winMat);
     win.position.set(wx, o.h * 0.58, o.d / 2 + 0.01);
     g.add(win);
+
+    // Phase 2.5: flower box under every front window of a Tudor-style facade
+    if (isTudor) {
+      flowerBoxSlots.push({ x: o.x + wx, y: o.h * 0.58 - 0.42, z: o.z + o.d / 2 + 0.16 });
+    }
+
+    // Phase 2.5: warm light spilling from the Tavern windows
+    if (o.tavern) {
+      g.add(createConeLight(wx, o.h * 0.58, o.d / 2 + 0.05, o.h * 0.58 + 0.2));
+    }
   });
 
   // Door
@@ -188,6 +303,279 @@ function makeBuilding(o) {
   g.userData.body = body; // For emissive highlighting
 
   return g;
+}
+
+// ════════════════════════════════════════════════════════════════
+// PHASE 2.5 HELPERS: Cone lights, flower boxes, NPC sprites
+// ════════════════════════════════════════════════════════════════
+
+// Shared "light shaft" shader — additive, fades along length and at the
+// silhouette so it reads as a soft volume rather than a hard cone.
+const coneLightShader = {
+  vertexShader: `
+    varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewDir;
+    void main() {
+      vUv = uv;
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewDir = normalize(-mv.xyz);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    uniform vec3 uColor; uniform float uIntensity;
+    varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewDir;
+    void main() {
+      float along  = vUv.y;                       // 1.0 at apex (window)
+      float facing = abs(dot(normalize(vNormal), normalize(vViewDir)));
+      float a = (along * along * 0.8 + along * 0.2) * smoothstep(0.0, 0.75, facing) * uIntensity;
+      gl_FragColor = vec4(uColor * a, a);
+    }`,
+};
+
+const lightPoolShader = {
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform vec3 uColor; uniform float uIntensity;
+    varying vec2 vUv;
+    void main() {
+      float d = length(vUv - 0.5) * 2.0;
+      float a = pow(clamp(1.0 - d, 0.0, 1.0), 2.0) * uIntensity * 0.9;
+      gl_FragColor = vec4(uColor * a, a);
+    }`,
+};
+
+const coneGeo = new THREE.ConeGeometry(1, 1, 18, 1, true);
+coneGeo.translate(0, -0.5, 0);           // apex at origin, base at y = -1
+const poolGeo = new THREE.CircleGeometry(1, 24);
+
+/**
+ * Volumetric-looking warm light cone spilling from a window, plus a soft
+ * pool on the ground where it lands. Local coords are the building's.
+ * @param wx  window x (building-local)
+ * @param wy  window y
+ * @param wz  front face z
+ * @param drop vertical distance from window to ground
+ */
+function createConeLight(wx, wy, wz, drop) {
+  const g = new THREE.Group();
+  const tilt = 0.85;                      // radians outward from the wall
+  const len  = drop / Math.cos(tilt);
+  const rad  = len * 0.46;
+
+  const makeMat = (shader) => new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:     { value: new THREE.Color(0xffb35c) },
+      uIntensity: { value: 0.2 },
+    },
+    vertexShader: shader.vertexShader,
+    fragmentShader: shader.fragmentShader,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const coneMat = makeMat(coneLightShader);
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.scale.set(rad, len, rad);
+  cone.position.set(wx, wy, wz);
+  cone.rotation.x = -tilt;
+  cone.renderOrder = 5;
+  g.add(cone);
+
+  const poolMat = makeMat(lightPoolShader);
+  const pool = new THREE.Mesh(poolGeo, poolMat);
+  pool.rotation.x = -Math.PI / 2;
+  pool.scale.setScalar(rad * 1.15);
+  pool.position.set(wx, 0.035, wz + len * Math.sin(tilt) * 0.9);
+  pool.renderOrder = 4;
+  g.add(pool);
+
+  coneLightRefs.push({
+    setNightness(n) {
+      const v = 0.12 + n * 0.72;
+      coneMat.uniforms.uIntensity.value = v;
+      poolMat.uniforms.uIntensity.value = v;
+    }
+  });
+  return g;
+}
+
+/**
+ * Instanced window boxes: one planter box, foliage clumps and bloom
+ * clusters per slot — 3 draw calls for the whole town regardless of count.
+ * Also called for the Town Square flower beds (topOnly = true).
+ */
+function buildFlowerBoxes(scene, slots, bedSlots) {
+  const planterGeo = new THREE.BoxGeometry(0.78, 0.22, 0.28);
+  const foliageGeo = new THREE.IcosahedronGeometry(0.16, 1);
+  const bloomGeo   = new THREE.IcosahedronGeometry(0.075, 0);
+
+  const FOLIAGE_PER_BOX = 3, BLOOM_PER_BOX = 6, BLOOM_PER_BED = 10;
+  const foliageCount = slots.length * FOLIAGE_PER_BOX + bedSlots.length * 4;
+  const bloomCount   = slots.length * BLOOM_PER_BOX + bedSlots.length * BLOOM_PER_BED;
+
+  const planters = new THREE.InstancedMesh(planterGeo, SHARED.planterWood, slots.length);
+  const foliage  = new THREE.InstancedMesh(foliageGeo, SHARED.foliage, foliageCount);
+  const blooms   = new THREE.InstancedMesh(bloomGeo,   SHARED.bloom,   bloomCount);
+  planters.castShadow = true;
+
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  const col = new THREE.Color();
+  let fi = 0, bi = 0;
+
+  const place = (mesh, i, x, y, z, sc, rot) => {
+    q.setFromEuler(new THREE.Euler(rot ? Math.random() : 0, rot ? Math.random() * Math.PI : 0, 0));
+    s.set(sc.x, sc.y, sc.z);
+    p.set(x, y, z);
+    m.compose(p, q, s);
+    mesh.setMatrixAt(i, m);
+  };
+
+  slots.forEach((sl, i) => {
+    place(planters, i, sl.x, sl.y, sl.z, { x: 1, y: 1, z: 1 }, false);
+    for (let k = 0; k < FOLIAGE_PER_BOX; k++) {
+      const fx = sl.x + (k - 1) * 0.24, fz = sl.z + (Math.random() - 0.5) * 0.08;
+      place(foliage, fi++, fx, sl.y + 0.16, fz, { x: 1, y: 0.75, z: 0.9 }, true);
+    }
+    for (let k = 0; k < BLOOM_PER_BOX; k++) {
+      const bx = sl.x - 0.32 + (k / (BLOOM_PER_BOX - 1)) * 0.64 + (Math.random() - 0.5) * 0.06;
+      const by = sl.y + 0.22 + Math.random() * 0.12;
+      const bz = sl.z + (Math.random() - 0.5) * 0.14 + 0.04;
+      place(blooms, bi, bx, by, bz, { x: 1, y: 1, z: 1 }, true);
+      col.setHex(BLOOM_PALETTE[(i * 3 + k) % BLOOM_PALETTE.length]);
+      blooms.setColorAt(bi++, col);
+    }
+  });
+
+  bedSlots.forEach(([x, z], i) => {
+    for (let k = 0; k < 4; k++) {
+      place(foliage, fi++, x + (Math.random() - 0.5) * 1.5, 0.55, z + (Math.random() - 0.5) * 1.5,
+        { x: 1.4, y: 0.9, z: 1.4 }, true);
+    }
+    for (let k = 0; k < BLOOM_PER_BED; k++) {
+      place(blooms, bi, x + (Math.random() - 0.5) * 1.7, 0.62 + Math.random() * 0.15,
+        z + (Math.random() - 0.5) * 1.7, { x: 1.3, y: 1.3, z: 1.3 }, true);
+      col.setHex(BLOOM_PALETTE[(i * 5 + k) % BLOOM_PALETTE.length]);
+      blooms.setColorAt(bi++, col);
+    }
+  });
+
+  planters.instanceMatrix.needsUpdate = true;
+  foliage.instanceMatrix.needsUpdate  = true;
+  blooms.instanceMatrix.needsUpdate   = true;
+  if (blooms.instanceColor) blooms.instanceColor.needsUpdate = true;
+  scene.add(planters, foliage, blooms);
+}
+
+/**
+ * NPC silhouette texture — a warmly rim-lit villager drawn on a canvas.
+ * variant: 0 = hat / merchant, 1 = hooded traveller, 2 = child with cap
+ * waving: right arm raised
+ */
+function makeNpcTexture(variant, waving) {
+  const W = 64, H = 128;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+
+  // Body gradient: dark warm silhouette lit from the upper right (reference light)
+  const grad = c.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#2a1a10');
+  grad.addColorStop(0.55, '#4a2e1c');
+  grad.addColorStop(1, '#6a4526');
+  c.fillStyle = grad;
+
+  const cx = W / 2;
+  const scale = variant === 2 ? 0.78 : 1;
+  const baseY = H - 4;
+
+  c.save();
+  c.translate(cx, baseY);
+  c.scale(scale, scale);
+
+  // Legs
+  c.fillRect(-11, -34, 8, 34);
+  c.fillRect(3, -34, 8, 34);
+  // Torso (rounded trapezoid)
+  c.beginPath();
+  c.moveTo(-15, -34); c.lineTo(15, -34); c.lineTo(12, -76); c.lineTo(-12, -76); c.closePath();
+  c.fill();
+  // Arms
+  c.beginPath();
+  c.moveTo(-12, -74); c.lineTo(-19, -42); c.lineTo(-14, -40); c.lineTo(-8, -68); c.closePath();
+  c.fill();
+  if (waving) {
+    c.beginPath();
+    c.moveTo(12, -74); c.lineTo(26, -100); c.lineTo(30, -97); c.lineTo(16, -70); c.closePath();
+    c.fill();
+    c.beginPath(); c.arc(28, -101, 4, 0, Math.PI * 2); c.fill();
+  } else {
+    c.beginPath();
+    c.moveTo(12, -74); c.lineTo(19, -42); c.lineTo(14, -40); c.lineTo(8, -68); c.closePath();
+    c.fill();
+  }
+  // Head
+  c.beginPath(); c.arc(0, -88, 11, 0, Math.PI * 2); c.fill();
+  // Headwear
+  if (variant === 0) {          // wide-brim hat
+    c.fillRect(-17, -98, 34, 4);
+    c.beginPath(); c.moveTo(-10, -98); c.lineTo(10, -98); c.lineTo(7, -112); c.lineTo(-7, -112); c.closePath(); c.fill();
+  } else if (variant === 1) {   // hood
+    c.beginPath(); c.arc(0, -90, 15, Math.PI, Math.PI * 2); c.fill();
+    c.fillRect(-15, -90, 30, 10);
+  } else {                      // cap
+    c.beginPath(); c.arc(0, -92, 12, Math.PI, Math.PI * 2); c.fill();
+    c.fillRect(-2, -94, 16, 3);
+  }
+  c.restore();
+
+  // Warm rim light on the lit side
+  c.globalCompositeOperation = 'source-atop';
+  const rim = c.createLinearGradient(0, 0, W, 0);
+  rim.addColorStop(0.55, 'rgba(255,190,110,0)');
+  rim.addColorStop(1.0,  'rgba(255,190,110,0.55)');
+  c.fillStyle = rim;
+  c.fillRect(0, 0, W, H);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+
+function buildNpcs(scene, placements) {
+  // 3 variants × 2 frames = 6 shared materials for any number of NPCs
+  const frames = [0, 1, 2].map(v => {
+    const idle = new THREE.SpriteMaterial({ map: makeNpcTexture(v, false), transparent: true, depthWrite: false });
+    const wave = new THREE.SpriteMaterial({ map: makeNpcTexture(v, true),  transparent: true, depthWrite: false });
+    npcMats.push(idle, wave);
+    return { idle, wave };
+  });
+
+  placements.forEach(([x, z, variant], i) => {
+    const f = frames[variant % 3];
+    const h = variant === 2 ? 1.5 : 1.9;
+    const sprite = new THREE.Sprite(f.idle);
+    sprite.scale.set(h * 0.5, h, 1);
+    sprite.position.set(x, h / 2, z);
+    scene.add(sprite);
+    npcs.push({ sprite, idle: f.idle, wave: f.wave, baseY: h / 2, phase: i * 1.7, waving: false });
+  });
+}
+
+function updateNpcs(cartPos, elapsed) {
+  for (const n of npcs) {
+    const dx = n.sprite.position.x - cartPos.x, dz = n.sprite.position.z - cartPos.z;
+    const near = dx * dx + dz * dz < 12 * 12;
+    if (near !== n.waving) { n.waving = near; n.sprite.material = near ? n.wave : n.idle; }
+    if (near) {
+      // 4 Hz frame flip while waving
+      n.sprite.material = (Math.floor(elapsed * 4 + n.phase) % 2 === 0) ? n.wave : n.idle;
+    }
+    if (!REDUCED_MOTION) {
+      n.sprite.position.y = n.baseY + Math.sin(elapsed * 2 + n.phase) * 0.03;
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -383,8 +771,10 @@ class DayCycle {
     this.sunThetaAmplitude = 1.2; // azimuth swing
 
     // Sky color presets [progress: {top, horizon, bottom}]
+    // Day preset tuned to the reference art: saturated cobalt zenith fading
+    // to a pale, slightly warm horizon (was a flatter 0x3388ff / 0x87ceeb).
     this.skyPresets = {
-      day:     { top: new THREE.Color(0x3388ff), horizon: new THREE.Color(0x87ceeb), bottom: new THREE.Color(0xd4f1f9) },
+      day:     { top: new THREE.Color(0x2f7fe6), horizon: new THREE.Color(0xa9dcf5), bottom: new THREE.Color(0xeaf3f6) },
       sunset:  { top: new THREE.Color(0x1a1a6a), horizon: new THREE.Color(0xff6b35), bottom: new THREE.Color(0xffaa55) },
       night:   { top: new THREE.Color(0x030020), horizon: new THREE.Color(0x0d0825), bottom: new THREE.Color(0x1a0a2e) },
       dawn:    { top: new THREE.Color(0x2244aa), horizon: new THREE.Color(0xffaa77), bottom: new THREE.Color(0xffd4a8) },
@@ -392,7 +782,8 @@ class DayCycle {
 
     // Light color presets
     this.lightPresets = {
-      day:    { color: new THREE.Color(0xffd580), intensity: 1.3, ambient: 0.5, ambientColor: new THREE.Color(0xffe4b5) },
+      // Golden-hour day: warmer, punchier key light + slightly lifted ambient
+      day:    { color: new THREE.Color(0xffdca0), intensity: 1.5, ambient: 0.55, ambientColor: new THREE.Color(0xffe6c4) },
       sunset: { color: new THREE.Color(0xff8844), intensity: 0.9, ambient: 0.35, ambientColor: new THREE.Color(0xffaa66) },
       night:  { color: new THREE.Color(0x4466aa), intensity: 0.3, ambient: 0.15, ambientColor: new THREE.Color(0x223355) },
       dawn:   { color: new THREE.Color(0xffbb88), intensity: 0.8, ambient: 0.4,  ambientColor: new THREE.Color(0xffcc99) },
@@ -400,7 +791,7 @@ class DayCycle {
 
     // Fog presets
     this.fogPresets = {
-      day:    { color: new THREE.Color(0x87ceeb), density: 0.005 },
+      day:    { color: new THREE.Color(0xa9dcf5), density: 0.0045 },  // matches day horizon
       sunset: { color: new THREE.Color(0xcc8866), density: 0.007 },
       night:  { color: new THREE.Color(0x0a0a1a), density: 0.010 },
       dawn:   { color: new THREE.Color(0xaabb99), density: 0.006 },
@@ -505,6 +896,18 @@ class DayCycle {
     for (const mat of windowMats) {
       mat.emissiveIntensity = 0.2 + nightness * 0.8;
     }
+
+    // ── Tavern cone lights / ground pools (Phase 2.5) ──────────
+    for (const ref of coneLightRefs) ref.setNightness(nightness);
+
+    // ── NPC sprites: warm by day, cool & dim by night ──────────
+    if (npcMats.length) {
+      const r = 1 - nightness * 0.55, g = 1 - nightness * 0.5, b = 1 - nightness * 0.25;
+      for (const mat of npcMats) mat.color.setRGB(r, g, b);
+    }
+
+    this.nightness = nightness;
+    windUniforms.uTime.value += delta;
   }
 }
 
@@ -518,12 +921,19 @@ function initTownWorld() {
 
   const canvas   = document.getElementById('town-canvas');
   const townRoot = document.getElementById('town-world');
+  const isTouch  = 'ontouchstart' in window;
+
+  // ── Performance tier (Phase 4.3) ────────────────────────────
+  const perfTier = detectPerfTier();
+  const PERF = PERF_PRESETS[perfTier];
+  window._perfTier = perfTier;
+  townRoot.dataset.perf = perfTier;
 
   // ── Renderer ────────────────────────────────────────────────
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: perfTier === 'high', powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, PERF.pixelRatio));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = PERF.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
   renderer.setSize(innerWidth, innerHeight);
 
   // ── Scene ───────────────────────────────────────────────────
@@ -543,7 +953,9 @@ function initTownWorld() {
   camera.lookAt(0, 2, 0);
 
   // ── Post-Processing ──────────────────────────────────────────
-  const postFx = new PostProcessing(renderer, scene, camera);
+  const postFx = new PostProcessing(renderer, scene, camera, {
+    bloom: PERF.bloom, bloomScale: PERF.bloomScale,
+  });
 
   window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
@@ -676,10 +1088,12 @@ function initTownWorld() {
   const ambientLight = new THREE.AmbientLight(0xffe4b5, 0.5);
   scene.add(ambientLight);
 
-  const sun = new THREE.DirectionalLight(0xffd580, 1.3);
+  const sun = new THREE.DirectionalLight(0xffdca0, 1.5);
   sun.position.set(10, 20, 10);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(PERF.shadowMap, PERF.shadowMap);
+  sun.shadow.bias = -0.0004;      // tame acne stripes on the flat roads
+  sun.shadow.normalBias = 0.03;
   sun.shadow.camera.far   = 250;
   sun.shadow.camera.left  = -80;
   sun.shadow.camera.right =  80;
@@ -769,7 +1183,7 @@ function initTownWorld() {
   spout.position.set(0, 1.5, 0);
   scene.add(spout);
 
-  particleSystem.createFountainSpray(new THREE.Vector3(0, 2.6, 0), 120);
+  particleSystem.createFountainSpray(new THREE.Vector3(0, 2.6, 0), PERF.fountain);
 
   // ── Vortex orb (East arm — above Observatory) ───────────────
   const orb = new THREE.Mesh(
@@ -804,7 +1218,7 @@ function initTownWorld() {
   fireGlow.position.set(-10, 2, 30);
   scene.add(fireGlow);
 
-  particleSystem.createCampfire(new THREE.Vector3(-10, 0.2, 30), 40);
+  particleSystem.createCampfire(new THREE.Vector3(-10, 0.2, 30), PERF.campfire);
   audioSys.attachFire(fireGlow);
 
   // ── Lamps (circular layout) ─────────────────────────────────
@@ -852,20 +1266,36 @@ function initTownWorld() {
 
   // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
 
-  // Flower Beds (Town Square)
+  // Flower Beds (Town Square) — wind sway is now vertex displacement in the
+  // shader (see applyWindSway) instead of whole-mesh rotation.
   const flowerGeo = new THREE.BoxGeometry(2, 0.4, 2);
-  const flowerMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 1 });
-  [[-10, 8], [10, 8], [-10, 24], [10, 24]].forEach(([x,z]) => {
-    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 2.4), new THREE.MeshStandardMaterial({color: 0x5c3d2e}));
+  const flowerMat = applyWindSway(
+    new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 1 }), 0.08, 0.2);
+  const bedMat = new THREE.MeshStandardMaterial({ color: 0x5c3d2e });
+  const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
+  const BED_SLOTS = [[-10, 8], [10, 8], [-10, 24], [10, 24]];
+  BED_SLOTS.forEach(([x,z]) => {
+    const bed = new THREE.Mesh(bedGeo, bedMat);
     bed.position.set(x, 0.15, z);
     scene.add(bed);
     const flowers = new THREE.Mesh(flowerGeo, flowerMat);
     flowers.position.set(x, 0.35, z);
     scene.add(flowers);
-    animatedProps.push({
-      update: (t) => { flowers.rotation.y = Math.sin(t + x) * 0.1; }
-    });
   });
+
+  // Phase 2.5: window flower boxes (instanced) + bloom clusters on the beds
+  buildFlowerBoxes(scene, flowerBoxSlots, BED_SLOTS);
+
+  // Phase 2.5: NPC silhouettes near stalls, tavern tables and shopfronts
+  if (PERF.npcs) {
+    buildNpcs(scene, [
+      [-5.8, 21.5, 0], [5.8, 26.8, 1], [-13, 34.6, 2],      // Town Square stalls / tavern tables
+      [-5.5, 19.8, 1],                                       // by Adventurer Stats
+      [-5, -10, 0], [6, -16.3, 2],                           // Main Street: Forge, Ledger
+      [-4.5, -31.8, 2],                                      // outside Tiny Tots
+      [20, 11.5, 1], [-16.5, 9.5, 0],                        // Cloud Citadel, Concierge
+    ]);
+  }
 
   // Market Stalls (Town Square)
   const stallGroup = new THREE.Group();
@@ -947,20 +1377,68 @@ function initTownWorld() {
 
   // ── Cart ────────────────────────────────────────────────────
   const cart = new Cart(scene, { x: 0, z: 30 });
-  const cartDust = particleSystem.createCartDust(80);
+  const cartDust = particleSystem.createCartDust(PERF.dust);
+  window._cart = cart;
 
   // ── Follow Camera ───────────────────────────────────────────
   const followCam = new FollowCamera(camera);
+  followCam.reducedMotion = REDUCED_MOTION;
 
   // ── Mobile Joystick ─────────────────────────────────────────
-  if ('ontouchstart' in window) {
+  if (isTouch) {
     const jsEl = document.getElementById('mobile-joystick');
     if (jsEl) jsEl.style.display = 'block';
     setupMobileJoystick(cart);
+    townRoot.classList.add('is-touch');
   }
 
   // ── Ambient Fireflies ───────────────────────────────────────
-  particleSystem.createFireflies(150, {x: 80, y: 12, z: 150});
+  particleSystem.createFireflies(PERF.fireflies, {x: 80, y: 12, z: 150});
+
+  // ── Achievements & exploration tracking (Phase 3.4) ─────────
+  const achievements = new Achievements({
+    container: townRoot,
+    buildings: BUILDINGS.map(b => ({ label: b.label, zone: b.zone, project: b.project })),
+    zones: Object.keys(ZONES),
+    reducedMotion: REDUCED_MOTION,
+    onUnlock: () => audioSys.playChime(),
+  });
+  window._achievements = achievements;
+
+  // ── Modal ↔ town bridge ─────────────────────────────────────
+  // index.html dispatches `settlement:modal` on open/close. While a project
+  // modal is open the cart ignores driving input (it coasts to a stop) and
+  // the 3D interact keys are muted so E/Space don't leak into the modal.
+  let modalOpen = false;
+  document.addEventListener('settlement:modal', e => {
+    modalOpen = !!(e.detail && e.detail.open);
+    cart.inputLocked = modalOpen;
+    if (modalOpen && e.detail.projectId) achievements.onProjectOpened(e.detail.projectId);
+  });
+
+  function openProject(data) {
+    if (!data || !data.project || modalOpen || typeof window.openModal !== 'function') return;
+    const zone = ZONES[data.zone];
+    window.openModal(data.project, { zone: zone ? zone.name : '', zoneKey: data.zone, building: data.label });
+  }
+
+  // ── Fast-travel / fallback zone HUD (Phase 4.3, partial 1.4) ─
+  // Real <button>s so keyboard + screen-reader users can move around the
+  // town without driving; on touch devices this is the "don't want to
+  // drive" path. Uses Cart.teleportTo (GSAP glide) — the road-spline
+  // auto-drive from §1.4 is still open.
+  const zoneHud = document.getElementById('zone-hud');
+  let lastZoneKey = null;
+  if (zoneHud) {
+    zoneHud.querySelectorAll('[data-zone]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const z = ZONES[btn.dataset.zone];
+        if (!z || cart.teleporting || modalOpen) return;
+        cart.teleportTo(z.spawn.x, z.spawn.z, z.spawn.rot, REDUCED_MOTION ? 0.4 : 1.6);
+        achievements.onFastTravel();
+      });
+    });
+  }
 
   // ── Interaction System ──────────────────────────────────────
   const interactPrompt = document.getElementById('interact-prompt');
@@ -973,16 +1451,19 @@ function initTownWorld() {
     let nearest = null, nearDist = Infinity;
 
     buildingMeta.forEach(bm => {
-      if (!bm.data.project) return;
       const d = cPos.distanceTo(bm.position);
+      // Every building counts as "approached" for exploration tracking,
+      // even the decorative ones without a project modal.
+      if (d < 10) achievements.visit(bm.data.label);
+      if (!bm.data.project) return;
       if (d < 10 && d < nearDist) { nearDist = d; nearest = bm.data; }
     });
 
-    if (nearest) {
+    if (nearest && !modalOpen) {
       interactPrompt.style.display = 'flex';
       interactName.textContent = nearest.label;
       currentInteractable = nearest;
-      if ('ontouchstart' in window && mobileBtn) mobileBtn.style.display = 'block';
+      if (isTouch && mobileBtn) mobileBtn.style.display = 'block';
     } else {
       interactPrompt.style.display = 'none';
       currentInteractable = null;
@@ -992,17 +1473,12 @@ function initTownWorld() {
 
   // Keyboard interact
   window.addEventListener('keydown', e => {
-    if (e.code === 'KeyE' && currentInteractable && currentInteractable.project) {
-      window.openModal(currentInteractable.project);
-    }
+    if (e.code === 'KeyE' && currentInteractable) openProject(currentInteractable);
   });
 
   // Mobile interact
   if (mobileBtn) {
-    mobileBtn.addEventListener('click', () => {
-      if (currentInteractable && currentInteractable.project)
-        window.openModal(currentInteractable.project);
-    });
+    mobileBtn.addEventListener('click', () => openProject(currentInteractable));
   }
 
   // Click-on-building (raycaster)
@@ -1010,6 +1486,8 @@ function initTownWorld() {
   const mouse     = new THREE.Vector2();
   const clickables = [];
   scene.traverse(o => { if (o.isMesh && o.userData.project) clickables.push(o); });
+  const metaByProject = {};
+  buildingMeta.forEach(bm => { if (bm.data.project) metaByProject[bm.data.project] = bm.data; });
 
   canvas.addEventListener('click', e => {
     mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
@@ -1017,7 +1495,7 @@ function initTownWorld() {
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(clickables);
     if (hits.length && hits[0].object.userData.project) {
-      window.openModal(hits[0].object.userData.project);
+      openProject(metaByProject[hits[0].object.userData.project]);
     }
   });
 
@@ -1063,6 +1541,22 @@ function initTownWorld() {
         // S spoke (entry)
         mCtx.beginPath(); mCtx.moveTo(mCenter, mCenter); mCtx.lineTo(mCenter, mCenter + 38 * mScale); mCtx.stroke();
 
+        // Current zone highlight (Phase 3.3)
+        const zk = zoneKeyAt(cPos.x, cPos.z);
+        mCtx.fillStyle = 'rgba(255, 209, 102, 0.13)';
+        // canvas angle: 0 = +x (east), -PI/2 = up (north, -z), +PI/2 = south
+        const centre = { north: -Math.PI / 2, east: 0, west: Math.PI, square: Math.PI / 2 }[zk];
+        mCtx.beginPath();
+        mCtx.moveTo(mCenter, mCenter);
+        mCtx.arc(mCenter, mCenter, RING_R * mScale, centre - Math.PI / 4, centre + Math.PI / 4);
+        mCtx.closePath();
+        mCtx.fill();
+        if (zk === 'square') {
+          mCtx.beginPath();
+          mCtx.arc(mCenter, mCenter, 18 * mScale, 0, Math.PI * 2);
+          mCtx.fill();
+        }
+
         // Fountain dot
         mCtx.beginPath();
         mCtx.arc(mCenter, mCenter, 3, 0, Math.PI * 2);
@@ -1102,13 +1596,31 @@ function initTownWorld() {
   const controlsEl = document.getElementById('controls-overlay');
   if (controlsEl) {
     controlsEl.style.display = 'flex';
+    // Touch devices get the joystick/tap card instead of the keyboard one
+    controlsEl.querySelectorAll('[data-input]').forEach(el => {
+      el.hidden = el.dataset.input !== (isTouch ? 'touch' : 'keyboard');
+    });
+    let dismissed = false;
     const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
       controlsEl.classList.add('fade-out');
       setTimeout(() => { controlsEl.style.display = 'none'; }, 800);
     };
-    setTimeout(dismiss, 5000);
+    setTimeout(dismiss, isTouch ? 6500 : 5000);
     controlsEl.addEventListener('click', dismiss);
+    controlsEl.addEventListener('touchstart', dismiss, { passive: true });
+    window.addEventListener('keydown', dismiss, { once: true });
   }
+
+  // ── Draw-call monitor (Phase 4.1) — only with ?debug ─────────
+  // Logs renderer.info every 5s and warns when over budget.
+  const DRAW_CALL_BUDGET = 700;   // measured: ~420 (Square) – ~650 (Main St) incl. shadow pass
+  const debugPerf = new URLSearchParams(location.search).has('debug');
+  let perfTimer = 0, perfFrames = 0;
+  // EffectComposer runs several passes; auto-reset would only report the
+  // final full-screen quad, so reset manually at the top of each frame.
+  if (debugPerf) renderer.info.autoReset = false;
 
   // ── Animate Loop ────────────────────────────────────────────
   const clock = new THREE.Clock();
@@ -1150,9 +1662,35 @@ function initTownWorld() {
     for (let p of animatedProps) {
       if (p.update) p.update(elapsed);
     }
-    
+
+    // NPCs wave at the cart
+    if (npcs.length) updateNpcs(cart.getPosition(), elapsed);
+
+    // Achievements / stats + keep the fast-travel HUD's active pill in sync
+    const cPosNow = cart.getPosition();
+    const zoneNow = zoneKeyAt(cPosNow.x, cPosNow.z);
+    achievements.update(delta, cart, zoneNow, dayCycle.isNight());
+    if (zoneHud && zoneNow !== lastZoneKey) {
+      lastZoneKey = zoneNow;
+      zoneHud.querySelectorAll('[data-zone]').forEach(b => b.classList.toggle('active', b.dataset.zone === zoneNow));
+    }
+
     // Audio system
     audioSys.update(delta, elapsed, cart, dayCycle.isNight());
+
+    // Draw-call monitor (reads last frame's totals, then resets)
+    if (debugPerf) {
+      perfTimer += delta; perfFrames++;
+      if (perfTimer >= 5) {
+        const r = renderer.info.render;
+        const fps = (perfFrames / perfTimer).toFixed(0);
+        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · tier=${perfTier}`;
+        (r.calls > DRAW_CALL_BUDGET ? console.warn : console.log)(msg);
+        window._townPerf = { fps: +fps, calls: r.calls, triangles: r.triangles, tier: perfTier };
+        perfTimer = 0; perfFrames = 0;
+      }
+      renderer.info.reset();
+    }
 
     // Existing animated props
     orb.rotation.y   = elapsed * 1.5;

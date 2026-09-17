@@ -137,21 +137,35 @@
     <!-- Labels container (3D-projected HTML labels) -->
     <div id="labels-container" class="labels-container"></div>
 
-    <!-- Controls overlay (auto-hides after 5s) -->
+    <!-- Controls overlay (auto-hides after 5s; keyboard vs touch card picked at boot) -->
     <div id="controls-overlay" class="controls-overlay">
       <div class="controls-card">
         <h3>🎮 Cart Controls</h3>
-        <div class="controls-grid">
+        <div class="controls-grid" data-input="keyboard">
           <div class="control-row"><kbd>W</kbd><kbd>↑</kbd><span>Forward</span></div>
           <div class="control-row"><kbd>S</kbd><kbd>↓</kbd><span>Brake</span></div>
           <div class="control-row"><kbd>A</kbd><kbd>←</kbd><span>Left</span></div>
           <div class="control-row"><kbd>D</kbd><kbd>→</kbd><span>Right</span></div>
           <div class="control-row"><kbd>Space</kbd><span>Handbrake</span></div>
           <div class="control-row"><kbd>E</kbd><span>Interact</span></div>
+          <div class="control-row"><kbd>Q</kbd><span>Isometric view</span></div>
+        </div>
+        <div class="controls-grid" data-input="touch" hidden>
+          <div class="control-row"><kbd>🕹️</kbd><span>Drag the joystick to drive</span></div>
+          <div class="control-row"><kbd>⚡</kbd><span>Tap Enter near a building</span></div>
+          <div class="control-row"><kbd>🏘️</kbd><span>Top buttons jump between quarters</span></div>
         </div>
         <p class="controls-hint">Drive to buildings to explore projects</p>
       </div>
     </div>
+
+    <!-- Zone fast-travel HUD — keyboard/screen-reader/mobile fallback to driving -->
+    <nav id="zone-hud" class="zone-hud" aria-label="Fast travel between town quarters">
+      <button type="button" data-zone="square" class="active" aria-label="Fast travel to Town Square"><span class="zone-hud-icon" aria-hidden="true">⛲</span><span class="zone-hud-label">Square</span></button>
+      <button type="button" data-zone="north" aria-label="Fast travel to Main Street"><span class="zone-hud-icon" aria-hidden="true">🏘️</span><span class="zone-hud-label">Main St</span></button>
+      <button type="button" data-zone="east" aria-label="Fast travel to Research Quarter"><span class="zone-hud-icon" aria-hidden="true">🔬</span><span class="zone-hud-label">Research</span></button>
+      <button type="button" data-zone="west" aria-label="Fast travel to Services Quarter"><span class="zone-hud-icon" aria-hidden="true">🛎️</span><span class="zone-hud-label">Services</span></button>
+    </nav>
 
     <!-- Zone transition text -->
     <div id="zone-name" class="zone-name"></div>
@@ -178,10 +192,13 @@
   </div>
 
   <!-- Town Map Mini-map -->
-  <div class="town-map">
-    <div class="town-map-title">Town Map</div>
-    <!-- AFTER -->
+  <!-- NOTE: #town-map / #town-map-toggle are required by initMiniMap() in the
+       inline script below; they were missing, which threw at boot and
+       silently killed everything after it (incl. the ambient sound toggle). -->
+  <div class="town-map" id="town-map">
+    <button type="button" id="town-map-toggle" aria-label="Toggle town map" aria-expanded="false" aria-controls="town-map-panel">🗺️</button>
     <nav class="map-nav" id="town-map-panel" aria-hidden="true">
+      <div class="map-title">Town Map</div>
       <a href="#hero"     class="map-link map-entry active" data-section="hero">🏯 Gate</a>
       <a href="#about"    class="map-link map-entry"        data-section="about">🗺️ Square</a>
       <a href="#town"     class="map-link map-entry"        data-section="town">🏘️ Main St</a>
@@ -190,17 +207,29 @@
     </nav>
   </div>  
   
-  <div id="modal-overlay" class="modal-overlay hidden">
-    <div class="modal-card">
-      <button class="modal-close" id="modal-close-btn">&times; Return to Town</button>
+  <div id="modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-why" data-zone="">
+      <span class="modal-corner modal-corner--tl" aria-hidden="true"></span>
+      <span class="modal-corner modal-corner--tr" aria-hidden="true"></span>
+      <span class="modal-corner modal-corner--bl" aria-hidden="true"></span>
+      <span class="modal-corner modal-corner--br" aria-hidden="true"></span>
+      <button class="modal-close" id="modal-close-btn" type="button">&times; Return to Town</button>
       <div class="modal-header">
+        <div class="modal-ribbon" id="modal-ribbon">
+          <span class="modal-ribbon-zone" id="modal-zone"></span>
+          <span class="modal-ribbon-sep" aria-hidden="true">·</span>
+          <span class="modal-ribbon-building" id="modal-building"></span>
+        </div>
         <span class="modal-icon" id="modal-icon"></span>
         <h2 class="modal-title" id="modal-title"></h2>
+        <p class="modal-flavor" id="modal-flavor"></p>
         <div class="modal-badges" id="modal-badges"></div>
       </div>
       <div class="modal-body">
         <p class="modal-why" id="modal-why"></p>
+        <h3 class="modal-section-title">Tools &amp; Materials</h3>
         <div class="modal-stack" id="modal-stack"></div>
+        <h3 class="modal-section-title">Quest Log</h3>
         <div class="modal-stats" id="modal-stats"></div>
       </div>
       <div class="modal-footer" id="modal-footer"></div>
@@ -357,12 +386,49 @@
   };
 
     const modalOverlay = document.getElementById('modal-overlay');
+    const modalCard = document.getElementById('modal-card');
     const modalCloseBtn = document.getElementById('modal-close-btn');
     let isClosing = false;
+    let modalLastFocus = null;
 
-    function openModal(projectId) {
+    // Which quarter of the settlement each project's building stands in.
+    // Drives the modal's ribbon, accent colour and flavour line (§3.2).
+    const PROJECT_ZONES = {
+      mavpose: 'north', ledger: 'north', tinytots: 'north',
+      xg: 'east', aws: 'east', vortex: 'east',
+      ace: 'west', volley: 'west', instillgcs: 'west',
+    };
+    const ZONE_INFO = {
+      square: { name: 'Town Square',      flavor: 'Where every road in the settlement begins.' },
+      north:  { name: 'Main Street',      flavor: 'Workshops, ledgers and lesson halls — where the settlement gets things done.' },
+      east:   { name: 'Research Quarter', flavor: 'Towers of inquiry, where raw data is turned into prophecy.' },
+      west:   { name: 'Services Quarter', flavor: 'Hospitality, sport and wayfinding for weary travellers.' },
+    };
+    const PROJECT_BUILDINGS = {
+      mavpose: 'The Forge', ledger: 'Ledger Sanctum', tinytots: 'Tiny Tots Academy',
+      xg: 'Prediction Colosseum', aws: 'Cloud Citadel', vortex: 'Vortex Observatory',
+      ace: 'Concierge Parlour', volley: 'The Volley Court', instillgcs: "Navigator's Tower",
+    };
+
+    /**
+     * @param {string} projectId
+     * @param {{zone?:string, zoneKey?:string, building?:string}} [ctx]
+     *        Optional context from the 3D town (falls back to the maps above)
+     */
+    function openModal(projectId, ctx) {
       const p = PROJECTS[projectId];
       if (!p) return;
+      ctx = ctx || {};
+
+      const zoneKey  = ctx.zoneKey || PROJECT_ZONES[projectId] || 'square';
+      const zoneInfo = ZONE_INFO[zoneKey] || ZONE_INFO.square;
+      modalCard.dataset.zone = zoneKey;
+      document.getElementById('modal-zone').textContent = ctx.zone || zoneInfo.name;
+      document.getElementById('modal-building').textContent = ctx.building || PROJECT_BUILDINGS[projectId] || '';
+      document.getElementById('modal-flavor').textContent = p.flavor || zoneInfo.flavor;
+
+      // Entering from the 3D town gets the "step through the door" transition
+      modalOverlay.classList.toggle('from-town', !!window._townWorldBooted);
 
       document.getElementById('modal-icon').textContent = p.icon;
       document.getElementById('modal-title').textContent = p.title;
@@ -394,20 +460,36 @@
       `;
 
       modalOverlay.classList.remove('hidden');
+      modalOverlay.setAttribute('aria-hidden', 'false');
       isClosing = false;
 
+      // Focus management: remember what had focus, move it into the dialog
+      modalLastFocus = document.activeElement;
+      modalCard.scrollTop = 0;
       requestAnimationFrame(() => {
+        modalCloseBtn.focus({ preventScroll: true });
         statsEl.querySelectorAll('.modal-stat-bar-fill').forEach(bar => {
           bar.style.width = bar.getAttribute('data-width') + '%';
         });
       });
+
+      // Let the 3D town pause cart input / count the visit
+      document.dispatchEvent(new CustomEvent('settlement:modal', { detail: { open: true, projectId } }));
     }
 
     function closeModal() {
       if (isClosing) return;
       isClosing = true;
       modalOverlay.classList.add('hidden');
+      modalOverlay.setAttribute('aria-hidden', 'true');
+      document.dispatchEvent(new CustomEvent('settlement:modal', { detail: { open: false } }));
+      if (modalLastFocus && typeof modalLastFocus.focus === 'function' && document.contains(modalLastFocus)) {
+        modalLastFocus.focus({ preventScroll: true });
+      }
+      modalLastFocus = null;
     }
+    window.openModal = openModal;
+    window.closeModal = closeModal;
 
     modalCloseBtn.addEventListener('click', closeModal);
 
@@ -422,7 +504,17 @@
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !modalOverlay.classList.contains('hidden')) closeModal();
+      const open = !modalOverlay.classList.contains('hidden');
+      if (!open) return;
+      if (e.key === 'Escape') { closeModal(); return; }
+      // Keep Tab focus inside the dialog
+      if (e.key === 'Tab') {
+        const focusables = modalCard.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])');
+        if (!focusables.length) return;
+        const first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     });
 
     document.querySelectorAll('.building').forEach(bldg => {

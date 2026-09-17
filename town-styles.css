@@ -107,6 +107,8 @@
   margin-bottom: 16px;
 }
 
+.controls-grid[hidden] { display: none; }
+
 .control-row {
   display: flex;
   align-items: center;
@@ -257,22 +259,244 @@
   display: none;
 }
 
+/* ── Zone fast-travel HUD (Phase 4.3 fallback nav) ──────────── */
+
+.zone-hud {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(20, 12, 45, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  border-radius: 999px;
+  z-index: 640;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.zone-hud button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #e9dfc9;
+  font-family: var(--font-body, sans-serif);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.zone-hud button:hover,
+.zone-hud button:focus-visible {
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+  outline: none;
+  border-color: rgba(255, 209, 102, 0.5);
+}
+
+.zone-hud button.active {
+  background: rgba(255, 209, 102, 0.22);
+  color: #ffd166;
+}
+
+.zone-hud .zone-hud-icon { font-size: 1rem; line-height: 1; }
+
+/* ── Exploration HUD + achievement toasts (Phase 3.4) ───────── */
+
+.explore-hud {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  background: rgba(20, 12, 45, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  border-radius: 999px;
+  color: #ffd166;
+  font-family: var(--font-display, serif);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  z-index: 640;
+  min-height: 34px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.explore-hud:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
+
+.explore-hud-bar {
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.explore-hud-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #ffd166, #ff9f43);
+  transition: width 0.6s ease-out;
+}
+
+.achievement-toasts {
+  position: absolute;
+  top: 70px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 690;
+  pointer-events: none;
+  max-width: min(360px, calc(100vw - 36px));
+}
+
+.achievement-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 12px;
+  background: linear-gradient(135deg, rgba(48, 30, 70, 0.94), rgba(20, 12, 45, 0.94));
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  border-radius: 14px;
+  color: #f8f0dd;
+  font-family: var(--font-body, sans-serif);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 209, 102, 0.12);
+  opacity: 0;
+  transform: translateX(24px) scale(0.96);
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.achievement-toast.is-visible { opacity: 1; transform: translateX(0) scale(1); }
+
+.achievement-toast.is-achievement {
+  border-color: #ffd166;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 34px rgba(255, 209, 102, 0.28);
+}
+
+.achievement-toast.is-minor { padding: 8px 14px 8px 10px; opacity: 0; }
+.achievement-toast.is-minor.is-visible { opacity: 0.92; }
+
+.achievement-toast-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 209, 102, 0.5));
+}
+
+.achievement-toast-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.achievement-toast-kicker {
+  font-family: var(--font-display, serif);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffd166;
+}
+
+.achievement-toast-kicker:empty { display: none; }
+
+.achievement-toast-title {
+  font-family: var(--font-display, serif);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.achievement-toast-desc { font-size: 0.78rem; color: #c9bfaf; }
+
+/* ── Touch-device layout ────────────────────────────────────── */
+/* Applied via #town-world.is-touch (set at boot) rather than a width
+   query so tablets in landscape still get thumb-friendly controls.   */
+
+#town-world.is-touch .zone-hud button {
+  padding: 8px 10px;
+  min-height: 40px;
+  font-size: 0.78rem;
+}
+
+#town-world.is-touch .zone-hud .zone-hud-label { display: none; }
+#town-world.is-touch .zone-hud .zone-hud-icon { font-size: 1.2rem; }
+
+#town-world.is-touch .explore-hud { top: auto; bottom: 24px; left: 50%; transform: translateX(-50%); }
+
+/* Keep the minimap out from under the joystick on touch devices */
+#town-world.is-touch #minimap-canvas {
+  bottom: auto;
+  top: 66px;
+  left: 16px;
+  width: 96px;
+  height: 96px;
+}
+
+#town-world.is-touch .interact-prompt { bottom: 200px; }
+
+#town-world.is-touch .mobile-interact-btn {
+  width: 72px;
+  height: 72px;
+  font-size: 1rem;
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
   .controls-card {
-    padding: 20px 24px;
+    padding: 18px 20px;
+    max-width: 92vw;
   }
   .controls-card h3 {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
+    margin-bottom: 12px;
   }
   .control-row {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
+  .control-row kbd {
+    min-width: 28px;
+    padding: 2px 7px;
+    font-size: 0.75rem;
+  }
+  .controls-hint { font-size: 0.74rem; }
+  .zone-name { font-size: 1.9rem; }
+  .zone-hud { top: 12px; padding: 4px; gap: 2px; }
+  .zone-hud .zone-hud-label { display: none; }
+  .zone-hud .zone-hud-icon { font-size: 1.15rem; }
+  .explore-hud { font-size: 0.72rem; padding: 5px 10px; }
+  .explore-hud-bar { width: 44px; }
+  .achievement-toasts { top: auto; bottom: 74px; right: 12px; left: 12px; align-items: center; }
+  .achievement-toast { width: 100%; }
+  .building-label-3d { font-size: 11px; padding: 4px 10px; }
   #minimap-canvas {
     width: 110px;
     height: 110px;
     bottom: 16px;
     left: 16px;
   }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .interact-prompt { animation: none; }
+  .controls-card { animation: none; }
+  .achievement-toast { transition: opacity 0.15s linear; transform: none; }
+  .achievement-toast.is-visible { transform: none; }
+  .explore-hud-fill { transition: none; }
 }

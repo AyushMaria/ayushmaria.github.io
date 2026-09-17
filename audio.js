@@ -173,9 +173,10 @@ export class AudioSystem {
     // x -, z 0 -> -PI/2 (West)
     // x 0, z - -> PI or -PI (North)
     
+    // Names match ZONES in town-world.js (HUD, modal header, achievements)
     if (angle > Math.PI/4 && angle < 3*Math.PI/4) return "Research Quarter"; // East
-    if (angle < -Math.PI/4 && angle > -3*Math.PI/4) return "West Arm"; // West
-    if (Math.abs(angle) >= 3*Math.PI/4) return "North Arm"; // North
+    if (angle < -Math.PI/4 && angle > -3*Math.PI/4) return "Services Quarter"; // West
+    if (Math.abs(angle) >= 3*Math.PI/4) return "Main Street"; // North
     
     return "Town Square";
   }

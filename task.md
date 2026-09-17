@@ -17,7 +17,7 @@
 - [x] Fast-travel teleport via GSAP
 - [ ] **Boost mechanic** — Shift key for speed boost with visual/audio feedback
 - [ ] **Auto-unstuck** — Detect if cart is jammed for 3+ seconds, auto-nudge free
-- [ ] **Stats tracking** — Persist `distanceDriven` and `timePlayed` to localStorage
+- [x] **Stats tracking** — Persist `distanceDriven` and `timePlayed` to localStorage (lives in `achievements.js`, see §3.4)
 - [ ] **Input abstraction** — Named actions (`forward`, `backward`, `boost`) mapped to keyboard + gamepad + touch (currently raw key checks)
 
 ## 1.3 Follow Camera
@@ -35,7 +35,8 @@
 - [x] Removed inline `initTownWorld()` script block from `index.html`
 - [x] Controls hint overlay (fades out after 5s)
 - [ ] **Three.js r160+ upgrade** — Post-processing still imports from `three@0.150.0`
-- [ ] **Zone fast-travel** — HUD buttons should auto-drive cart along road spline (currently not wired)
+- [ ] **Zone fast-travel** — HUD buttons should auto-drive cart along road spline (`#zone-hud` is now wired to `Cart.teleportTo()` — GSAP glide, not a road-spline drive yet)
+- [x] **Bugfix: `initMiniMap()` threw at boot** — `#town-map` / `#town-map-toggle` were missing from the markup, which killed the rest of the inline script (ambient sound toggle never enabled). Markup restored.
 
 ## 1.5 Core Patterns (Bruno Simon Reference)
 - [ ] **Priority-based event system** — Custom event emitter with ordered tick callbacks (physics → camera → particles)
@@ -96,12 +97,12 @@
 - [x] Campfire with animated flames + fire glow light
 - [x] Fountain (base + water + spout + particle spray)
 - [x] Signboards at roundabout exits and ring road intersections
-- [ ] **NPC silhouettes** — Billboard sprites that wave when cart approaches
-- [ ] **Flower boxes under windows** — Small planter geometry on building facades
+- [x] **NPC silhouettes** — Billboard sprites that wave when cart approaches (canvas-drawn, 3 variants × 2 frames = 6 shared `SpriteMaterial`s; tinted by `DayCycle`)
+- [x] **Flower boxes under windows** — Small planter geometry on building facades (3 `InstancedMesh`es for every box + bed bloom in town; per-instance bloom colours)
 - [ ] **Lightning particle effects** — Between Research Quarter towers
 - [ ] **Musical note particle emitter** — Bard's stage near Tavern
-- [ ] **Volumetric cone lights** — Warm interior light spilling from Tavern windows
-- [ ] **Wind sway on flower beds** — Currently only subtle rotation, needs vertex displacement
+- [x] **Volumetric cone lights** — Warm interior light spilling from Tavern windows (additive cone shader + ground pool, intensity follows nightness)
+- [x] **Wind sway on flower beds** — Vertex displacement via `applyWindSway()` (`onBeforeCompile`, shared program, also applied to window-box blooms)
 
 ## 2.6 Audio System (`audio.js`)
 - [x] Ambient wind (looping, fluctuating volume)
@@ -131,24 +132,25 @@
 - [ ] **Cart "park" animation** — Cart turns slightly toward building, lantern brightens on approach
 
 ## 3.2 Project Modals Overhaul
-- [ ] Redesign modals to match isekai/fantasy town aesthetic
-- [ ] Add transition animation when entering from 3D town
-- [ ] Contextual modal content based on building zone
+- [x] Redesign modals to match isekai/fantasy town aesthetic ("quest scroll" parchment, ornamental corners, zone-coloured ribbon, gauge bars; night variant; `role=dialog` + focus trap)
+- [x] Add transition animation when entering from 3D town (`.from-town` door-in animation; cart input locked via `settlement:modal` event; respects reduced motion)
+- [x] Contextual modal content based on building zone (zone ribbon + building name + zone flavour line; per-project `flavor` override supported)
 
 ## 3.3 Minimap
 - [x] Canvas-based minimap with circular clip
 - [x] Ring road, spoke roads, fountain dot
 - [x] Building dots (gold for interactive, beige for decorative)
 - [x] Cart position arrow (rotates with cart heading)
-- [ ] **Current zone highlight** — Highlight the zone the cart is currently in
+- [x] **Current zone highlight** — Highlight the zone the cart is currently in
 - [ ] **Extract to `minimap.js`** — Currently inline in `town-world.js`, should be its own module
 
 ## 3.4 Achievements & Exploration Tracking
-- [ ] `distanceDriven` counter persisted to localStorage
-- [ ] `timePlayed` counter persisted to localStorage
-- [ ] Building visit tracking (which buildings the player has approached)
-- [ ] Exploration progress percentage (buildings visited / total)
-- [ ] Achievement notifications (toast-style) for milestones
+- [x] `distanceDriven` counter persisted to localStorage
+- [x] `timePlayed` counter persisted to localStorage
+- [x] Building visit tracking (which buildings the player has approached)
+- [x] Exploration progress percentage (buildings visited / total) — `#explore-hud` pill, tap for a summary
+- [x] Achievement notifications (toast-style) for milestones — 12 achievements in `achievements.js`, `aria-live` toasts, chime on unlock
+- [ ] Achievements panel / reset control (currently only the summary toast; `window._achievements.reset()` for dev)
 
 ---
 
@@ -159,7 +161,9 @@
 - [ ] **Instanced meshes** — Use `InstancedMesh` for trees, rocks, flowers, barrels (same geometry + material)
 - [ ] **LOD** — Reduce geometry detail for distant buildings
 - [ ] **Frustum culling audit** — Ensure all meshes have proper bounding spheres
-- [ ] **Draw call monitoring** — Track `renderer.info.render.calls` and set budget
+- [x] **Draw call monitoring** — `?debug` logs fps / calls / tris every 5s; budget 700. Measured on swiftshader: ~420 calls at the Square, ~650 on Main Street (shadow pass roughly doubles calls)
+- [ ] **Point-light budget** — 30 `PointLight`s (27 lamps + fire + orb + cart) are the main fragment cost; make far lamps emissive-only or cull by distance
+- [ ] **Merge static building parts** — each building is ~10 meshes (timber, windows, door, trim); merge per building with `BufferGeometryUtils`
 - [ ] **Texture atlas** — Combine small textures (signs, flowers) into a single atlas
 
 ## 4.2 Three.js r160+ Upgrade
@@ -172,7 +176,7 @@
 ## 4.3 Mobile Polish
 - [x] Mobile joystick UI and touch handling
 - [x] Mobile interact button
-- [ ] **Fallback HUD navigation** — On low-end mobile, offer button-based zone travel instead of driving
-- [ ] **Responsive controls overlay** — Smaller text, touch-friendly sizing
-- [ ] **Performance scaling** — Reduce particle counts, shadow map size, and post-processing on mobile GPUs
+- [x] **Fallback HUD navigation** — `#zone-hud` (4 buttons, icon-only on touch/≤640px) teleports the cart; also keyboard/screen-reader reachable
+- [x] **Responsive controls overlay** — touch card (joystick/tap/quarters) swapped in at boot, smaller type ≤640px, minimap moved out from under the joystick, portrait vignette widened
+- [x] **Performance scaling** — `detectPerfTier()` → `PERF_PRESETS` (pixel ratio, shadow map 1024, PCF instead of PCFSoft, particle counts, half-res bloom). Force with `?lowperf` / `?highperf`
 - [ ] **Touch nipple controls** — Full virtual joystick with analog sensitivity (Bruno Simon's touch input pattern)
