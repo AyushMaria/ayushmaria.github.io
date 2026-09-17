@@ -11,8 +11,14 @@ import { ParticleSystem } from './particles.js';
 import { PostProcessing } from './post-processing.js';
 import { AudioSystem } from './audio.js';
 import { Achievements } from './achievements.js';
+import { cobbleTexture, plasterTexture, stoneTexture, windowTexture, grassTexture } from './textures.js';
+import {
+  propMaterials, gableRoofGeometry, buildCityWall, buildClockTower,
+  buildTrees, buildClouds, buildMountains, buildStall,
+} from './town-props.js';
 
 import * as THREE from 'three';
+import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 const gsap  = window.gsap;
 
 // Accessibility: honour the OS "reduce motion" preference for camera shake,
@@ -38,8 +44,8 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12 },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6 },
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -58,39 +64,49 @@ export const ZONES = {
   west:     { name: 'Services Quarter', spawn: { x: -14, z: 0,  rot: -Math.PI / 2 } },
 };
 
+// Road half-widths (see the road section in initTownWorld): spokes 6, ring 4.5,
+// roundabout out to 13. Every building below sits clear of those strips —
+// the Observatory and Navigator's Tower used to stand IN the east/west roads.
+const ROAD_HALF = 6;
+
+// Tudor buildings (`roof` set, ≤4 roof segs) get cream plaster + dark timber +
+// terracotta gable roofs; `color` is the plaster tint. Stone/fantasy
+// buildings keep their own colour on a stone-block texture.
 const BUILDINGS = [
   // Town Square — entry area (south of roundabout, z > 0)
-  { x: -10, z: 28, w: 10, h: 7, d: 8, color: 0x6b4226, roof: 0x3d2b1f,
+  { x: -10.5, z: 28, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',
     chimney: true, label: 'The Tavern', project: null, zone: 'square', tavern: true },
-  { x: -7, z: 16, w: 4, h: 5, d: 3, color: 0xd4c9b0, roof: 0x8b7355,
+  { x: -10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
     label: 'Adventurer Stats', project: null, zone: 'square' },
-  { x: 7, z: 16, w: 4, h: 5, d: 3, color: 0x6b4226, roof: 0x3e2518,
+  { x: 10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,
     label: 'Guild Board', project: null, zone: 'square' },
 
-  // North Arm
-  { x: -7, z: -14, w: 5.5, h: 6, d: 5, color: 0x6b4226, roof: 0x3d2b1f,
+  // North Arm (Main Street)
+  { x: -10.5, z: -14, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose', zone: 'north' },
-  { x: 7, z: -20, w: 5, h: 7, d: 4, color: 0xd4c9b0, roof: 0x2c2c3e,
+  { x: 10.5, z: -20, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
     chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'north' },
-  { x: -5, z: -36, w: 6, h: 5, d: 5, color: 0xc0392b, roof: 0xe74c3c,
+  { x: -10.5, z: -36, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,
     label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },
 
-  // East Arm
-  { x: 18, z: -7, w: 6, h: 5, d: 6, color: 0x3a3a4a, roof: 0x1a1a2a,
+  // East Arm (Research Quarter)
+  { x: 18, z: -12, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
     roofSegs: 8, label: 'Prediction Colosseum', project: 'xg', zone: 'east' },
-  { x: 22, z: 7, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,
+  { x: 22, z: 12, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,
     label: 'Cloud Citadel', project: 'aws', zone: 'east' },
-  { x: 40, z: 0, w: 4.5, h: 10, d: 4.5, color: 0x1a2a4a, roof: 0x0a1428,
+  { x: 40, z: -12, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
     roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'east' },
 
-  // West Arm
-  { x: -20, z: 7, w: 4.5, h: 9, d: 4, color: 0x3b1f5e, roof: 0x6a0dad,
+  // West Arm (Services Quarter)
+  { x: -20, z: 11, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace', zone: 'west' },
-  { x: -18, z: -7, w: 6, h: 4.5, d: 6, color: 0x06d6a0, roof: null,
+  { x: -18, z: -12, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,
     label: 'The Volley Court', project: 'volley', zone: 'west' },
-  { x: -40, z: 0, w: 3.5, h: 14, d: 3.5, color: 0x1c2b3a, roof: null,
+  { x: -40, z: 12, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,
     label: "Navigator's Tower", project: 'instillgcs', zone: 'west' },
 ];
+
+const isTudorBuilding = (o) => o.roof !== null && o.roof !== undefined && (!o.roofSegs || o.roofSegs === 4);
 
 // ════════════════════════════════════════════════════════════════
 // SHARED MATERIALS for Phase 2.5 additions
@@ -103,7 +119,54 @@ const SHARED = {
   foliage:     new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.85 }),
   // vertexColors would be simpler but instanceColor keeps one geometry + one material
   bloom:       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+  // Reference-art surfaces (textures are procedural canvases, see textures.js)
+  cobble:      new THREE.MeshStandardMaterial({ map: cobbleTexture(), roughness: 0.95 }),
+  cobbleWarm:  new THREE.MeshStandardMaterial({ map: cobbleTexture(), color: 0xd9c4a3, roughness: 0.95 }),
+  timber:      new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.95 }),
+  shutter:     new THREE.MeshStandardMaterial({ color: 0x5f7a4c, roughness: 0.9 }),
+  door:        new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 }),
+  stoneBody:   new THREE.MeshStandardMaterial({ map: stoneTexture(), roughness: 0.9 }),
+  // One glowing lattice-window material for the whole town (map + emissiveMap)
+  windowPane:  new THREE.MeshStandardMaterial({
+    map: windowTexture(), emissive: 0xffc06a, emissiveMap: windowTexture(),
+    emissiveIntensity: 0.8, roughness: 0.35, metalness: 0.05,
+  }),
 };
+// Plaster material is cached per tint so the 8 Tudor buildings share ~5 materials
+const plasterMats = new Map();
+function plasterMat(color) {
+  if (!plasterMats.has(color)) {
+    plasterMats.set(color, new THREE.MeshStandardMaterial({ map: plasterTexture(), color, roughness: 0.9 }));
+  }
+  return plasterMats.get(color);
+}
+// Same for stone-textured bodies with a colour tint
+const stoneMats = new Map();
+function stoneMat(color) {
+  if (!stoneMats.has(color)) {
+    stoneMats.set(color, new THREE.MeshStandardMaterial({ map: stoneTexture(), color, roughness: 0.9 }));
+  }
+  return stoneMats.get(color);
+}
+
+/** Scale a plane's UVs so a repeating texture tiles at `unit` world units */
+function tileUVs(geo, w, h, unit) {
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (w / unit), uv.getY(i) * (h / unit));
+  uv.needsUpdate = true;
+  return geo;
+}
+
+/** Bake a BoxGeometry at a position/rotation for merging */
+function placedBox(w, h, d, x, y, z, rotZ = 0, rotY = 0) {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, rotZ)),
+    new THREE.Vector3(1, 1, 1));
+  g.applyMatrix4(m);
+  return g;
+}
 
 // Reference-image bloom palette: pink / red / white / lilac / marigold
 const BLOOM_PALETTE = [0xff4d6d, 0xff7b9c, 0xffb3c6, 0xfff1f5, 0xc77dff, 0xffa94d, 0xe63946];
@@ -150,7 +213,23 @@ export function zoneKeyAt(x, z) {
 }
 
 // Collected during building construction, instanced once the scene is built
-const flowerBoxSlots = [];   // { x, y, z, rotY }
+const flowerBoxSlots = [];   // { x, y, z }
+const shutterSlots   = [];   // { x, y, z, rot }
+
+function buildShutters(scene) {
+  if (!shutterSlots.length) return;
+  const geo = new THREE.BoxGeometry(0.34, 1.1, 0.07);
+  const mesh = new THREE.InstancedMesh(geo, SHARED.shutter, shutterSlots.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1);
+  shutterSlots.forEach((sl, i) => {
+    p.set(sl.x, sl.y, sl.z);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), sl.rot || 0);
+    m.compose(p, q, s);
+    mesh.setMatrixAt(i, m);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+}
 
 // Tavern cone lights & ground pools (driven by DayCycle nightness)
 const coneLightRefs = [];    // ShaderMaterial refs with uIntensity uniform
@@ -165,143 +244,261 @@ const npcs    = [];          // { sprite, idle, wave, phase }
 
 function makeBuilding(o) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({
-    color: o.color, roughness: 0.75, metalness: 0.05,
-  });
+  const tudor = isTudorBuilding(o);
+  const M = propMaterials();
 
-  // Body
-  const body = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), mat);
+  // Storeys drive window rows and timber bands
+  const storeys = o.h >= 5.5 ? 2 : 1;
+  const storeyH = o.h / storeys;
+  const frontZ  = o.d / 2;
+
+  // ── Body ─────────────────────────────────────────────────────
+  const bodyMat = tudor ? plasterMat(o.color) : stoneMat(o.color);
+  const bodyGeo = new THREE.BoxGeometry(o.w, o.h, o.d);
+  tileUVs(bodyGeo, 1, 1, 1);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = o.h / 2;
   body.castShadow = true;
   body.receiveShadow = true;
   body.userData = { project: o.project, label: o.label };
   g.add(body);
 
-  // Roof
-  if (o.roof !== null && o.roof !== undefined) {
+  // ── Roof ─────────────────────────────────────────────────────
+  let roofTop = o.h;                       // used for markers / labels / chimney
+  if (tudor) {
+    // Steep terracotta gable with a 0.7 overhang; ridge along Z by default
+    // (front gable), along X for wide buildings like the Tavern.
+    const alongX = o.ridge === 'x';
+    const span = alongX ? o.d : o.w;       // width across the gable
+    const len  = alongX ? o.w : o.d;       // length along the ridge
+    const roofH = span * 0.62;
+    const roofGeo = gableRoofGeometry(span + 1.4, roofH, len + 1.2);
+    // tile UVs: slope length × ridge length in ~1.2-unit tiles
+    const uv = roofGeo.attributes.uv;
+    const slopeLen = Math.hypot(span / 2 + 0.7, roofH);
+    for (let i = 0; i < 8; i++) uv.setXY(i, uv.getX(i) * (len / 1.2), uv.getY(i) * (slopeLen / 1.2));
+    uv.needsUpdate = true;
+    const roofMat = new THREE.MeshStandardMaterial({ map: M.tile.map, color: o.roof, roughness: 0.8 });
+    roofMat.color.lerp(new THREE.Color(0xffffff), 0.7);    // tint the tile texture, don't crush it
+    const roof = new THREE.Mesh(roofGeo, [roofMat, plasterMat(o.color)]);
+    roof.position.y = o.h - 0.02;
+    if (alongX) roof.rotation.y = Math.PI / 2;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    g.add(roof);
+    roofTop = o.h + roofH;
+    o.roofH = roofH;
+  } else if (o.roof !== null && o.roof !== undefined) {
     const rMat = new THREE.MeshStandardMaterial({ color: o.roof, roughness: 0.7 });
     const segs = o.roofSegs || 4;
-    const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(o.w * 0.78, o.h * 0.5, segs), rMat
-    );
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(o.w * 0.78, o.h * 0.5, segs), rMat);
     roof.position.y = o.h + o.h * 0.25;
     roof.rotation.y = Math.PI / 4;
     roof.castShadow = true;
     g.add(roof);
-    const trim = new THREE.Mesh(
-      new THREE.BoxGeometry(o.w + 0.4, 0.12, o.d + 0.4), rMat
-    );
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.4, 0.12, o.d + 0.4), rMat);
     trim.position.y = o.h + 0.05;
     g.add(trim);
+    roofTop = o.h + o.h * 0.5;
+    o.roofH = o.h * 0.5;
+  } else {
+    o.roofH = 0;
+    // Flat-roofed stone buildings get a parapet
+    const parapet = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.3, 0.5, o.d + 0.3), M.stoneDark);
+    parapet.position.y = o.h + 0.15;
+    g.add(parapet);
   }
 
-  // Timber framing (Phase 2.5)
-  if (o.roof !== null && (!o.roofSegs || o.roofSegs === 4)) {
-    const timberMat = new THREE.MeshStandardMaterial({ color: 0x4a2a18, roughness: 0.95 });
-    const tThick = 0.15;
-    // Corners
-    [ [-o.w/2, -o.d/2], [o.w/2, -o.d/2], [-o.w/2, o.d/2], [o.w/2, o.d/2] ].forEach(([x,z]) => {
-      const col = new THREE.Mesh(new THREE.BoxGeometry(tThick, o.h + 0.1, tThick), timberMat);
-      col.position.set(x, o.h/2, z);
-      g.add(col);
+  // ── Windows ──────────────────────────────────────────────────
+  // Each window: pane (shared glowing material, merged per building) +
+  // timber frame + shutters (merged into the timber geometry below).
+  const timberParts = [];
+  const paneParts   = [];
+  const t = 0.16;                          // timber thickness
+  const winW = 0.9, winH = 1.05;
+
+  const windowCols = (row) => {
+    // Ground floor keeps the middle clear for the door
+    if (o.w >= 8) return row === 0 ? [-o.w * 0.34, -o.w * 0.14, o.w * 0.14, o.w * 0.34] : [-o.w * 0.34, -o.w * 0.12, o.w * 0.12, o.w * 0.34];
+    return [-o.w * 0.27, o.w * 0.27];
+  };
+
+  const addWindow = (wx, wy, faceZ, sideX) => {
+    // faceZ !== undefined → front/back face; else side face at x = sideX
+    const onSide = faceZ === undefined;
+    const z = onSide ? 0 : faceZ;
+    const rotY = onSide ? Math.PI / 2 : 0;
+    const pane = new THREE.PlaneGeometry(winW, winH);
+    const pm = new THREE.Matrix4().compose(
+      new THREE.Vector3(onSide ? sideX : wx, wy, onSide ? wx : z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, onSide ? (sideX > 0 ? Math.PI / 2 : -Math.PI / 2) : (faceZ > 0 ? 0 : Math.PI), 0)),
+      new THREE.Vector3(1, 1, 1));
+    pane.applyMatrix4(pm);
+    paneParts.push(pane);
+    if (!tudor) return;
+    const px = onSide ? sideX : wx, pz = onSide ? wx : z;
+    const out = onSide ? 0 : (faceZ > 0 ? 1 : -1);
+    const fr = (w, h, ox, oy) => onSide
+      ? placedBox(t, h, w, px + (sideX > 0 ? 0.02 : -0.02), wy + oy, pz + ox)
+      : placedBox(w, h, t, px + ox, wy + oy, pz + out * 0.02);
+    timberParts.push(fr(winW + 0.3, t, 0, winH / 2 + 0.05));       // head
+    timberParts.push(fr(winW + 0.3, t + 0.04, 0, -winH / 2 - 0.05)); // sill
+    timberParts.push(fr(t, winH + 0.2, -winW / 2 - 0.05, 0));       // jambs
+    timberParts.push(fr(t, winH + 0.2,  winW / 2 + 0.05, 0));
+    void rotY;
+  };
+
+  for (let row = 0; row < storeys; row++) {
+    const wy = row * storeyH + storeyH * (row === 0 ? 0.6 : 0.5);
+    windowCols(row).forEach(wx => {
+      addWindow(wx, wy, frontZ);
+      if (tudor) {
+        // shutters (muted green) — merged separately since they're a different colour
+        shutterSlots.push({ x: o.x + wx - winW / 2 - 0.34, y: wy, z: o.z + frontZ + 0.05, rot: 0 });
+        shutterSlots.push({ x: o.x + wx + winW / 2 + 0.34, y: wy, z: o.z + frontZ + 0.05, rot: 0 });
+        // window box under every front window (reference: blooms on every storey)
+        flowerBoxSlots.push({ x: o.x + wx, y: wy - winH / 2 - 0.22, z: o.z + frontZ + 0.18 });
+      }
+      // Warm light spilling from the Tavern's ground-floor windows
+      if (o.tavern && row === 0) g.add(createConeLight(wx, wy, frontZ + 0.05, wy + 0.2));
     });
-    // Horizontal bands
-    [ 0.1, o.h - 0.1 ].forEach(y => {
-      const hBand = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.1, tThick, o.d + 0.1), timberMat);
-      hBand.position.y = y;
-      g.add(hBand);
-    });
+    // Back face windows (no shutters/boxes — rarely seen)
+    if (o.w >= 5) windowCols(row).forEach(wx => addWindow(wx, wy, -frontZ));
+    // One window per side on the upper storey of bigger buildings
+    if (row === storeys - 1 && o.d >= 4.5) {
+      addWindow(0, wy, undefined, o.w / 2 + 0.01);
+      addWindow(0, wy, undefined, -o.w / 2 - 0.01);
+    }
   }
 
-  // Hanging animated sign (Phase 2.5)
+  // ── Timber framing (merged into one mesh) ────────────────────
+  if (tudor) {
+    const hw = o.w / 2, hd = o.d / 2;
+    // corner posts
+    [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]].forEach(([x, z]) =>
+      timberParts.push(placedBox(t * 1.4, o.h + 0.1, t * 1.4, x, o.h / 2, z)));
+    // storey bands (all four faces)
+    for (let k = 0; k <= storeys; k++) {
+      const y = Math.min(Math.max(k * storeyH, 0.08), o.h - 0.08);
+      timberParts.push(placedBox(o.w + 0.1, t, t, 0, y, hd));
+      timberParts.push(placedBox(o.w + 0.1, t, t, 0, y, -hd));
+      timberParts.push(placedBox(t, t, o.d + 0.1, hw, y, 0));
+      timberParts.push(placedBox(t, t, o.d + 0.1, -hw, y, 0));
+    }
+    // studs + diagonal braces on the front and back faces
+    [hd, -hd].forEach(z => {
+      const bays = Math.max(2, Math.round(o.w / 1.6));
+      const bayW = o.w / bays;
+      for (let b = 1; b < bays; b++) {
+        const x = -hw + b * bayW;
+        timberParts.push(placedBox(t, o.h, t, x, o.h / 2, z));
+      }
+      // ground-floor braces alternate direction bay by bay (skip the door bay)
+      const braceLen = Math.hypot(bayW, storeyH * 0.9);
+      const ang = Math.atan2(storeyH * 0.9, bayW);
+      for (let b = 0; b < bays; b++) {
+        const cx = -hw + (b + 0.5) * bayW;
+        if (z > 0 && Math.abs(cx) < bayW) continue;          // door bay
+        const dir = b % 2 === 0 ? 1 : -1;
+        timberParts.push(placedBox(t * 0.8, braceLen * 0.92, t * 0.8, cx, storeyH * 0.5, z + (z > 0 ? 0.01 : -0.01), dir * (Math.PI / 2 - ang)));
+      }
+      // gable-end braces (front gable only)
+      if (o.ridge !== 'x' && z > 0 && o.roofH) {
+        const gh = o.roofH * 0.55;
+        timberParts.push(placedBox(t, gh, t, 0, o.h + gh / 2, hd + 0.62));
+        timberParts.push(placedBox(t * 0.8, Math.hypot(hw * 0.5, gh) * 0.95, t * 0.8, -hw * 0.25, o.h + gh * 0.5, hd + 0.62, Math.atan2(hw * 0.5, gh)));
+        timberParts.push(placedBox(t * 0.8, Math.hypot(hw * 0.5, gh) * 0.95, t * 0.8,  hw * 0.25, o.h + gh * 0.5, hd + 0.62, -Math.atan2(hw * 0.5, gh)));
+      }
+    });
+    // side studs
+    [hw, -hw].forEach(x => {
+      const bays = Math.max(2, Math.round(o.d / 1.8));
+      for (let b = 1; b < bays; b++) {
+        timberParts.push(placedBox(t, o.h, t, x, o.h / 2, -hd + b * (o.d / bays)));
+      }
+    });
+  }
+  if (timberParts.length) {
+    const merged = mergeBufferGeometries(timberParts, false);
+    const timber = new THREE.Mesh(merged, SHARED.timber);
+    timber.castShadow = true;
+    g.add(timber);
+  }
+  if (paneParts.length) {
+    const panes = new THREE.Mesh(mergeBufferGeometries(paneParts, false), SHARED.windowPane);
+    g.add(panes);
+  }
+
+  // ── Door (arched) ────────────────────────────────────────────
+  const doorH = Math.min(2.2, storeyH * 0.7), doorW = 1.1;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.12), SHARED.door);
+  door.position.set(0, doorH / 2, frontZ + 0.04);
+  g.add(door);
+  const arch = new THREE.Mesh(new THREE.CylinderGeometry(doorW / 2, doorW / 2, 0.12, 16), SHARED.door);
+  arch.rotation.x = Math.PI / 2;
+  arch.position.set(0, doorH, frontZ + 0.03);
+  g.add(arch);
+  if (tudor) {
+    const frame = mergeBufferGeometries([
+      placedBox(t, doorH + 0.1, t, -doorW / 2 - 0.1, (doorH + 0.1) / 2, frontZ + 0.05),
+      placedBox(t, doorH + 0.1, t,  doorW / 2 + 0.1, (doorH + 0.1) / 2, frontZ + 0.05),
+    ], false);
+    g.add(new THREE.Mesh(frame, SHARED.timber));
+  }
+
+  // ── Hanging animated sign (Phase 2.5) ────────────────────────
   if (o.label === 'The Tavern' || o.label === 'The Forge') {
     const isTavern = o.label === 'The Tavern';
     const sPivot = new THREE.Group();
-    // Hang off the right side
-    sPivot.position.set(o.w/2 + 0.1, o.h * 0.7, o.d/2 - 1.0); 
-    
-    const bracket = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.1), new THREE.MeshStandardMaterial({color:0x333333}));
-    bracket.position.set(0.6, 0, 0); // stick out right
+    sPivot.position.set(o.w / 2 + 0.1, storeyH * 1.05, frontZ - 0.6);
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.08), M.iron);
+    bracket.position.set(0.6, 0, 0);
     sPivot.add(bracket);
-    
     const signGroup = new THREE.Group();
-    signGroup.position.set(1.0, -0.05, 0); // hook loop pos
-    const signMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 1.2, 1.0), 
-      new THREE.MeshStandardMaterial({color: isTavern ? 0x8B0000 : 0x555555})
-    );
-    signMesh.position.set(0, -0.6, 0); // hang down
+    signGroup.position.set(1.0, -0.05, 0);
+    const signMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.9),
+      new THREE.MeshStandardMaterial({ color: isTavern ? 0x8b1a1a : 0x4a4a4a, roughness: 0.8 }));
+    signMesh.position.set(0, -0.55, 0);
     signGroup.add(signMesh);
     sPivot.add(signGroup);
-    
     g.add(sPivot);
-    animatedProps.push({
-      update: (t) => { signGroup.rotation.z = Math.sin(t * 1.5 + o.x) * 0.2; }
-    });
+    animatedProps.push({ update: (t) => { signGroup.rotation.z = Math.sin(t * 1.5 + o.x) * 0.2; } });
   }
 
-  // Windows (front face)
-  const winMat = new THREE.MeshStandardMaterial({
-    color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.8,
-  });
-  windowMats.push(winMat);
-  const winGeo = new THREE.BoxGeometry(0.5, 0.6, 0.06);
-  const isTudor = o.roof !== null && (!o.roofSegs || o.roofSegs === 4);
-  [-o.w * 0.22, o.w * 0.22].forEach(wx => {
-    const win = new THREE.Mesh(winGeo, winMat);
-    win.position.set(wx, o.h * 0.58, o.d / 2 + 0.01);
-    g.add(win);
-
-    // Phase 2.5: flower box under every front window of a Tudor-style facade
-    if (isTudor) {
-      flowerBoxSlots.push({ x: o.x + wx, y: o.h * 0.58 - 0.42, z: o.z + o.d / 2 + 0.16 });
-    }
-
-    // Phase 2.5: warm light spilling from the Tavern windows
-    if (o.tavern) {
-      g.add(createConeLight(wx, o.h * 0.58, o.d / 2 + 0.05, o.h * 0.58 + 0.2));
-    }
-  });
-
-  // Door
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.85 });
-  const door = new THREE.Mesh(
-    new THREE.BoxGeometry(0.65, o.h * 0.3, 0.06), doorMat
-  );
-  door.position.set(0, o.h * 0.15, o.d / 2 + 0.01);
-  g.add(door);
-
-  // Chimney
+  // ── Chimney ──────────────────────────────────────────────────
   if (o.chimney) {
-    const chim = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, o.h * 0.35, 0.35),
-      new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 })
-    );
-    chim.position.set(o.w * 0.25, o.h + o.h * 0.45, 0);
+    const chimH = (o.roofH || o.h * 0.5) * 0.55 + 1.2;
+    const cx = o.ridge === 'x' ? o.w * 0.3 : o.w * 0.28;
+    const cz = o.ridge === 'x' ? 0 : -o.d * 0.15;
+    const chim = new THREE.Mesh(new THREE.BoxGeometry(0.6, chimH, 0.6), M.stoneDark);
+    chim.position.set(cx, o.h + (o.roofH || o.h * 0.5) * 0.35 + chimH / 2, cz);
     chim.castShadow = true;
     g.add(chim);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.18, 0.8), M.stoneDark);
+    cap.position.set(cx, chim.position.y + chimH / 2 + 0.09, cz);
+    g.add(cap);
+    o._chimneyTop = { x: o.x + cx, y: chim.position.y + chimH / 2 + 0.3, z: o.z + cz };
   }
 
   g.position.set(o.x, 0, o.z);
-  
-  // Phase 3.1: Floating interactive marker
+
+  // ── Phase 3.1: Floating interactive marker ───────────────────
   if (o.project) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.5, 0),
-      new THREE.MeshStandardMaterial({color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5})
-    );
-    marker.position.y = o.h + 2;
+      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
     g.add(marker);
     g.userData.marker = marker;
     animatedProps.push({
       update: (t) => {
         marker.rotation.y = t * 1.5;
-        marker.position.y = o.h + 2.5 + Math.sin(t * 2.5 + o.x) * 0.3;
+        marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
       }
     });
   }
-  g.userData.body = body; // For emissive highlighting
-
+  g.userData.body = body;
+  o.roofTop = roofTop;
   return g;
 }
 
@@ -582,29 +779,6 @@ function updateNpcs(cartPos, elapsed) {
 // HELPERS: Trees, Rocks, Lamps
 // ════════════════════════════════════════════════════════════════
 
-function createTree(x, z, s) {
-  s = s || 1;
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 2 * s, 8),
-    new THREE.MeshStandardMaterial({ color: 0x6B4226, roughness: 0.9 })
-  );
-  trunk.position.y = s;
-  trunk.castShadow = true;
-  g.add(trunk);
-
-  const canopy = new THREE.Mesh(
-    new THREE.ConeGeometry(1.1 * s, 2.8 * s, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2d6a4f, roughness: 0.8 })
-  );
-  canopy.position.y = 3 * s;
-  canopy.castShadow = true;
-  g.add(canopy);
-
-  g.position.set(x, 0, z);
-  return g;
-}
-
 function createRock(x, z, s) {
   s = s || 1;
   const rock = new THREE.Mesh(
@@ -713,7 +887,7 @@ function setupMobileJoystick(cart) {
 // ════════════════════════════════════════════════════════════════
 
 function createSkyDome(scene) {
-  const geo = new THREE.SphereGeometry(140, 32, 16);
+  const geo = new THREE.SphereGeometry(220, 32, 16);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
@@ -947,7 +1121,7 @@ function initTownWorld() {
 
   // ── Camera ──────────────────────────────────────────────────
   const camera = new THREE.PerspectiveCamera(
-    60, innerWidth / innerHeight, 0.1, 300
+    60, innerWidth / innerHeight, 0.5, 300
   );
   camera.position.set(0, 8, 40);
   camera.lookAt(0, 2, 0);
@@ -969,53 +1143,57 @@ function initTownWorld() {
 
   // ── Ground ──────────────────────────────────────────────────
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(250, 250),
-    new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 1 })
+    new THREE.PlaneGeometry(320, 320),
+    new THREE.MeshStandardMaterial({ map: grassTexture(), color: 0xb9d89a, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
   // ── Roads (circular layout: roundabout + spokes + ring) ─────
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x9e8c6c, roughness: 0.95 });
+  // Widened to 12 (spokes) / 9 (ring) — the cart is 2 wide, so two carts
+  // pass comfortably and the cobbles read as a street, not a footpath.
+  const roadMat = SHARED.cobble;
+  const SPOKE_W = ROAD_HALF * 2;
+  const COBBLE_UNIT = 3;                  // world units per cobble texture tile (small stones)
 
   function addRoad(x, z, w, h) {
-    const r = new THREE.Mesh(new THREE.PlaneGeometry(w, h), roadMat);
+    const geo = tileUVs(new THREE.PlaneGeometry(w, h), w, h, COBBLE_UNIT);
+    const r = new THREE.Mesh(geo, roadMat);
     r.rotation.x = -Math.PI / 2;
-    r.position.set(x, 0.02, z);
+    r.position.set(x, 0.05, z);
     r.receiveShadow = true;
     scene.add(r);
   }
 
-  // Roundabout circle (center)
-  const roundabout = new THREE.Mesh(
-    new THREE.RingGeometry(3.5, 9, 32),
-    new THREE.MeshStandardMaterial({ color: 0xb8a88a, roughness: 0.95 })
-  );
+  // Roundabout (cobbled ring around the fountain)
+  const ROUNDABOUT_R = 13;
+  const rbGeo = new THREE.RingGeometry(4, ROUNDABOUT_R, 48);
+  tileUVs(rbGeo, ROUNDABOUT_R * 2, ROUNDABOUT_R * 2, COBBLE_UNIT);
+  const roundabout = new THREE.Mesh(rbGeo, SHARED.cobbleWarm);
   roundabout.rotation.x = -Math.PI / 2;
-  roundabout.position.y = 0.018;
+  roundabout.position.y = 0.07;
+  roundabout.receiveShadow = true;
   scene.add(roundabout);
 
-  // South spoke (entry road — town square)
-  addRoad(0, 20, 7, 34);
-  // Town square wider area
-  const sqPlaza = new THREE.Mesh(
-    new THREE.PlaneGeometry(28, 18),
-    new THREE.MeshStandardMaterial({ color: 0x5c3d2e, roughness: 1 })
-  );
+  // South spoke (entry road — town square → south gate)
+  addRoad(0, 32, SPOKE_W, 58);
+  // Town square plaza (cobbled, warmer tone)
+  const plazaGeo = tileUVs(new THREE.PlaneGeometry(30, 20), 30, 20, COBBLE_UNIT);
+  const sqPlaza = new THREE.Mesh(plazaGeo, SHARED.cobbleWarm);
   sqPlaza.rotation.x = -Math.PI / 2;
-  sqPlaza.position.set(-3, 0.012, 26);
+  sqPlaza.position.set(-2, 0.04, 27);
+  sqPlaza.receiveShadow = true;
   scene.add(sqPlaza);
 
-  // North spoke road
-  addRoad(0, -25, 7, 44);
-  // East spoke road
-  addRoad(25, 0, 44, 7);
-  // West spoke road
-  addRoad(-25, 0, 44, 7);
+  // North spoke runs to the clock tower; East / West run to their gates
+  addRoad(0, -27.5, SPOKE_W, 49);
+  addRoad(32, 0, 58, SPOKE_W);
+  addRoad(-32, 0, 58, SPOKE_W);
 
   // Ring road (approximated as 24-segment polygon at radius 50)
   const RING_R = 50;
+  const RING_W = 9;
   const RING_SEGS = 24;
   for (let i = 0; i < RING_SEGS; i++) {
     const a1 = (i / RING_SEGS) * Math.PI * 2;
@@ -1025,10 +1203,11 @@ function initTownWorld() {
     const dx = Math.sin(a2) * RING_R - Math.sin(a1) * RING_R;
     const dz = Math.cos(a2) * RING_R - Math.cos(a1) * RING_R;
     const len = Math.sqrt(dx * dx + dz * dz);
-    const seg = new THREE.Mesh(new THREE.PlaneGeometry(5, len + 1), roadMat);
+    const geo = tileUVs(new THREE.PlaneGeometry(RING_W, len + 1.2), RING_W, len + 1.2, COBBLE_UNIT);
+    const seg = new THREE.Mesh(geo, roadMat);
     seg.rotation.x = -Math.PI / 2;
     seg.rotation.z = -Math.atan2(dz, dx) + Math.PI / 2;
-    seg.position.set(mx, 0.02, mz);
+    seg.position.set(mx, 0.05, mz);
     seg.receiveShadow = true;
     scene.add(seg);
   }
@@ -1074,15 +1253,17 @@ function initTownWorld() {
   }
 
   // Roundabout exit signs
-  addSignboard(0, -10, '← Forge · Ledger · TinyTots →', 0);              // north exit
-  addSignboard(10, 0,  '← Colosseum · Vortex · Cloud →', Math.PI / 2);   // east exit
-  addSignboard(-10, 0, '← Concierge · Nav · Volley →', -Math.PI / 2);    // west exit
-  addSignboard(0, 10,  '↓ Town Square · Tavern ↓', Math.PI);             // south exit
+  // (roadside — they used to stand in the middle of each exit)
+  const SIGN_X = ROAD_HALF + 1.8;
+  addSignboard(SIGN_X, -14, '← Forge · Ledger · TinyTots →', 0);              // north exit
+  addSignboard(14, SIGN_X,  '← Colosseum · Vortex · Cloud →', Math.PI / 2);   // east exit
+  addSignboard(-14, -SIGN_X, '← Concierge · Nav · Volley →', -Math.PI / 2);   // west exit
+  addSignboard(-SIGN_X, 14, '↓ Town Square · Tavern ↓', Math.PI);             // south exit
 
-  // Ring road signposts (at spoke-ring intersections)
-  addSignboard(0, -RING_R + 2, '← West  ·  Roundabout  ·  East →', 0);
-  addSignboard(RING_R - 2, 0, '← North  ·  Roundabout  ·  South →', Math.PI / 2);
-  addSignboard(-RING_R + 2, 0, '← South  ·  Roundabout  ·  North →', -Math.PI / 2);
+  // Ring road signposts (beside the spoke-ring intersections)
+  addSignboard(SIGN_X, -RING_R + 8, '← West  ·  Roundabout  ·  East →', 0);
+  addSignboard(RING_R - 8, -SIGN_X, '← North  ·  Roundabout  ·  South →', Math.PI / 2);
+  addSignboard(-RING_R + 8, SIGN_X, '← South  ·  Roundabout  ·  North →', -Math.PI / 2);
 
   // ── Lighting ────────────────────────────────────────────────
   const ambientLight = new THREE.AmbientLight(0xffe4b5, 0.5);
@@ -1092,8 +1273,8 @@ function initTownWorld() {
   sun.position.set(10, 20, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(PERF.shadowMap, PERF.shadowMap);
-  sun.shadow.bias = -0.0004;      // tame acne stripes on the flat roads
-  sun.shadow.normalBias = 0.03;
+  sun.shadow.bias = -0.0008;      // tame acne stripes on the flat roads
+  sun.shadow.normalBias = 0.05;
   sun.shadow.camera.far   = 250;
   sun.shadow.camera.left  = -80;
   sun.shadow.camera.right =  80;
@@ -1134,18 +1315,23 @@ function initTownWorld() {
       mesh: b
     });
 
-    if (o.chimney) {
-      particleSystem.createSmoke(new THREE.Vector3(o.x + o.w * 0.25, o.h * 1.45 + 0.5, o.z));
+    if (o.chimney && o._chimneyTop) {
+      const c = o._chimneyTop;
+      particleSystem.createSmoke(new THREE.Vector3(c.x, c.y, c.z));
     }
 
-    // Collider (slightly padded)
-    const hw = o.w / 2 + 0.5;
-    const hd = o.d / 2 + 0.5;
+    // Collider — tight to the walls now that the cart tests its real
+    // rotated footprint (the old 0.5 padding + axis-aligned cart box was
+    // most of the "crashing into thin air").
+    const hw = o.w / 2 + 0.15;
+    const hd = o.d / 2 + 0.15;
     colliders.push(new THREE.Box3(
       new THREE.Vector3(o.x - hw, 0, o.z - hd),
       new THREE.Vector3(o.x + hw, o.h + 2, o.z + hd)
     ));
   });
+  buildShutters(scene);
+  windowMats.push(SHARED.windowPane);
 
   // ── Town Square fountain ────────────────────────────────────
   const fountainBase = new THREE.Mesh(
@@ -1156,10 +1342,7 @@ function initTownWorld() {
   fountainBase.castShadow = true;
   scene.add(fountainBase);
 
-  colliders.push(new THREE.Box3(
-    new THREE.Vector3(-3, 0, -3),
-    new THREE.Vector3(3, 2, 3)
-  ));
+  colliders.push({ circle: true, x: 0, z: 0, r: 3.1 });
 
   const water = new THREE.Mesh(
     new THREE.CylinderGeometry(2.2, 2.2, 0.1, 16),
@@ -1192,77 +1375,120 @@ function initTownWorld() {
       color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 1,
     })
   );
-  orb.position.set(40, 12, 0);
+  orb.position.set(40, 12, -12);   // above the Observatory
   scene.add(orb);
   const orbLight = new THREE.PointLight(0x06d6a0, 1.2, 12);
   orbLight.position.copy(orb.position);
   scene.add(orbLight);
 
-  // ── Tavern tables & fire (town square entry area) ───────────
+  // ── Tavern terrace & campfire ───────────────────────────────
+  // The tavern's front wall is at z = 32; the terrace sits on the plaza in
+  // front of it (the old tables/fire/barrels were inside the building).
   const tableMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 });
-  [[-14, 26], [-6, 32], [-13, 33]].forEach(([x, z]) => {
-    const top = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.8, 0.8, 0.12, 8), tableMat
-    );
+  const TABLES = [[-8, 35.5], [-13, 35.5], [-16.5, 38.5]];
+  const tableTopGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.12, 10);
+  const tableLegGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.85, 8);
+  const umbrellaGeo = new THREE.ConeGeometry(1.5, 0.7, 10, 1, true);
+  const umbrellaPole = new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6);
+  TABLES.forEach(([x, z], i) => {
+    const top = new THREE.Mesh(tableTopGeo, tableMat);
     top.position.set(x, 0.9, z);
     top.castShadow = true;
     scene.add(top);
-    const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.06, 0.06, 0.85, 8), tableMat
-    );
+    const leg = new THREE.Mesh(tableLegGeo, tableMat);
     leg.position.set(x, 0.45, z);
     scene.add(leg);
+    // red café umbrellas like the reference's terrace
+    if (i < 2) {
+      const pole = new THREE.Mesh(umbrellaPole, propMaterials().iron);
+      pole.position.set(x, 1.9, z);
+      scene.add(pole);
+      const um = new THREE.Mesh(umbrellaGeo, propMaterials().awningRed);
+      um.position.set(x, 3.05, z);
+      um.castShadow = true;
+      scene.add(um);
+    }
+    colliders.push({ circle: true, x, z, r: 1.0 });
   });
 
+  const CAMPFIRE = { x: -12.5, z: 40 };
   const fireGlow = new THREE.PointLight(0xff6b35, 2, 12);
-  fireGlow.position.set(-10, 2, 30);
+  fireGlow.position.set(CAMPFIRE.x, 2, CAMPFIRE.z);
   scene.add(fireGlow);
+  // stone ring + logs
+  const fireRing = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.16, 6, 12), propMaterials().stoneDark);
+  fireRing.rotation.x = -Math.PI / 2;
+  fireRing.position.set(CAMPFIRE.x, 0.1, CAMPFIRE.z);
+  scene.add(fireRing);
+  colliders.push({ circle: true, x: CAMPFIRE.x, z: CAMPFIRE.z, r: 1.1 });
 
-  particleSystem.createCampfire(new THREE.Vector3(-10, 0.2, 30), PERF.campfire);
+  particleSystem.createCampfire(new THREE.Vector3(CAMPFIRE.x, 0.2, CAMPFIRE.z), PERF.campfire);
   audioSys.attachFire(fireGlow);
 
-  // ── Lamps (circular layout) ─────────────────────────────────
-  // Roundabout perimeter
-  [[7, 7], [-7, 7], [7, -7], [-7, -7]].forEach(([x, z]) => addLamp(scene, x, z));
-  // Town Square / entry
-  [[-4, 18], [4, 18], [-14, 24], [-6, 34], [2, 28]].forEach(([x, z]) => addLamp(scene, x, z));
-  // North spoke
-  [[-4, -12], [4, -18], [-4, -28], [4, -38]].forEach(([x, z]) => addLamp(scene, x, z));
-  // East spoke
-  [[14, -4], [14, 4], [28, -4], [28, 4], [42, -5]].forEach(([x, z]) => addLamp(scene, x, z));
-  // West spoke
-  [[-14, -4], [-14, 4], [-28, -4], [-28, 4], [-42, 5]].forEach(([x, z]) => addLamp(scene, x, z));
-  // Ring road (every ~60 degrees)
+  // ── Lamps (circular layout, all set back from the road edges) ──
+  const LAMP_X = ROAD_HALF + 1.5;
+  const LAMPS = [
+    // Roundabout perimeter
+    [10.5, 10.5], [-10.5, 10.5], [10.5, -10.5], [-10.5, -10.5],
+    // Town Square / entry
+    [-LAMP_X, 18], [LAMP_X, 18], [-18, 35], [-LAMP_X, 38], [LAMP_X, 30],
+    // North spoke
+    [-LAMP_X, -12], [LAMP_X, -18], [-LAMP_X, -28], [LAMP_X, -38],
+    // East spoke
+    [14, -LAMP_X], [14, LAMP_X], [28, -LAMP_X], [28, LAMP_X], [42, -LAMP_X],
+    // West spoke
+    [-14, -LAMP_X], [-14, LAMP_X], [-28, -LAMP_X], [-28, LAMP_X], [-42, LAMP_X],
+  ];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    addLamp(scene, Math.sin(a) * (RING_R + 3), Math.cos(a) * (RING_R + 3));
+    LAMPS.push([Math.sin(a) * (RING_R + 6), Math.cos(a) * (RING_R + 6)]);
   }
+  LAMPS.forEach(([x, z]) => { addLamp(scene, x, z); colliders.push({ circle: true, x, z, r: 0.35 }); });
 
-  // ── Trees (surrounding the circular village) ────────────────
-  [
-    // Between spokes (inner)
-    [12, -18], [-12, -18], [12, 14], [-16, 14],
-    [14, 12],  [-14, 12],  [14, -10], [-14, -10],
-    // Around ring road (outer)
+  // ── Trees (round leafy canopies, instanced) ─────────────────
+  const treeScale = (i) => 0.85 + ((i * 7919) % 100) / 100 * 0.55;
+  const TREES = [
+    // Square & between spokes (inner)
+    [16, 20], [-17.5, 21], [17, 35], [-20, 38],
+    [14, -19], [-14, -19], [15, 14], [-15, 15],
+    [30, 14], [-30, -15], [30, -16], [-30, 16],
+    // Around ring road (inside the wall)
     [58, 10], [58, -10], [-58, 10], [-58, -10],
-    [10, -58], [-10, -58], [10, 58], [-10, 58],
+    [12, -58], [-12, -58], [10, 58], [-10, 58],
     [42, 38], [-42, 38], [42, -38], [-42, -38],
     [38, 42], [-38, 42], [38, -42], [-38, -42],
-    // Wilderness beyond ring
-    [65, 25], [-65, 25], [65, -30], [-65, -30],
-    [30, 65], [-30, 65], [30, -65], [-30, -65],
-    [55, 50], [-55, 50], [50, -55], [-50, -55],
+    // Wilderness beyond the wall
+    [70, 25], [-70, 25], [70, -30], [-70, -30],
+    [30, 70], [-30, 70], [30, -70], [-30, -70],
+    [60, 52], [-60, 52], [55, -58], [-55, -58],
+    [80, 5], [-80, -5], [5, 82], [-8, -80],
     // Entry approach
-    [15, 38], [-20, 40], [20, 48], [-25, 50],
-  ].forEach(([x, z]) => scene.add(createTree(x, z, 0.8 + Math.random() * 0.6)));
+    [15, 40], [-22, 44], [20, 48], [-25, 50],
+  ].map(([x, z], i) => [x, z, treeScale(i)]);
+  const trees = buildTrees(scene, TREES);
+  colliders.push(...trees.colliders);
 
   // ── Rocks ───────────────────────────────────────────────────
   [
-    [15, 22], [-18, 20], [25, -12], [-25, -14],
-    [10, -30], [-12, -32], [30, 10], [-32, 8],
+    [15, 24], [-19, 24], [25, -16], [-25, -18],
+    [10, -30], [-14, -32], [30, 10], [-32, 10],
     [48, -20], [-48, 18], [20, -48], [-18, 48],
     [55, 35], [-55, -40], [38, -55], [-40, 55],
   ].forEach(([x, z]) => scene.add(createRock(x, z, 0.6 + Math.random() * 0.8)));
+
+  // ── City wall, clock tower, sky dressing ────────────────────
+  const wall = buildCityWall(scene, { radius: 63, height: 6, gates: ['east', 'west', 'south'] });
+  colliders.push(...wall.colliders);
+
+  // Clock tower closes the view down Main Street (reference landmark)
+  const clockTower = buildClockTower(scene, 0, -58, { base: 6, height: 22 });
+  colliders.push(clockTower.collider);
+  windowMats.push(clockTower.faceMat);
+  particleSystem.createFireflies(30, { x: 20, y: 6, z: 20 }).position.set(0, 20, -18);
+
+  const clouds = buildClouds(scene, PERF.clouds, { radius: 130, reducedMotion: REDUCED_MOTION });
+  npcMats.push(clouds.material);          // tinted by DayCycle like the sprites
+  buildMountains(scene, { radius: 112 });
 
   // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
 
@@ -1270,10 +1496,11 @@ function initTownWorld() {
   // shader (see applyWindSway) instead of whole-mesh rotation.
   const flowerGeo = new THREE.BoxGeometry(2, 0.4, 2);
   const flowerMat = applyWindSway(
-    new THREE.MeshStandardMaterial({ color: 0x8e44ad, roughness: 1 }), 0.08, 0.2);
+    new THREE.MeshStandardMaterial({ color: 0x4d8f3f, roughness: 1 }), 0.08, 0.2);   // hedge; blooms are instanced on top
   const bedMat = new THREE.MeshStandardMaterial({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
-  const BED_SLOTS = [[-10, 8], [10, 8], [-10, 24], [10, 24]];
+  const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-3, 40]];
+  BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
   BED_SLOTS.forEach(([x,z]) => {
     const bed = new THREE.Mesh(bedGeo, bedMat);
     bed.position.set(x, 0.15, z);
@@ -1289,36 +1516,18 @@ function initTownWorld() {
   // Phase 2.5: NPC silhouettes near stalls, tavern tables and shopfronts
   if (PERF.npcs) {
     buildNpcs(scene, [
-      [-5.8, 21.5, 0], [5.8, 26.8, 1], [-13, 34.6, 2],      // Town Square stalls / tavern tables
-      [-5.5, 19.8, 1],                                       // by Adventurer Stats
-      [-5, -10, 0], [6, -16.3, 2],                           // Main Street: Forge, Ledger
-      [-4.5, -31.8, 2],                                      // outside Tiny Tots
-      [20, 11.5, 1], [-16.5, 9.5, 0],                        // Cloud Citadel, Concierge
+      [-9.5, 19.3, 0], [8.5, 24.5, 1], [-10.5, 37, 2],     // Town Square stalls / tavern terrace
+      [-8, 19.5, 1],                                         // by Adventurer Stats
+      [-8, -10.5, 0], [8.5, -16.8, 2],                       // Main Street: Forge, Ledger
+      [-7.5, -32.5, 2],                                      // outside Tiny Tots
+      [19.5, 16.2, 1], [-16.5, 14, 0],                       // Cloud Citadel, Concierge
+      [8, 33, 0],                                            // browsing the plaza stall
     ]);
   }
 
-  // Market Stalls (Town Square)
-  const stallGroup = new THREE.Group();
-  const table = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 1.5), new THREE.MeshStandardMaterial({color:0x8B4513}));
-  table.position.y = 0.8;
-  stallGroup.add(table);
-  const legGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.8);
-  [-1.4, 1.4].forEach(x => [-0.6, 0.6].forEach(z => {
-    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({color:0x3e2518}));
-    leg.position.set(x, 0.4, z);
-    stallGroup.add(leg);
-  }));
-  const canopy = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 2.5), new THREE.MeshStandardMaterial({color: 0xc0392b, side: THREE.DoubleSide}));
-  canopy.position.set(0, 2.0, 0);
-  canopy.rotation.x = -Math.PI/3;
-  stallGroup.add(canopy);
-  
-  [[-4, 24, Math.PI/2], [4, 24, -Math.PI/2]].forEach(([x,z,r]) => {
-    const s = stallGroup.clone();
-    s.position.set(x, 0, z);
-    s.rotation.y = r;
-    scene.add(s);
-  });
+  // Market stalls (Town Square) — curved red-orange awnings, off the road
+  [[-9.5, 21.5, Math.PI / 2, false], [9.5, 21.5, -Math.PI / 2, true], [9.5, 31, -Math.PI / 2, false]]
+    .forEach(([x, z, r, red]) => colliders.push(buildStall(scene, x, z, r, { red }).collider));
 
   // Glowing Rune Circles & Floating Books (Research Quarter - East Arm)
   const runeMat = new THREE.MeshStandardMaterial({
@@ -1327,14 +1536,14 @@ function initTownWorld() {
   });
   const runeRing = new THREE.Mesh(new THREE.TorusGeometry(8, 0.1, 3, 32), runeMat);
   runeRing.rotation.x = -Math.PI/2;
-  runeRing.position.set(40, 0.05, 0);
+  runeRing.position.set(40, 0.05, -12);
   scene.add(runeRing);
   animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
 
   const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
   const bookMat = new THREE.MeshStandardMaterial({ color: 0x5e35b1, roughness: 0.4 });
   const books = new THREE.Group();
-  books.position.set(40, 3, 0);
+  books.position.set(40, 3, -12);
   scene.add(books);
   for(let i=0; i<3; i++) {
     const b = new THREE.Mesh(bookGeo, bookMat);
@@ -1354,7 +1563,7 @@ function initTownWorld() {
   // Tavern Mugs and Barrels (South Arm - Tavern)
   const mugGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
   const mugMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness:0.2 });
-  [[-14.2, 25.8], [-13.8, 26.1], [-6.1, 31.9], [-12.8, 33.2]].forEach(([x,z]) => {
+  [[-8.2, 35.3], [-7.8, 35.7], [-13.1, 35.4], [-16.6, 38.7]].forEach(([x,z]) => {
     const mug = new THREE.Mesh(mugGeo, mugMat);
     mug.position.set(x, 1.05, z);
     scene.add(mug);
@@ -1362,17 +1571,18 @@ function initTownWorld() {
   
   const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 12);
   const barrelMat = new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 });
-  [[-12, 28], [-12, 29], [-11, 28.5]].forEach(([x,z]) => {
+  [[-17.3, 29.5], [-17.3, 30.6], [-16.4, 30.1]].forEach(([x,z]) => {
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.position.set(x, 0.5, z);
     scene.add(barrel);
   });
+  colliders.push({ circle: true, x: -17, z: 30, r: 1.1 });
 
   // ── Label System ────────────────────────────────────────────
   const labelsContainer = document.getElementById('labels-container');
   const labelSys = new LabelSystem(camera, labelsContainer);
   buildingMeta.forEach(bm => {
-    labelSys.add(bm.data.label, new THREE.Vector3(bm.data.x, bm.data.h + 1.5, bm.data.z));
+    labelSys.add(bm.data.label, new THREE.Vector3(bm.data.x, (bm.data.roofTop || bm.data.h) + 1.2, bm.data.z));
   });
 
   // ── Cart ────────────────────────────────────────────────────
@@ -1522,6 +1732,13 @@ function initTownWorld() {
         mCtx.fillStyle = 'rgba(15, 25, 15, 0.85)';
         mCtx.fillRect(0, 0, mSize, mSize);
 
+        // City wall
+        mCtx.beginPath();
+        mCtx.arc(mCenter, mCenter, wall.radius * mScale, 0, Math.PI * 2);
+        mCtx.strokeStyle = 'rgba(214, 200, 170, 0.55)';
+        mCtx.lineWidth = 2.5;
+        mCtx.stroke();
+
         // Ring road
         mCtx.beginPath();
         mCtx.arc(mCenter, mCenter, RING_R * mScale, 0, Math.PI * 2);
@@ -1662,6 +1879,9 @@ function initTownWorld() {
     for (let p of animatedProps) {
       if (p.update) p.update(elapsed);
     }
+
+    // Clouds drift
+    clouds.tick(delta);
 
     // NPCs wave at the cart
     if (npcs.length) updateNpcs(cart.getPosition(), elapsed);

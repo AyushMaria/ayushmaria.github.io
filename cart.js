@@ -28,15 +28,23 @@ export class Cart {
     this.teleporting = false;
 
     // ── Tuning ────────────────────────────────────────────────
-    this.maxSpeed      = 0.32;
-    this.reverseMax    = 0.12;
-    this.accel         = 0.010;
-    this.brakeForce    = 0.018;
-    this.friction      = 0.003;
-    this.steerSpeed    = 0.035;
-    this.maxSteerAngle = Math.PI / 5;
-    this.steerReturn   = 0.05;
-    this.wheelBase     = 2.2;
+    // Gentler than the first pass: ~2.5s to top speed instead of ~0.5s,
+    // and a longer virtual wheelbase so full lock is ~110°/s, not ~250°/s.
+    this.maxSpeed      = 0.26;
+    this.reverseMax    = 0.10;
+    this.accel         = 0.0045;
+    this.brakeForce    = 0.014;
+    this.friction      = 0.0022;
+    this.steerSpeed    = 0.022;
+    this.maxSteerAngle = Math.PI / 6;
+    this.steerReturn   = 0.04;
+    this.wheelBase     = 4.2;
+
+    // Footprint used for collision: 4 rotated corners + centre of the
+    // cart's real 2.0 × 3.4 body (was an axis-aligned 2.4 × 3.8 box that
+    // hit things ~1.5 units early when driving diagonally).
+    this._footprint = [[0, 0], [-1.0, 1.7], [1.0, 1.7], [-1.0, -1.7], [1.0, -1.7]];
+    this._probe = new THREE.Vector3();
 
     // ── Internal refs ─────────────────────────────────────────
     this.wheels     = [];
@@ -287,28 +295,30 @@ export class Cart {
     newPos.x += dx;
     newPos.z += dz;
 
-    // World bounds
-    newPos.x = THREE.MathUtils.clamp(newPos.x, -85, 85);
-    newPos.z = THREE.MathUtils.clamp(newPos.z, -145, 45);
+    // World bounds (the city wall's ring collider is the real limit)
+    newPos.x = THREE.MathUtils.clamp(newPos.x, -70, 70);
+    newPos.z = THREE.MathUtils.clamp(newPos.z, -70, 70);
 
-    // ── Collision ────────────────────────────────────────────
-    let collided = false;
-    if (colliders) {
-      const bb = new THREE.Box3().setFromCenterAndSize(
-        newPos, new THREE.Vector3(2.4, 2, 3.8)
-      );
-      for (const box of colliders) {
-        if (bb.intersectsBox(box)) { collided = true; break; }
-      }
-    }
-
+    // ── Collision (rotated footprint, slide along walls) ─────
     this.justCollided = false;
-    if (!collided) {
+    if (!colliders || !this._blocked(newPos, colliders)) {
       this.position.copy(newPos);
     } else {
-      // Bounce and flag for camera shake
-      if (Math.abs(this.velocity) > 0.05) this.justCollided = true;
-      this.velocity *= -0.25;
+      // Try each axis on its own so the cart slides along a wall
+      // instead of stopping dead.
+      const slideX = this.position.clone(); slideX.x = newPos.x;
+      const slideZ = this.position.clone(); slideZ.z = newPos.z;
+      if (!this._blocked(slideX, colliders)) {
+        this.position.copy(slideX);
+        this.velocity *= 0.9;
+      } else if (!this._blocked(slideZ, colliders)) {
+        this.position.copy(slideZ);
+        this.velocity *= 0.9;
+      } else {
+        // Head-on: soft bounce and flag for camera shake
+        if (Math.abs(this.velocity) > 0.06) this.justCollided = true;
+        this.velocity *= -0.2;
+      }
     }
 
     // ── Sync transform ───────────────────────────────────────
@@ -324,6 +334,32 @@ export class Cart {
       this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.05 + this.steerAngle * 0.3;
     if (this.lanternLight)
       this.lanternLight.intensity = 1.0 + Math.sin(Date.now() * 0.004) * 0.3;
+  }
+
+  /**
+   * True if any footprint probe at `pos` (with current heading) is inside a
+   * collider. Colliders may be THREE.Box3 (buildings), `{ circle, x, z, r }`
+   * (fountain, towers, lamp posts) or `{ ring, r }` (stay INSIDE radius r —
+   * the city wall).
+   */
+  _blocked(pos, colliders) {
+    const s = Math.sin(this.rotation), c = Math.cos(this.rotation);
+    for (const [fx, fz] of this._footprint) {
+      // local (x right, z forward) → world, matching getForward()
+      const px = pos.x + fx * c + fz * s;
+      const pz = pos.z - fx * s + fz * c;
+      for (const col of colliders) {
+        if (col.isBox3) {
+          if (px >= col.min.x && px <= col.max.x && pz >= col.min.z && pz <= col.max.z) return true;
+        } else if (col.circle) {
+          const dx = px - col.x, dz = pz - col.z;
+          if (dx * dx + dz * dz < col.r * col.r) return true;
+        } else if (col.ring) {
+          if (px * px + pz * pz > col.r * col.r) return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ── Getters ────────────────────────────────────────────────

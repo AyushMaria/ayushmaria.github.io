@@ -51,6 +51,9 @@ We have successfully transitioned from a static void into a living settlement.
 * **`index.html`**: The entry point to the settlement.
 * **`cart.js`**: Handles the steering, acceleration, and "cart-physics."
 * **`town-world.js`**: The architect of the 3D town environment.
+* **`town-props.js`**: City wall, clock tower, trees, clouds, mountains, stalls.
+* **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
+* **`achievements.js`**: Exploration tracking, achievements and toasts.
 * **`implementation_plan.md`**: Our roadmap for future town expansions.
 
 ---
@@ -71,5 +74,5 @@ Simply open index.html in your favorite browser (or use a Live Server extension 
 
 ## 🗺️ Roadmap
 [x] Phase 1: 3D Town & Drivable Cart.
-[ ] Phase 2: Isekai Aesthetic Upgrades.
+[x] Phase 2: Isekai Aesthetic Upgrades.
 [ ] Phase 3: Interaction System.

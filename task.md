@@ -104,6 +104,23 @@
 - [x] **Volumetric cone lights** — Warm interior light spilling from Tavern windows (additive cone shader + ground pool, intensity follows nightness)
 - [x] **Wind sway on flower beds** — Vertex displacement via `applyWindSway()` (`onBeforeCompile`, shared program, also applied to window-box blooms)
 
+## 2.7 Reference-Art Pass & Layout Fixes
+- [x] **Roads widened** — spokes 7 → 12, ring 5 → 9, roundabout out to r=13; spokes now run to the gates / clock tower
+- [x] **Cobblestone streets** — procedural cobble texture (`textures.js`), plaza in a warmer tone; roads lifted + camera near 0.5 to kill z-fighting stripes
+- [x] **Buildings moved off the roads** — Vortex Observatory and Navigator's Tower stood *in* the east/west spokes; Tiny Tots, Colosseum, Citadel, Concierge, Volley nudged clear of the strips; signboards moved roadside; tavern tables/fire/barrels were inside the tavern
+- [x] **Collision rewrite** — rotated 5-point footprint test instead of an axis-aligned padded box; slides along walls per axis; colliders for fountain, lamps, trees, stalls, tables, campfire, wall towers (`Cart._blocked`)
+- [x] **Cart tuning** — accel 0.010 → 0.0045, top speed 0.32 → 0.26, steer rate 0.035 → 0.022, lock π/5 → π/6, wheelbase 2.2 → 4.2, softer bounce
+- [x] **Tudor facades** — cream plaster texture, merged timber frame (posts, storey bands, studs, diagonal braces, gable bracing), framed lattice windows with shutters (instanced) and window boxes on every storey, arched doors, stone chimneys
+- [x] **Gable tile roofs** — `gableRoofGeometry()` with terracotta tile texture and closed plaster gables (ridge along X for the Tavern)
+- [x] **Circular city wall** — `buildCityWall()`: instanced curtain wall + crenellations, 8 towers, gatehouses with closed doors E/W/S, ring collider keeps the cart inside
+- [x] **Clock tower** — gothic landmark at the end of Main Street with clock faces (emissive at night)
+- [x] **Round leafy trees** — instanced trunks + 4-blob canopies with per-instance greens (was cone pines)
+- [x] **Market stalls** — curved red-orange awnings, crates; café umbrellas on the tavern terrace; hedge beds
+- [x] **Sky dressing** — drifting cumulus sprites (tinted by DayCycle), fogged mountain range past the wall, grass texture on the ground
+- [ ] **Gate doors that open** — animate the doors + extend the drivable area outside the wall (currently drawn shut)
+- [ ] **Dormer windows / balconies** on the taller Tudor buildings (reference has them)
+- [ ] **Hanging lanterns** on facades (reference: bracketed lamps beside doors)
+
 ## 2.6 Audio System (`audio.js`)
 - [x] Ambient wind (looping, fluctuating volume)
 - [x] Cart rolling sound (speed-linked volume + filter frequency)
@@ -161,7 +178,7 @@
 - [ ] **Instanced meshes** — Use `InstancedMesh` for trees, rocks, flowers, barrels (same geometry + material)
 - [ ] **LOD** — Reduce geometry detail for distant buildings
 - [ ] **Frustum culling audit** — Ensure all meshes have proper bounding spheres
-- [x] **Draw call monitoring** — `?debug` logs fps / calls / tris every 5s; budget 700. Measured on swiftshader: ~420 calls at the Square, ~650 on Main Street (shadow pass roughly doubles calls)
+- [x] **Draw call monitoring** — `?debug` logs fps / calls / tris every 5s; budget 700. Measured on swiftshader: ~420 calls at the Square, ~650 on Main Street (shadow pass roughly doubles calls); unchanged after the reference-art pass thanks to instancing/merging (~85k tris)
 - [ ] **Point-light budget** — 30 `PointLight`s (27 lamps + fire + orb + cart) are the main fragment cost; make far lamps emissive-only or cull by distance
 - [ ] **Merge static building parts** — each building is ~10 meshes (timber, windows, door, trim); merge per building with `BufferGeometryUtils`
 - [ ] **Texture atlas** — Combine small textures (signs, flowers) into a single atlas
