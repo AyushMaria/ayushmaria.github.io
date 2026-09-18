@@ -112,6 +112,8 @@
 - [x] **Round leafy trees** — instanced trunks + 4-blob canopies with per-instance greens (was cone pines)
 - [x] **Market stalls** — curved red-orange awnings, crates; café umbrellas on the tavern terrace; hedge beds
 - [x] **Sky dressing** — drifting cumulus sprites (tinted by DayCycle), fogged mountain range past the wall, grass texture on the ground
+- [x] **Bugfix: gable roof slopes were wound inside-out** (front-face culled → roofs looked half missing); trees/lamps/signs pulled clear of the Ledger, Forge, Stats and Guild footprints
+- [x] **Chibi cursor follower removed** (Step 25 JS + CSS) — it read as an annoying stickman on the pointer
 - [ ] **Gate doors that open** — animate the doors + extend the drivable area outside the wall (currently drawn shut)
 - [ ] **Dormer windows / balconies** on the taller Tudor buildings (reference has them)
 - [ ] **Hanging lanterns** on facades (reference: bracketed lamps beside doors)

@@ -1137,7 +1137,7 @@ function initTownWorld() {
   addSignboard(SIGN_X, -14, '← Forge · Ledger · TinyTots →', 0);              // north exit
   addSignboard(14, SIGN_X,  '← Colosseum · Vortex · Cloud →', Math.PI / 2);   // east exit
   addSignboard(-14, -SIGN_X, '← Concierge · Nav · Volley →', -Math.PI / 2);   // west exit
-  addSignboard(-SIGN_X, 14, '↓ Town Square · Tavern ↓', Math.PI);             // south exit
+  addSignboard(-SIGN_X, 11, '↓ Town Square · Tavern ↓', Math.PI);             // south exit
 
   // Ring road signposts (beside the spoke-ring intersections)
   addSignboard(SIGN_X, -RING_R + 8, '← West  ·  Roundabout  ·  East →', 0);
@@ -1296,9 +1296,9 @@ function initTownWorld() {
     // Roundabout perimeter
     [10.5, 10.5], [-10.5, 10.5], [10.5, -10.5], [-10.5, -10.5],
     // Town Square / entry
-    [-LAMP_X, 18], [LAMP_X, 18], [-18, 35], [-LAMP_X, 38], [LAMP_X, 30],
+    [-LAMP_X, 21], [LAMP_X, 21], [-18, 35], [-LAMP_X, 38], [LAMP_X, 30],
     // North spoke
-    [-LAMP_X, -12], [LAMP_X, -18], [-LAMP_X, -28], [LAMP_X, -38],
+    [-LAMP_X, -9], [LAMP_X, -15], [-LAMP_X, -28], [LAMP_X, -38],
     // East spoke
     [14, -LAMP_X], [14, LAMP_X], [28, -LAMP_X], [28, LAMP_X], [42, -LAMP_X],
     // West spoke
@@ -1315,7 +1315,7 @@ function initTownWorld() {
   const TREES = [
     // Square & between spokes (inner)
     [16, 20], [-17.5, 21], [17, 35], [-20, 38],
-    [14, -19], [-14, -19], [15, 14], [-15, 15],
+    [17, -25], [-16.5, -23], [16, 12.5], [-16, 12.5],
     [30, 14], [-30, -15], [30, -16], [-30, 16],
     // Around ring road (inside the wall)
     [58, 10], [58, -10], [-58, 10], [-58, -10],

@@ -71,10 +71,10 @@ export function gableRoofGeometry(w, h, d) {
   };
   const slopeLen = Math.hypot(hw, h);
   const nx = h / slopeLen, ny = hw / slopeLen;
-  // Right slope (+X)
-  quad([0, h, -hd], [hw, 0, -hd], [hw, 0, hd], [0, h, hd], [nx, ny, 0], [0, 1, 0, 0, 1, 0, 1, 1]);
-  // Left slope (-X)
-  quad([0, h, hd], [-hw, 0, hd], [-hw, 0, -hd], [0, h, -hd], [-nx, ny, 0], [0, 1, 0, 0, 1, 0, 1, 1]);
+  // Right slope (+X) — counter-clockwise seen from outside (+X, +Y)
+  quad([0, h, -hd], [0, h, hd], [hw, 0, hd], [hw, 0, -hd], [nx, ny, 0], [0, 1, 1, 1, 1, 0, 0, 0]);
+  // Left slope (-X) — counter-clockwise seen from outside (-X, +Y)
+  quad([0, h, hd], [0, h, -hd], [-hw, 0, -hd], [-hw, 0, hd], [-nx, ny, 0], [0, 1, 1, 1, 1, 0, 0, 0]);
   const slopeEnd = pos.length / 3;
   // Gable ends
   tri([-hw, 0, hd], [hw, 0, hd], [0, h, hd], [0, 0, 1], [0, 0, 1, 0, 0.5, 1]);
