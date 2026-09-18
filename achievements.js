@@ -9,7 +9,7 @@
  *
  * The class is deliberately DOM-only (no Three.js import) so it can be
  * unit-tested and so it fits the planned TownGame singleton as a plain
- * subsystem: `achievements.update(delta, cart, zoneKey, isNight)` once per tick.
+ * subsystem: `achievements.update(delta, cart, zoneKey)` once per tick.
  */
 
 const STORAGE_KEY = 'settlement.explorer.v1';
@@ -36,8 +36,8 @@ const ACHIEVEMENTS = [
     check: s => s.projectsOpened.length >= 3 },
   { id: 'archivist',     icon: '🏛️', title: 'Archivist',          desc: 'Read every project scroll.',
     check: (s, c) => c.totalProjects > 0 && s.projectsOpened.length >= c.totalProjects },
-  { id: 'night-owl',     icon: '🦉', title: 'Night Owl',          desc: 'Wandered the town after dark.',
-    check: (s, c) => c.isNight && c.sessionTime > 8 },
+  { id: 'golden-hour',   icon: '🌇', title: 'Golden Hour',        desc: 'Lingered as the lamps came on.',
+    check: (s, c) => c.sessionTime > 90 },
   { id: 'settler',       icon: '⏳', title: 'Settler',            desc: 'Spent five minutes in the settlement.',
     check: s => s.timePlayed >= 300 },
   { id: 'teleporter',    icon: '✨', title: 'Blink Step',         desc: 'Used fast travel for the first time.',
@@ -172,9 +172,8 @@ export class Achievements {
    * @param {number} delta   seconds
    * @param {Cart}   cart    needs getPosition() and .teleporting
    * @param {string} zoneKey current zone key
-   * @param {boolean} isNight
    */
-  update(delta, cart, zoneKey, isNight) {
+  update(delta, cart, zoneKey) {
     this.sessionTime += delta;
     this.stats.timePlayed += delta;
 
@@ -190,8 +189,6 @@ export class Achievements {
       this.stats.zones.push(zoneKey);
       this._dirty = true;
     }
-
-    this._isNight = !!isNight;
 
     // Achievement checks are cheap but there's no need to run them at 60Hz
     this._checkTimer += delta;
@@ -239,7 +236,6 @@ export class Achievements {
       totalBuildings: this.totalBuildings,
       totalProjects: this.totalProjects,
       totalZones: this.totalZones,
-      isNight: this._isNight,
       sessionTime: this.sessionTime,
     };
     for (const a of ACHIEVEMENTS) {

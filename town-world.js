@@ -231,10 +231,10 @@ function buildShutters(scene) {
   scene.add(mesh);
 }
 
-// Tavern cone lights & ground pools (driven by DayCycle nightness)
+// Tavern cone lights & ground pools (intensity set by applyEvening)
 const coneLightRefs = [];    // ShaderMaterial refs with uIntensity uniform
 
-// NPC sprite materials (tinted by DayCycle) and sprites (waved by proximity)
+// NPC / cloud sprite materials (tinted by applyEvening) and sprites (waved by proximity)
 const npcMats = [];
 const npcs    = [];          // { sprite, idle, wave, phase }
 
@@ -891,9 +891,9 @@ function createSkyDome(scene) {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
-      topColor:     { value: new THREE.Color(0x3388ff) },
-      horizonColor: { value: new THREE.Color(0x87ceeb) },
-      bottomColor:  { value: new THREE.Color(0xd4f1f9) },
+      topColor:     { value: new THREE.Color(EVENING.sky.top) },
+      horizonColor: { value: new THREE.Color(EVENING.sky.horizon) },
+      bottomColor:  { value: new THREE.Color(EVENING.sky.bottom) },
       exponent:     { value: 0.6 },
     },
     vertexShader: `
@@ -920,169 +920,48 @@ function createSkyDome(scene) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// DAY/NIGHT CYCLE SYSTEM
+// LIGHTING — permanent golden-hour evening
+// (the day/night cycle was removed; this is the one look the town has)
 // ════════════════════════════════════════════════════════════════
 
-class DayCycle {
-  constructor(sun, ambientLight, skyMat, fogRef) {
-    this.sun = sun;
-    this.ambient = ambientLight;
-    this.skyMat = skyMat;
-    this.fog = fogRef;
+export const EVENING = {
+  // Sky dome gradient: dusk blue overhead → peach horizon → pale gold below
+  sky:      { top: 0x2e4f93, horizon: 0xf4a970, bottom: 0xffd9ad },
+  // Low sun from the south-west so building fronts (+z) catch the light
+  sun:      { color: 0xffb46a, intensity: 1.1, position: [-26, 13, 30] },
+  ambient:  { color: 0xd6b8c9, intensity: 0.5 },     // soft violet fill in the shadows
+  fog:      { color: 0xe9b58f, density: 0.0042 },
+  // How "lit up" the town's own lights are (0 = noon, 1 = midnight)
+  glow: 0.72,
+  // Unlit sprites (NPCs, clouds) get a warm tint instead of shading
+  spriteTint: [1.0, 0.9, 0.82],
+};
 
-    // Progress 0 → 1 over a full cycle
-    // 0.0 = noon, 0.25 = sunset, 0.5 = midnight, 0.75 = dawn
-    this.progress = 0.0;
-    this.cycleDuration = 120; // seconds for one full cycle
-    this.paused = false;
-    this.targetProgress = null; // for manual snap
+/** Apply the evening preset to every light-driven thing in the world (called once). */
+function applyEvening(sun, ambient, skyMat, fog) {
+  const E = EVENING;
+  skyMat.uniforms.topColor.value.setHex(E.sky.top);
+  skyMat.uniforms.horizonColor.value.setHex(E.sky.horizon);
+  skyMat.uniforms.bottomColor.value.setHex(E.sky.bottom);
 
-    // Sun orbit parameters (spherical)
-    this.sunRadius = 30;
-    this.sunBasePhi = 0.6;       // base elevation
-    this.sunPhiAmplitude = 0.55; // elevation swing
-    this.sunBaseTheta = 0.7;     // base azimuth
-    this.sunThetaAmplitude = 1.2; // azimuth swing
+  sun.color.setHex(E.sun.color);
+  sun.intensity = E.sun.intensity;
+  sun.position.set(...E.sun.position);
 
-    // Sky color presets [progress: {top, horizon, bottom}]
-    // Day preset tuned to the reference art: saturated cobalt zenith fading
-    // to a pale, slightly warm horizon (was a flatter 0x3388ff / 0x87ceeb).
-    this.skyPresets = {
-      day:     { top: new THREE.Color(0x2f7fe6), horizon: new THREE.Color(0xa9dcf5), bottom: new THREE.Color(0xeaf3f6) },
-      sunset:  { top: new THREE.Color(0x1a1a6a), horizon: new THREE.Color(0xff6b35), bottom: new THREE.Color(0xffaa55) },
-      night:   { top: new THREE.Color(0x030020), horizon: new THREE.Color(0x0d0825), bottom: new THREE.Color(0x1a0a2e) },
-      dawn:    { top: new THREE.Color(0x2244aa), horizon: new THREE.Color(0xffaa77), bottom: new THREE.Color(0xffd4a8) },
-    };
+  ambient.color.setHex(E.ambient.color);
+  ambient.intensity = E.ambient.intensity;
 
-    // Light color presets
-    this.lightPresets = {
-      // Golden-hour day: warmer, punchier key light + slightly lifted ambient
-      day:    { color: new THREE.Color(0xffdca0), intensity: 1.5, ambient: 0.55, ambientColor: new THREE.Color(0xffe6c4) },
-      sunset: { color: new THREE.Color(0xff8844), intensity: 0.9, ambient: 0.35, ambientColor: new THREE.Color(0xffaa66) },
-      night:  { color: new THREE.Color(0x4466aa), intensity: 0.3, ambient: 0.15, ambientColor: new THREE.Color(0x223355) },
-      dawn:   { color: new THREE.Color(0xffbb88), intensity: 0.8, ambient: 0.4,  ambientColor: new THREE.Color(0xffcc99) },
-    };
+  fog.color.setHex(E.fog.color);
+  fog.density = E.fog.density;
 
-    // Fog presets
-    this.fogPresets = {
-      day:    { color: new THREE.Color(0xa9dcf5), density: 0.0045 },  // matches day horizon
-      sunset: { color: new THREE.Color(0xcc8866), density: 0.007 },
-      night:  { color: new THREE.Color(0x0a0a1a), density: 0.010 },
-      dawn:   { color: new THREE.Color(0xaabb99), density: 0.006 },
-    };
+  const g = E.glow;
+  for (const lamp of lampRefs) {
+    lamp.light.intensity = 0.1 + g * 0.9;
+    lamp.headMat.emissiveIntensity = 0.1 + g * 0.9;
   }
-
-  // Get blended values based on progress
-  _getPhase() {
-    // Map progress to phase: 0=noon, .25=sunset, .5=midnight, .75=dawn
-    const p = this.progress;
-    if (p < 0.15)      return { from: 'day',    to: 'day',    t: 0 };
-    if (p < 0.3)       return { from: 'day',    to: 'sunset', t: (p - 0.15) / 0.15 };
-    if (p < 0.35)      return { from: 'sunset', to: 'sunset', t: 0 };
-    if (p < 0.5)       return { from: 'sunset', to: 'night',  t: (p - 0.35) / 0.15 };
-    if (p < 0.65)      return { from: 'night',  to: 'night',  t: 0 };
-    if (p < 0.8)       return { from: 'night',  to: 'dawn',   t: (p - 0.65) / 0.15 };
-    if (p < 0.85)      return { from: 'dawn',   to: 'dawn',   t: 0 };
-    return                     { from: 'dawn',   to: 'day',    t: (p - 0.85) / 0.15 };
-  }
-
-  _lerpColor(out, a, b, t) {
-    out.r = a.r + (b.r - a.r) * t;
-    out.g = a.g + (b.g - a.g) * t;
-    out.b = a.b + (b.b - a.b) * t;
-  }
-
-  isNight() {
-    return this.progress > 0.35 && this.progress < 0.8;
-  }
-
-  // Snap to day or night (called by theme toggle)
-  snapTo(dayOrNight) {
-    this.targetProgress = dayOrNight === 'night' ? 0.5 : 0.0;
-  }
-
-  update(delta) {
-    // Advance cycle
-    if (!this.paused) {
-      this.progress += delta / this.cycleDuration;
-      if (this.progress >= 1.0) this.progress -= 1.0;
-    }
-
-    // Smooth snap toward target
-    if (this.targetProgress !== null) {
-      const diff = this.targetProgress - this.progress;
-      // Handle wrapping
-      let step = diff;
-      if (Math.abs(diff) > 0.5) step = diff > 0 ? diff - 1 : diff + 1;
-      this.progress += step * Math.min(delta * 2, 0.05);
-      if (this.progress < 0) this.progress += 1;
-      if (this.progress >= 1) this.progress -= 1;
-      if (Math.abs(step) < 0.005) this.targetProgress = null;
-    }
-
-    const phase = this._getPhase();
-    const { from, to, t } = phase;
-
-    // ── Sky colors ─────────────────────────────────────────────
-    const skyFrom = this.skyPresets[from];
-    const skyTo   = this.skyPresets[to];
-    this._lerpColor(this.skyMat.uniforms.topColor.value,     skyFrom.top,     skyTo.top,     t);
-    this._lerpColor(this.skyMat.uniforms.horizonColor.value, skyFrom.horizon, skyTo.horizon, t);
-    this._lerpColor(this.skyMat.uniforms.bottomColor.value,  skyFrom.bottom,  skyTo.bottom,  t);
-
-    // ── Sun position (spherical orbit) ─────────────────────────
-    const progressOffset = 9 / 16;
-    const angle = -(this.progress + progressOffset) * Math.PI * 2;
-    const theta = this.sunBaseTheta + Math.sin(angle) * this.sunThetaAmplitude;
-    const phi   = this.sunBasePhi + Math.cos(angle) * 0.5 * this.sunPhiAmplitude;
-
-    this.sun.position.setFromSpherical(
-      new THREE.Spherical(this.sunRadius, phi, theta)
-    );
-
-    // ── Sun light color & intensity ────────────────────────────
-    const lightFrom = this.lightPresets[from];
-    const lightTo   = this.lightPresets[to];
-    this._lerpColor(this.sun.color, lightFrom.color, lightTo.color, t);
-    this.sun.intensity = lightFrom.intensity + (lightTo.intensity - lightFrom.intensity) * t;
-
-    // ── Ambient ────────────────────────────────────────────────
-    this._lerpColor(this.ambient.color, lightFrom.ambientColor, lightTo.ambientColor, t);
-    this.ambient.intensity = lightFrom.ambient + (lightTo.ambient - lightFrom.ambient) * t;
-
-    // ── Fog ────────────────────────────────────────────────────
-    const fogFrom = this.fogPresets[from];
-    const fogTo   = this.fogPresets[to];
-    this._lerpColor(this.fog.color, fogFrom.color, fogTo.color, t);
-    this.fog.density = fogFrom.density + (fogTo.density - fogFrom.density) * t;
-
-    // ── Lamps: brighter at night, dimmer in day ───────────────
-    const nightness = this.isNight() ? 1.0 :
-      (this.progress > 0.25 && this.progress <= 0.35) ? (this.progress - 0.25) / 0.1 :
-      (this.progress >= 0.8 && this.progress < 0.9) ? 1.0 - (this.progress - 0.8) / 0.1 : 0.0;
-
-    for (const lamp of lampRefs) {
-      lamp.light.intensity = 0.1 + nightness * 0.9;
-      lamp.headMat.emissiveIntensity = 0.1 + nightness * 0.9;
-    }
-
-    // ── Window glow: brighter at night ─────────────────────────
-    for (const mat of windowMats) {
-      mat.emissiveIntensity = 0.2 + nightness * 0.8;
-    }
-
-    // ── Tavern cone lights / ground pools (Phase 2.5) ──────────
-    for (const ref of coneLightRefs) ref.setNightness(nightness);
-
-    // ── NPC sprites: warm by day, cool & dim by night ──────────
-    if (npcMats.length) {
-      const r = 1 - nightness * 0.55, g = 1 - nightness * 0.5, b = 1 - nightness * 0.25;
-      for (const mat of npcMats) mat.color.setRGB(r, g, b);
-    }
-
-    this.nightness = nightness;
-    windUniforms.uTime.value += delta;
-  }
+  for (const mat of windowMats) mat.emissiveIntensity = 0.2 + g * 0.8;
+  for (const ref of coneLightRefs) ref.setNightness(g);
+  for (const mat of npcMats) mat.color.setRGB(...E.spriteTint);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1112,7 +991,7 @@ function initTownWorld() {
 
   // ── Scene ───────────────────────────────────────────────────
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x87ceeb, 0.005);
+  scene.fog = new THREE.FogExp2(EVENING.fog.color, EVENING.fog.density);
   window._townScene = scene;
 
   // ── Particle System ─────────────────────────────────────────
@@ -1266,11 +1145,11 @@ function initTownWorld() {
   addSignboard(-RING_R + 8, SIGN_X, '← South  ·  Roundabout  ·  North →', -Math.PI / 2);
 
   // ── Lighting ────────────────────────────────────────────────
-  const ambientLight = new THREE.AmbientLight(0xffe4b5, 0.5);
+  const ambientLight = new THREE.AmbientLight(EVENING.ambient.color, EVENING.ambient.intensity);
   scene.add(ambientLight);
 
-  const sun = new THREE.DirectionalLight(0xffdca0, 1.5);
-  sun.position.set(10, 20, 10);
+  const sun = new THREE.DirectionalLight(EVENING.sun.color, EVENING.sun.intensity);
+  sun.position.set(...EVENING.sun.position);
   sun.castShadow = true;
   sun.shadow.mapSize.set(PERF.shadowMap, PERF.shadowMap);
   sun.shadow.bias = -0.0008;      // tame acne stripes on the flat roads
@@ -1282,24 +1161,10 @@ function initTownWorld() {
   sun.shadow.camera.bottom = -80;
   scene.add(sun);
 
-  // ── Day/Night Cycle ─────────────────────────────────────────
-  const dayCycle = new DayCycle(sun, ambientLight, skyData.material, scene.fog);
-  window._dayCycle = dayCycle;
-
-  // Sync with initial theme
-  const initTheme = document.documentElement.getAttribute('data-theme');
-  if (initTheme === 'night') dayCycle.snapTo('night');
-
-  // Listen for theme toggle changes
-  const themeObserver = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.attributeName === 'data-theme') {
-        const theme = document.documentElement.getAttribute('data-theme');
-        dayCycle.snapTo(theme === 'night' ? 'night' : 'day');
-      }
-    }
-  });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // The 2D page's 🌙 theme toggle has no meaning inside the town now that
+  // the light is fixed, so hide it while the town is up (sound toggle stays).
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  if (themeToggleBtn) themeToggleBtn.style.display = 'none';
 
   // ── Buildings ───────────────────────────────────────────────
   const colliders     = [];
@@ -1487,7 +1352,7 @@ function initTownWorld() {
   particleSystem.createFireflies(30, { x: 20, y: 6, z: 20 }).position.set(0, 20, -18);
 
   const clouds = buildClouds(scene, PERF.clouds, { radius: 130, reducedMotion: REDUCED_MOTION });
-  npcMats.push(clouds.material);          // tinted by DayCycle like the sprites
+  npcMats.push(clouds.material);          // tinted like the NPC sprites
   buildMountains(scene, { radius: 112 });
 
   // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
@@ -1577,6 +1442,10 @@ function initTownWorld() {
     scene.add(barrel);
   });
   colliders.push({ circle: true, x: -17, z: 30, r: 1.1 });
+
+  // ── Apply the evening look to everything built above ─────────
+  applyEvening(sun, ambientLight, skyData.material, scene.fog);
+  window._evening = EVENING;
 
   // ── Label System ────────────────────────────────────────────
   const labelsContainer = document.getElementById('labels-container');
@@ -1850,12 +1719,8 @@ function initTownWorld() {
     // Cart
     cart.update(delta, colliders);
 
-    // Day/Night cycle
-    dayCycle.update(delta);
-
-    // Post-processing sync with day/night
-    postFx.setTimeOfDay(dayCycle.isNight());
-    postFx.update();
+    // Wind sway for blooms / hedges
+    windUniforms.uTime.value += delta;
 
     // Particles
     particleSystem.update(delta, elapsed);
@@ -1889,14 +1754,14 @@ function initTownWorld() {
     // Achievements / stats + keep the fast-travel HUD's active pill in sync
     const cPosNow = cart.getPosition();
     const zoneNow = zoneKeyAt(cPosNow.x, cPosNow.z);
-    achievements.update(delta, cart, zoneNow, dayCycle.isNight());
+    achievements.update(delta, cart, zoneNow);
     if (zoneHud && zoneNow !== lastZoneKey) {
       lastZoneKey = zoneNow;
       zoneHud.querySelectorAll('[data-zone]').forEach(b => b.classList.toggle('active', b.dataset.zone === zoneNow));
     }
 
     // Audio system
-    audioSys.update(delta, elapsed, cart, dayCycle.isNight());
+    audioSys.update(delta, elapsed, cart, true);   // evening → crickets on
 
     // Draw-call monitor (reads last frame's totals, then resets)
     if (debugPerf) {

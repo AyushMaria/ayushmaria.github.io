@@ -53,24 +53,19 @@
 - [x] Cart dust trail (circular buffer, speed-gated spawning)
 - [x] Campfire flames (additive blending, pinch-inward shape)
 
-## 2.2 Dynamic Lighting & Day/Night Cycle
-- [x] `DayCycle` class with spherical sun orbit (Bruno Simon's pattern)
-- [x] Sky dome gradient shader with 4-phase blending (day → sunset → night → dawn)
-- [x] Sun color/intensity interpolation across phases
-- [x] Ambient light color/intensity transitions
-- [x] Fog color/density changes per phase
-- [x] Lamp glow ramps up at night, dims during day
-- [x] Window emissive intensity tied to night cycle
-- [x] Theme toggle sync via `MutationObserver` on `data-theme`
-- [x] Smooth snap transitions (handles progress wrapping)
+## 2.2 Lighting — Permanent Golden-Hour Evening
+> The day/night cycle (`DayCycle`, theme-toggle sync, phase presets) was **removed** in favour of one fixed evening look; the 🌙 page toggle is hidden while the town is up.
+- [x] `EVENING` preset in `town-world.js` (sky gradient, low south-west sun, violet ambient fill, peach fog, lamp/window/cone glow level, sprite tint) applied once by `applyEvening()`
+- [x] Sky dome gradient shader (dusk blue → peach horizon → pale gold)
+- [x] Lamps, window panes, tavern cone lights and clock faces lit at ~70 %
+- [x] Fireflies and crickets always on (evening ambience)
 - [ ] **Shadow map optimization** — Shadow camera should follow player viewport, not cover entire scene
 
 ## 2.3 Post-Processing (`post-processing.js`)
-- [x] `UnrealBloomPass` — Glowing lanterns, emissives, fireflies
-- [x] Vignette + color grading shader (single pass)
-- [x] Day/night color shift (warm amber ↔ cool blue)
-- [x] Night bloom strength increase (0.3 → 0.5)
-- [x] Night vignette darkening (1.2 → 1.6)
+- [x] `UnrealBloomPass` — Glowing lanterns, emissives, fireflies (0.42 / 0.5 / 0.88 for the evening)
+- [x] Colour grading shader (single pass: warm shift + saturation)
+- [x] ~~Vignette~~ — **removed** (it read as a circular "focus mode")
+- [x] ~~Day/night colour shift, night bloom/vignette ramps~~ — removed with the cycle
 - [ ] **Depth of field** — Optional DOF pass for cinematic feel
 
 ## 2.4 Camera Upgrades
