@@ -1294,7 +1294,7 @@ function initTownWorld() {
   const SUN_DIR = new THREE.Vector3(...EVENING.sun.position).normalize();
   const TREES = [
     // Square
-    [16, 20, 'cherry'], [-17.5, 21, 'green'], [17, 35, 'cherry'], [-20, 38, 'green'],
+    [16, 20, 'cherry'], [-19.5, 21, 'green'], [17, 35, 'cherry'], [-20, 38, 'green'],
     // Main Street (north) & Research (east) & Services (west) inner
     [17, -25, 'oak'], [-16.5, -23, 'oak'], [16, 12.5, 'green'], [-16, 12.5, 'cherry'],
     [30, 14, 'birch'], [-30, -15, 'green'], [30, -16, 'birch'], [-30, 16, 'green'],
@@ -1309,7 +1309,8 @@ function initTownWorld() {
     [60, 52, 'oak'], [-60, 52, 'green'], [55, -58, 'green'], [-55, -58, 'oak'],
     [80, 5, 'green'], [-80, -5, 'green'], [5, 82, 'oak'], [-8, -80, 'birch'],
     // Entry approach
-    [15, 40, 'cherry'], [-22, 44, 'green'], [20, 48, 'green'], [-25, 50, 'cherry'],
+    // (kept clear of the ring road: r 45.5–54.5)
+    [17, 38.5, 'cherry'], [-24, 52, 'green'], [22, 54, 'green'], [-27, 53, 'cherry'],
   ].map(([x, z, sp], i) => [x, z, treeScale(i), sp]);
   const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards });
   colliders.push(...trees.colliders);

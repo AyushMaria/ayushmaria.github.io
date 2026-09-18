@@ -28,11 +28,11 @@ export class Cart {
     this.teleporting = false;
 
     // ── Tuning ────────────────────────────────────────────────
-    // Gentler than the first pass: ~2.5s to top speed instead of ~0.5s,
+    // Gentle: ~4s to top speed (accel minus friction), top speed ~12 world units/s,
     // and a longer virtual wheelbase so full lock is ~110°/s, not ~250°/s.
-    this.maxSpeed      = 0.26;
-    this.reverseMax    = 0.10;
-    this.accel         = 0.0045;
+    this.maxSpeed      = 0.20;
+    this.reverseMax    = 0.08;
+    this.accel         = 0.0030;
     this.brakeForce    = 0.014;
     this.friction      = 0.0022;
     this.steerSpeed    = 0.022;
