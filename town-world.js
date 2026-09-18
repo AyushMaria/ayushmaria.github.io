@@ -14,8 +14,11 @@ import { Achievements } from './achievements.js';
 import { cobbleTexture, plasterTexture, stoneTexture, windowTexture, grassTexture } from './textures.js';
 import {
   propMaterials, gableRoofGeometry, buildCityWall, buildClockTower,
-  buildTrees, buildClouds, buildMountains, buildStall,
+  buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
+  buildClouds, buildMountains, buildStall,
 } from './town-props.js';
+import { WIND, attachWind, updateWindMaterials } from './wind.js';
+import { buildGrass } from './grass.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -44,8 +47,8 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12 },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6 },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -171,36 +174,10 @@ function placedBox(w, h, d, x, y, z, rotZ = 0, rotY = 0) {
 // Reference-image bloom palette: pink / red / white / lilac / marigold
 const BLOOM_PALETTE = [0xff4d6d, 0xff7b9c, 0xffb3c6, 0xfff1f5, 0xc77dff, 0xffa94d, 0xe63946];
 
-// Wind sway — vertex displacement injected into MeshStandardMaterial.
-// Works for both instanced (phase from instanceMatrix) and plain meshes.
-const windUniforms = { uTime: { value: 0 } };
-function applyWindSway(material, amplitude, yOffset) {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime  = windUniforms.uTime;
-    shader.uniforms.uAmp   = { value: amplitude };
-    shader.uniforms.uYOff  = { value: yOffset };
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>
-        uniform float uTime; uniform float uAmp; uniform float uYOff;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        {
-          #ifdef USE_INSTANCING
-            vec2 wp = instanceMatrix[3].xz;
-          #else
-            vec2 wp = modelMatrix[3].xz;
-          #endif
-          float phase = (wp.x + wp.y) * 0.6;
-          float w = clamp(position.y + uYOff, 0.0, 1.0);
-          transformed.x += sin(uTime * 1.6 + phase) * uAmp * w;
-          transformed.z += cos(uTime * 1.1 + phase * 1.3) * uAmp * 0.5 * w;
-        }`);
-  };
-  // Same program for every material using this helper (only uniforms differ)
-  material.customProgramCacheKey = () => 'windsway';
-  return material;
-}
-applyWindSway(SHARED.bloom,   0.05, 0.5);
-applyWindSway(SHARED.foliage, 0.04, 0.5);
+// Wind — every plant samples the shared field in wind.js (Bruno Simon's
+// Wind.js pattern). Blooms/foliage are tiny, so yOffset 1 = full sway.
+attachWind(SHARED.bloom,   { amplitude: 0.06, yOffset: 1 });
+attachWind(SHARED.foliage, { amplitude: 0.05, yOffset: 1 });
 
 // Which zone a world position falls in (same partition as audio.js).
 export function zoneKeyAt(x, z) {
@@ -1310,27 +1287,31 @@ function initTownWorld() {
   }
   LAMPS.forEach(([x, z]) => { addLamp(scene, x, z); colliders.push({ circle: true, x, z, r: 0.35 }); });
 
-  // ── Trees (round leafy canopies, instanced) ─────────────────
+  // ── Trees (leaf-card crowns, one InstancedMesh per species) ──
+  // Species by quarter: Town Square green + cherry, Main Street oak,
+  // Research Quarter birch, Services green, wilderness a mix.
   const treeScale = (i) => 0.85 + ((i * 7919) % 100) / 100 * 0.55;
+  const SUN_DIR = new THREE.Vector3(...EVENING.sun.position).normalize();
   const TREES = [
-    // Square & between spokes (inner)
-    [16, 20], [-17.5, 21], [17, 35], [-20, 38],
-    [17, -25], [-16.5, -23], [16, 12.5], [-16, 12.5],
-    [30, 14], [-30, -15], [30, -16], [-30, 16],
+    // Square
+    [16, 20, 'cherry'], [-17.5, 21, 'green'], [17, 35, 'cherry'], [-20, 38, 'green'],
+    // Main Street (north) & Research (east) & Services (west) inner
+    [17, -25, 'oak'], [-16.5, -23, 'oak'], [16, 12.5, 'green'], [-16, 12.5, 'cherry'],
+    [30, 14, 'birch'], [-30, -15, 'green'], [30, -16, 'birch'], [-30, 16, 'green'],
     // Around ring road (inside the wall)
-    [58, 10], [58, -10], [-58, 10], [-58, -10],
-    [12, -58], [-12, -58], [10, 58], [-10, 58],
-    [42, 38], [-42, 38], [42, -38], [-42, -38],
-    [38, 42], [-38, 42], [38, -42], [-38, -42],
+    [58, 10, 'birch'], [58, -10, 'birch'], [-58, 10, 'green'], [-58, -10, 'oak'],
+    [12, -58, 'oak'], [-12, -58, 'oak'], [10, 58, 'cherry'], [-10, 58, 'green'],
+    [42, 38, 'green'], [-42, 38, 'oak'], [42, -38, 'birch'], [-42, -38, 'green'],
+    [38, 42, 'cherry'], [-38, 42, 'green'], [38, -42, 'oak'], [-38, -42, 'oak'],
     // Wilderness beyond the wall
-    [70, 25], [-70, 25], [70, -30], [-70, -30],
-    [30, 70], [-30, 70], [30, -70], [-30, -70],
-    [60, 52], [-60, 52], [55, -58], [-55, -58],
-    [80, 5], [-80, -5], [5, 82], [-8, -80],
+    [70, 25, 'green'], [-70, 25, 'oak'], [70, -30, 'birch'], [-70, -30, 'green'],
+    [30, 70, 'green'], [-30, 70, 'cherry'], [30, -70, 'oak'], [-30, -70, 'green'],
+    [60, 52, 'oak'], [-60, 52, 'green'], [55, -58, 'green'], [-55, -58, 'oak'],
+    [80, 5, 'green'], [-80, -5, 'green'], [5, 82, 'oak'], [-8, -80, 'birch'],
     // Entry approach
-    [15, 40], [-22, 44], [20, 48], [-25, 50],
-  ].map(([x, z], i) => [x, z, treeScale(i)]);
-  const trees = buildTrees(scene, TREES);
+    [15, 40, 'cherry'], [-22, 44, 'green'], [20, 48, 'green'], [-25, 50, 'cherry'],
+  ].map(([x, z, sp], i) => [x, z, treeScale(i), sp]);
+  const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards });
   colliders.push(...trees.colliders);
 
   // ── Rocks ───────────────────────────────────────────────────
@@ -1357,26 +1338,52 @@ function initTownWorld() {
 
   // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
 
-  // Flower Beds (Town Square) — wind sway is now vertex displacement in the
-  // shader (see applyWindSway) instead of whole-mesh rotation.
-  const flowerGeo = new THREE.BoxGeometry(2, 0.4, 2);
-  const flowerMat = applyWindSway(
-    new THREE.MeshStandardMaterial({ color: 0x4d8f3f, roughness: 1 }), 0.08, 0.2);   // hedge; blooms are instanced on top
+  // Flower beds (Town Square): wooden planter + small hedge bushes on the
+  // foliage system + instanced blooms on top.
   const bedMat = new THREE.MeshStandardMaterial({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
   const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-3, 40]];
   BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
-  BED_SLOTS.forEach(([x,z]) => {
+  const BUSHES = [];
+  BED_SLOTS.forEach(([x, z]) => {
     const bed = new THREE.Mesh(bedGeo, bedMat);
     bed.position.set(x, 0.15, z);
     scene.add(bed);
-    const flowers = new THREE.Mesh(flowerGeo, flowerMat);
-    flowers.position.set(x, 0.35, z);
-    scene.add(flowers);
+    [[-0.55, -0.55], [0.55, -0.55], [-0.55, 0.55], [0.55, 0.55]].forEach(([dx, dz]) =>
+      BUSHES.push([x + dx, z + dz, 0.5, 'green']));
   });
 
   // Phase 2.5: window flower boxes (instanced) + bloom clusters on the beds
   buildFlowerBoxes(scene, flowerBoxSlots, BED_SLOTS);
+
+  // ── Bushes (Bruno: Foliage without a trunk) ─────────────────
+  // Beside doors, around the fountain, along the inside of the wall.
+  BUSHES.push(
+    [-13.3, 19.2, 0.75, 'oak'], [13.3, 19.2, 0.75, 'oak'],          // Stats / Guild Board
+    [-16.8, 33.5, 0.8, 'green'], [-5, 33.8, 0.7, 'green'],            // Tavern front corners
+    [-14.5, -10.2, 0.7, 'oak'], [14.5, -16.6, 0.7, 'oak'],            // Forge / Ledger
+    [-14.8, -32.2, 0.8, 'cherry'], [-6.6, -32.4, 0.6, 'cherry'],      // Tiny Tots
+    [25.8, 16.2, 0.7, 'birch'], [18.2, 16.2, 0.7, 'birch'],           // Cloud Citadel
+    [-24.5, 14.5, 0.7, 'green'], [-15.5, 14.5, 0.6, 'green'],         // Concierge
+    [12.5, 9, 0.55, 'green'], [-12.5, 9, 0.55, 'green'],              // roundabout corners
+    [12.5, -9, 0.55, 'green'], [-12.5, -9, 0.55, 'green'],
+    [8.2, -54, 0.9, 'oak'], [-8.2, -54, 0.9, 'oak'],                  // clock tower base
+  );
+  for (let i = 0; i < 14; i++) {                                     // along the wall
+    const a = (i / 14) * Math.PI * 2 + 0.15;
+    if (Math.abs(Math.sin(a)) < 0.2 || Math.abs(Math.cos(a)) < 0.2) continue;   // keep gates/roads clear
+    BUSHES.push([Math.sin(a) * 59.5, Math.cos(a) * 59.5, 0.8 + (i % 3) * 0.15, ['green', 'oak', 'birch'][i % 3]]);
+  }
+  const bushes = buildBushes(scene, BUSHES, { sunDir: SUN_DIR, cards: PERF.crownCards });
+  colliders.push(...bushes.colliders);
+
+  // ── Wild flowers along the ring road & the approach ─────────
+  if (PERF.flowers) {
+    buildWildFlowers(scene, [
+      [8, 46], [-9, 46], [22, 42], [-24, 41], [46, 8], [46, -9], [-46, 9], [-46, -8],
+      [9, -44], [-9, -44], [33, 33], [-33, 33], [33, -33], [-33, -33], [18, 55], [-18, 55],
+    ]);
+  }
 
   // Phase 2.5: NPC silhouettes near stalls, tavern tables and shopfronts
   if (PERF.npcs) {
@@ -1442,6 +1449,33 @@ function initTownWorld() {
     scene.add(barrel);
   });
   colliders.push({ circle: true, x: -17, z: 30, r: 1.1 });
+
+  // ── Grass on open ground (after every collider exists) ───────
+  // Roads, plaza, roundabout, ring road and anything solid are excluded.
+  function isOpenGround(x, z) {
+    const r = Math.hypot(x, z);
+    if (r < ROUNDABOUT_R + 1.5) return false;
+    if (Math.abs(r - RING_R) < RING_W / 2 + 1) return false;
+    if (Math.abs(x) < ROAD_HALF + 1.2 && z > -54 && z < 62) return false;   // north/south spokes
+    if (Math.abs(z) < ROAD_HALF + 1.2 && Math.abs(x) < 62) return false;    // east/west spokes
+    if (x > -18 && x < 14 && z > 16 && z < 38) return false;                // plaza
+    for (const c of colliders) {
+      if (c.isBox3) {
+        if (x > c.min.x - 0.6 && x < c.max.x + 0.6 && z > c.min.z - 0.6 && z < c.max.z + 0.6) return false;
+      } else if (c.circle) {
+        const dx = x - c.x, dz = z - c.z;
+        if (dx * dx + dz * dz < (c.r + 0.3) * (c.r + 0.3)) return false;
+      }
+    }
+    return true;
+  }
+  const grass = PERF.grass > 0
+    ? buildGrass(scene, { count: PERF.grass, radius: 61, isOpen: isOpenGround })
+    : null;
+
+  // ── Wind: calmer for reduced-motion users, never fully still ──
+  if (REDUCED_MOTION) WIND.uniforms.uWindStrength.value = 0.08;
+  window._wind = WIND;
 
   // ── Apply the evening look to everything built above ─────────
   applyEvening(sun, ambientLight, skyData.material, scene.fog);
@@ -1719,8 +1753,9 @@ function initTownWorld() {
     // Cart
     cart.update(delta, colliders);
 
-    // Wind sway for blooms / hedges
-    windUniforms.uTime.value += delta;
+    // Wind field (shared by leaves, blooms, bushes, grass, flowers)
+    WIND.update(delta);
+    updateWindMaterials(foliageMaterials(), camera);
 
     // Particles
     particleSystem.update(delta, elapsed);
@@ -1769,7 +1804,7 @@ function initTownWorld() {
       if (perfTimer >= 5) {
         const r = renderer.info.render;
         const fps = (perfFrames / perfTimer).toFixed(0);
-        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · tier=${perfTier}`;
+        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · tier=${perfTier} · grass=${grass ? grass.count : 0} · wind=${WIND.uniforms.uWindStrength.value}`;
         (r.calls > DRAW_CALL_BUDGET ? console.warn : console.log)(msg);
         window._townPerf = { fps: +fps, calls: r.calls, triangles: r.triangles, tier: perfTier };
         perfTimer = 0; perfFrames = 0;

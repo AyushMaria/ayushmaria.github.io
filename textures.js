@@ -225,6 +225,30 @@ export function clockTexture() {
   });
 }
 
+// ── Leaf cluster alpha (Bruno's foliageSDF.png equivalent) ──────
+// Soft clover-shaped blob; sampled as alphaMap with alphaTest 0.3, and the
+// wind rotates its UV per fragment so the silhouette flickers like leaves.
+export function leafClusterTexture() {
+  return memo('leaf', () => {
+    const S = 128, [cv, c] = canvas(S, S);
+    c.fillStyle = '#000';
+    c.fillRect(0, 0, S, S);
+    c.globalCompositeOperation = 'lighter';
+    [[64, 58, 34], [38, 74, 26], [90, 74, 26], [50, 40, 22], [80, 40, 22], [64, 84, 20]].forEach(([x, y, r]) => {
+      const g = c.createRadialGradient(x, y, r * 0.25, x, y, r);
+      g.addColorStop(0, '#fff');
+      g.addColorStop(0.55, '#bbb');
+      g.addColorStop(1, '#000');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    });
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    return tex;
+  });
+}
+
 // ── Grass (ground plane) ────────────────────────────────────────
 export function grassTexture() {
   return memo('grass', () => {

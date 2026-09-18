@@ -131,6 +131,18 @@
 - [ ] **Engine/horse sound** — Dedicated clip-clop or engine hum tied to cart cadence
 - [ ] **UI interaction sounds** — Proximity prompt appear, modal open/close
 
+## 2.8 Living Vegetation (Bruno Simon's Wind / Foliage pattern)
+> Design notes and tuning reference: `docs/wind-foliage-guide.md`
+- [x] `wind.js` — shared noise-driven wind field (direction, gusts, time); `attachWind()` replaces the old sine `applyWindSway()`
+- [x] Leaf-card tree crowns (`crownGeometry`, alpha-tested leaf texture, UV-rotation flutter, two-tone sun shading) — one `InstancedMesh` per species
+- [x] Species palette — oak / birch / cherry / green per quarter via `instanceColor`
+- [x] Bushes + hedge beds on the foliage system (beside doors, fountain corners, inside the wall)
+- [x] Grass blades on open ground (tip-only wind, camera-facing, fog; 22k blades high tier / 6k low; excluded from roads, plaza, ring road and every collider)
+- [x] Wild flower clusters along the ring road and the approach (high tier only)
+- [x] Reduced-motion wind floor (0.08) and `window._wind` tweakables; `?debug` log shows grass count and wind strength
+- [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
+- [ ] Grass "see-through" fade around the cart when it drives through tall patches
+
 ---
 
 # Phase 3: Interaction & Content

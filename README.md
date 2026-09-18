@@ -54,6 +54,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`town-props.js`**: City wall, clock tower, trees, clouds, mountains, stalls.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
 * **`achievements.js`**: Exploration tracking, achievements and toasts.
+* **`wind.js`** / **`grass.js`**: Shared wind field, leaf-card foliage helpers and grass blades (see `docs/wind-foliage-guide.md`).
 * **`implementation_plan.md`**: Our roadmap for future town expansions.
 
 ---

@@ -4,7 +4,9 @@
  *   • gableRoofGeometry()   — steep two-slope roof with closed gable ends
  *   • buildCityWall()       — circular stone curtain wall, towers, gates (instanced)
  *   • buildClockTower()     — gothic landmark at the end of Main Street
- *   • buildTrees()          — round leafy canopies (2 instanced meshes for the lot)
+ *   • buildTrees()          — leaf-card crowns per species (Bruno Simon's Foliage pattern)
+ *   • buildBushes()         — same crowns, no trunk
+ *   • buildWildFlowers()    — instanced flower clusters that sway with the wind
  *   • buildClouds()         — drifting cumulus sprites
  *   • buildMountains()      — pale peaks past the wall, fogged into the horizon
  *   • buildStall()          — market stall with a curved red-orange awning
@@ -15,7 +17,9 @@
  */
 
 import * as THREE from 'three';
-import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTexture } from './textures.js';
+import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTexture, leafClusterTexture } from './textures.js';
+import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
+import { attachWind } from './wind.js';
 
 // ── Shared materials ────────────────────────────────────────────
 let _mats = null;
@@ -289,47 +293,220 @@ export function buildClockTower(scene, x, z, { base = 6, height = 22 } = {}) {
   };
 }
 
-// ── Round leafy trees (instanced) ───────────────────────────────
+// ── Living vegetation (Bruno Simon's Foliage / Trees / Bushes / Flowers) ─
+//
+// A crown is ~80 leaf cards scattered inside a unit sphere and merged into
+// ONE geometry; every tree of a species is an instance of it. The leaf
+// shape comes from an alpha texture, the wind rotates that texture's UV
+// (flutter) and nudges the top of the crown, and colour is two-tone against
+// the sun. Species differ only by palette — one InstancedMesh per species.
+
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/** Bruno's colour pairs (colorA → colorB). tint = B / A, applied on the lit side. */
+export const SPECIES = {
+  oak:    { a: 0xb4b536, tint: [1.20, 1.14, 1.09] },   // #b4b536 → #d8cf3b
+  birch:  { a: 0xff4f2b, tint: [1.00, 1.82, 1.47] },   // #ff4f2b → #ff903f
+  cherry: { a: 0xff6d6d, tint: [1.00, 1.40, 1.32] },   // #ff6d6d → #ff9990
+  green:  { a: 0x4f9b3c, tint: [1.65, 1.30, 1.40] },   // our own evergreen-ish green
+};
+
 /**
- * @param places [[x, z, scale], ...]
- * @returns {{ trunks, canopies, colliders }}
+ * Port of Foliage.setGeometry(): `count` cards of `cardSize` on a sphere,
+ * radius 1 - rng³ (dense at the rim), random roll, normals lerped 85 %
+ * toward the sphere normal so the crown shades like a ball.
  */
-export function buildTrees(scene, places) {
+export function crownGeometry(count = 80, cardSize = 0.8, seed = 1) {
+  const rng = seededRng(seed);
+  const planes = [];
+  const n = new THREE.Vector3(), v = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    const plane = new THREE.PlaneGeometry(cardSize, cardSize);
+    const pos = new THREE.Vector3().setFromSpherical(
+      new THREE.Spherical(1 - Math.pow(rng(), 3), Math.PI * 2 * rng(), Math.PI * rng()));
+    plane.rotateZ(rng() * 9999);
+    // tilt the card a little toward its sphere normal so the crown has depth
+    plane.lookAt(pos.clone().normalize().multiplyScalar(2).add(new THREE.Vector3((rng() - 0.5) * 0.6, (rng() - 0.5) * 0.6, (rng() - 0.5) * 0.6)));
+    plane.translate(pos.x, pos.y, pos.z);
+    n.copy(pos).normalize();
+    const p = plane.attributes.position, nrm = plane.attributes.normal;
+    for (let k = 0; k < 4; k++) {
+      v.fromBufferAttribute(p, k).lerp(n, 0.85).normalize();
+      nrm.setXYZ(k, v.x, v.y, v.z);
+    }
+    planes.push(plane);
+  }
+  return mergeBufferGeometries(planes, false);
+}
+
+let _crownGeo = null, _crownGeoLow = null;
+function crownGeoFor(cards) {
+  if (cards <= 48) return _crownGeoLow || (_crownGeoLow = crownGeometry(cards, 0.8, 3));
+  return _crownGeo || (_crownGeo = crownGeometry(cards, 0.62, 1));
+}
+
+const speciesMats = new Map();
+function speciesMaterial(key, sunDir) {
+  if (!speciesMats.has(key)) {
+    const sp = SPECIES[key] || SPECIES.green;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,                     // × instanceColor = colorA
+      alphaMap: leafClusterTexture(), alphaTest: 0.3, side: THREE.DoubleSide,
+      roughness: 0.9, metalness: 0,
+    });
+    attachWind(mat, { mode: 'leaf', amplitude: 0.35, yOffset: 0.2, sunDir, tint: sp.tint, flutter: 2.2 });
+    speciesMats.set(key, mat);
+  }
+  return speciesMats.get(key);
+}
+
+/** All materials the world must refresh each frame (sun dir in view space). */
+export function foliageMaterials() { return [...speciesMats.values()]; }
+
+/**
+ * Trees: instanced trunks + one leaf-card InstancedMesh per species.
+ * @param places [[x, z, scale, species], ...]
+ */
+export function buildTrees(scene, places, { sunDir, cards = 80 } = {}) {
   const M = propMaterials();
-  const trunkGeo  = new THREE.CylinderGeometry(0.16, 0.26, 1.6, 7);
-  const canopyGeo = new THREE.IcosahedronGeometry(1, 1);
-  const trunks   = new THREE.InstancedMesh(trunkGeo, M.trunk, places.length);
-  const canopies = new THREE.InstancedMesh(canopyGeo, M.canopy, places.length * 4);
+  const trunkGeo = new THREE.CylinderGeometry(0.16, 0.28, 2.2, 7);
+  const trunks = new THREE.InstancedMesh(trunkGeo, M.trunk, places.length);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const col = new THREE.Color();
   const colliders = [];
-  let ci = 0;
-  const rnd = (seed) => { let t = seed * 9301 + 49297; t = t % 233280; return t / 233280; };
 
-  places.forEach(([x, z, sc = 1], i) => {
-    p.set(x, 0.8 * sc, z); s.set(sc, sc, sc); q.identity();
+  // group by species
+  const bySpecies = new Map();
+  places.forEach(([x, z, sc = 1, species = 'green'], i) => {
+    p.set(x, 1.1 * sc, z); s.set(sc, sc, sc); q.identity();
     m.compose(p, q, s); trunks.setMatrixAt(i, m);
-    // 4 overlapping blobs → soft round crown
-    const blobs = [[0, 2.6, 0, 1.55], [0.9, 2.1, 0.3, 1.15], [-0.8, 2.2, -0.4, 1.1], [0.1, 3.4, -0.2, 1.0]];
-    blobs.forEach(([bx, by, bz, br], k) => {
-      p.set(x + bx * sc, by * sc, z + bz * sc);
-      s.set(br * sc, br * sc * 0.9, br * sc);
-      q.setFromEuler(new THREE.Euler(rnd(i * 4 + k) * 3, rnd(i * 4 + k + 7) * 3, 0));
-      m.compose(p, q, s);
-      canopies.setMatrixAt(ci, m);
-      // green variation: fresh lime → deeper green
-      const t = rnd(i * 3 + k);
-      col.setHSL(0.26 + t * 0.06, 0.58, 0.42 + t * 0.14);
-      canopies.setColorAt(ci++, col);
-    });
+    if (!bySpecies.has(species)) bySpecies.set(species, []);
+    bySpecies.get(species).push([x, z, sc, i]);
     colliders.push({ circle: true, x, z, r: 0.55 * sc });
   });
-  trunks.castShadow = true; canopies.castShadow = true;
+  trunks.castShadow = true;
   trunks.instanceMatrix.needsUpdate = true;
-  canopies.instanceMatrix.needsUpdate = true;
-  if (canopies.instanceColor) canopies.instanceColor.needsUpdate = true;
-  scene.add(trunks, canopies);
-  return { trunks, canopies, colliders };
+  scene.add(trunks);
+
+  const geo = crownGeoFor(cards);
+  const crowns = [];
+  for (const [species, list] of bySpecies) {
+    const sp = SPECIES[species] || SPECIES.green;
+    const mesh = new THREE.InstancedMesh(geo, speciesMaterial(species, sunDir), list.length);
+    list.forEach(([x, z, sc, i], k) => {
+      const r = 1.9 * sc;                 // crown radius
+      p.set(x, 2.2 * sc + r * 0.55, z);
+      s.set(r, r * 0.92, r);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.399) % (Math.PI * 2));
+      m.compose(p, q, s);
+      mesh.setMatrixAt(k, m);
+      // subtle per-tree variation around colorA
+      col.setHex(sp.a).offsetHSL(((i * 37) % 10 - 5) * 0.004, 0, ((i * 53) % 10 - 5) * 0.012);
+      mesh.setColorAt(k, col);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.frustumCulled = false;           // merged cards have no tidy bounds
+    scene.add(mesh);
+    crowns.push(mesh);
+  }
+  return { trunks, crowns, colliders };
+}
+
+/**
+ * Bushes: the same crown geometry/material with no trunk, sitting on the
+ * ground. `places` = [[x, z, scale, species], ...]
+ */
+export function buildBushes(scene, places, { sunDir, cards = 80, colliders: wantColliders = true } = {}) {
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  const col = new THREE.Color();
+  const colliders = [];
+  const bySpecies = new Map();
+  places.forEach(([x, z, sc = 0.7, species = 'green'], i) => {
+    if (!bySpecies.has(species)) bySpecies.set(species, []);
+    bySpecies.get(species).push([x, z, sc, i]);
+    if (wantColliders && sc >= 0.6) colliders.push({ circle: true, x, z, r: sc * 0.9 });
+  });
+  const geo = crownGeoFor(cards);
+  const meshes = [];
+  for (const [species, list] of bySpecies) {
+    const sp = SPECIES[species] || SPECIES.green;
+    const mesh = new THREE.InstancedMesh(geo, speciesMaterial(species, sunDir), list.length);
+    list.forEach(([x, z, sc, i], k) => {
+      p.set(x, sc * 0.75, z);
+      s.set(sc, sc * 0.8, sc);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 1.7) % (Math.PI * 2));
+      m.compose(p, q, s);
+      mesh.setMatrixAt(k, m);
+      col.setHex(sp.a).offsetHSL(((i * 29) % 10 - 5) * 0.004, 0, ((i * 41) % 10 - 5) * 0.015);
+      mesh.setColorAt(k, col);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    meshes.push(mesh);
+  }
+  return { meshes, colliders };
+}
+
+/**
+ * Wild flowers (port of Flowers.js): 8 petal cards per flower, 3–10
+ * flowers per cluster, one InstancedMesh, heads sway with the wind.
+ * @param clusters [[x, z], ...]
+ */
+export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd166, 0xff6d6d, 0xc77dff, 0xff9f43] } = {}) {
+  const rng = seededRng(99);
+  // flower geometry: 8 tiny cards facing outward around a stem top
+  const planes = [];
+  for (let i = 0; i < 8; i++) {
+    const plane = new THREE.PlaneGeometry(0.14, 0.14);
+    const dir = new THREE.Vector3().setFromSpherical(new THREE.Spherical(1, Math.PI * 0.25 * rng(), Math.PI * 2 * rng()));
+    const pos = dir.clone().setLength(0.22 + (rng() - 0.5) * 0.1);
+    pos.y += 0.32;
+    const mat = new THREE.Matrix4().lookAt(dir, new THREE.Vector3(), new THREE.Vector3(0, 1, 0));
+    mat.setPosition(pos);
+    plane.applyMatrix4(mat);
+    planes.push(plane);
+  }
+  // stem
+  const stem = new THREE.PlaneGeometry(0.03, 0.34);
+  stem.translate(0, 0.17, 0);
+  planes.push(stem);
+  const geo = mergeBufferGeometries(planes, false);
+  geo.deleteAttribute('uv');
+
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.9 });
+  attachWind(mat, { mode: 'vertex', amplitude: 0.5, yOffset: 0.7 });
+
+  const transforms = [], colors = [];
+  clusters.forEach(([cx, cz]) => {
+    const n = 3 + Math.floor(rng() * 8);
+    const c = palette[Math.floor(rng() * palette.length)];
+    for (let j = 0; j < n; j++) {
+      const o = new THREE.Object3D();
+      o.position.set(cx + (rng() - 0.5) * 3, 0, cz + (rng() - 0.5) * 3);
+      o.rotation.y = Math.PI * 2 * rng();
+      o.scale.setScalar(0.7 + rng() * 0.5);
+      o.updateMatrix();
+      transforms.push(o.matrix);
+      colors.push(rng() < 0.7 ? c : palette[Math.floor(rng() * palette.length)]);
+    }
+  });
+  const mesh = new THREE.InstancedMesh(geo, mat, transforms.length);
+  const col = new THREE.Color();
+  transforms.forEach((t, i) => { mesh.setMatrixAt(i, t); mesh.setColorAt(i, col.setHex(colors[i])); });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
 }
 
 // ── Clouds ──────────────────────────────────────────────────────
