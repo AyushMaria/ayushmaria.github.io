@@ -836,27 +836,61 @@ function setupMobileJoystick(cart) {
   const handle = document.getElementById('joystick-handle');
   if (!base || !handle) return;
 
-  function onTouch(e) {
-    e.preventDefault();
+  // Track ONE finger by identifier so a second finger on the interact
+  // button (or a stray palm) never yanks the stick.
+  let touchId = null;
+  let origin = null;   // where this finger first landed → the stick centre
+
+  const findTouch = (list) => {
+    for (let i = 0; i < list.length; i++) if (list[i].identifier === touchId) return list[i];
+    return null;
+  };
+
+  function applyTouch(touch) {
     const rect = base.getBoundingClientRect();
-    const cx = rect.width / 2, cy = rect.height / 2;
-    const md = cx - 20;
-    const touch = e.touches[0];
-    let dx = touch.clientX - rect.left - cx;
-    let dy = touch.clientY - rect.top  - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const md = rect.width / 2 - 12;                 // full deflection at the rim
+    let dx = touch.clientX - origin.x;
+    let dy = touch.clientY - origin.y;
+    const dist = Math.hypot(dx, dy);
     if (dist > md) { dx = dx / dist * md; dy = dy / dist * md; }
     handle.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     cart.setJoystickInput(dx / md, dy / md);
   }
 
-  base.addEventListener('touchstart', onTouch, { passive: false });
-  base.addEventListener('touchmove',  onTouch, { passive: false });
-  base.addEventListener('touchend', e => {
+  base.addEventListener('touchstart', e => {
     e.preventDefault();
+    if (touchId !== null) return;
+    const t = e.changedTouches[0];
+    touchId = t.identifier;
+    // Relative stick: the centre is where the thumb lands, so the first
+    // movement is a small nudge instead of a jump to the rim.
+    const rect = base.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const md = rect.width / 2 - 12;
+    const off = Math.hypot(t.clientX - cx, t.clientY - cy);
+    origin = off < md * 0.5 ? { x: cx, y: cy } : { x: t.clientX, y: t.clientY };
+    applyTouch(t);
+  }, { passive: false });
+
+  base.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = findTouch(e.touches);
+    if (t) applyTouch(t);
+  }, { passive: false });
+
+  const release = e => {
+    if (touchId === null || !findTouch(e.changedTouches)) return;
+    e.preventDefault();
+    touchId = null; origin = null;
     handle.style.transform = 'translate(-50%, -50%)';
     cart.setJoystickInput(0, 0);
-  }, { passive: false });
+  };
+  base.addEventListener('touchend', release, { passive: false });
+  base.addEventListener('touchcancel', release, { passive: false });
+  // Finger slid off the base: keep steering until it lifts anywhere
+  window.addEventListener('touchmove', e => { const t = findTouch(e.touches); if (t && touchId !== null) applyTouch(t); }, { passive: true });
+  window.addEventListener('touchend', release, { passive: false });
+  window.addEventListener('touchcancel', release, { passive: false });
 }
 
 // ════════════════════════════════════════════════════════════════

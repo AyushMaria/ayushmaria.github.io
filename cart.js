@@ -54,7 +54,11 @@ export class Cart {
 
     // ── Input ─────────────────────────────────────────────────
     this.keys = { forward: false, backward: false, left: false, right: false, brake: false };
-    this.joystick = { x: 0, y: 0, active: false };
+    // Raw stick from the touch handler and a low-passed copy used by physics
+    // (a thumb jitters; the cart shouldn't).
+    this.joystick = { x: 0, y: 0, active: false, sx: 0, sy: 0 };
+    this.joystickDeadzone = 0.12;   // radial
+    this.joystickSmoothing = 0.25;  // per-frame lerp toward the raw stick
     // Set by town-world while a project modal is open: driving input is
     // ignored and the cart coasts to a stop (keys are still tracked so
     // nothing is "stuck" when the modal closes).
@@ -201,7 +205,7 @@ export class Cart {
   setJoystickInput(x, y) {
     this.joystick.x = x;
     this.joystick.y = y;
-    this.joystick.active = (Math.abs(x) > 0.1 || Math.abs(y) > 0.1);
+    this.joystick.active = Math.hypot(x, y) > this.joystickDeadzone;
   }
 
   // ── Fast-travel teleport ──────────────────────────────────
@@ -241,9 +245,25 @@ export class Cart {
 
     // ── Resolve input ────────────────────────────────────────
     let inFwd = 0, inSteer = 0, inBrake = this.keys.brake;
-    if (this.joystick.active) {
-      inFwd   = -this.joystick.y;
-      inSteer = -this.joystick.x;
+    // Smooth the stick every frame (also eases it back to centre on release)
+    const js = this.joystick;
+    js.sx += (js.x - js.sx) * this.joystickSmoothing;
+    js.sy += (js.y - js.sy) * this.joystickSmoothing;
+    const stickMag = Math.hypot(js.sx, js.sy);
+    if (stickMag > this.joystickDeadzone) {
+      // Throttle: any push past the deadzone counts, full throttle from ~60 %
+      // of travel — so a diagonal push (≈0.7 up) drives at full speed and a
+      // gentle push creeps. Reverse needs a clear pull down.
+      const fwd = -js.sy;
+      const t = THREE.MathUtils.clamp((Math.abs(fwd) - 0.08) / 0.55, 0, 1);
+      inFwd = fwd > 0.08 ? t : (fwd < -0.25 ? -t : 0);
+      // A purely sideways push still needs some motion to turn (it's a cart,
+      // not a tank): creep forward gently.
+      if (inFwd === 0 && Math.abs(js.sx) > 0.5) inFwd = 0.35;
+      // Steer: proportional to sideways deflection, softened so a diagonal
+      // push is a lean, not full lock (full lock needs the stick fully sideways)
+      const side = -js.sx;
+      inSteer = Math.sign(side) * Math.pow(Math.min(1, Math.abs(side)), 1.6) * 0.85;
     } else {
       if (this.keys.forward)  inFwd =  1;
       if (this.keys.backward) inFwd = -1;
@@ -252,11 +272,20 @@ export class Cart {
     }
     if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; }
 
-    // ── Acceleration ─────────────────────────────────────────
-    if (inFwd > 0)
-      this.velocity = Math.min(this.velocity + this.accel * inFwd * dt, this.maxSpeed);
-    else if (inFwd < 0)
-      this.velocity = Math.max(this.velocity + this.accel * inFwd * dt, -this.reverseMax);
+    // ── Acceleration (approach a target speed) ───────────────
+    // Partial throttle means partial speed rather than partial thrust, so a
+    // half-pushed stick never stalls against rolling friction.
+    if (inFwd > 0) {
+      const target = this.maxSpeed * inFwd;
+      this.velocity = this.velocity < target
+        ? Math.min(this.velocity + this.accel * dt, target)
+        : Math.max(this.velocity - this.friction * dt, target);
+    } else if (inFwd < 0) {
+      const target = -this.reverseMax * -inFwd;
+      this.velocity = this.velocity > target
+        ? Math.max(this.velocity - this.accel * dt, target)
+        : Math.min(this.velocity + this.friction * dt, target);
+    }
 
     // ── Brake ────────────────────────────────────────────────
     if (inBrake) {
@@ -264,23 +293,25 @@ export class Cart {
       else                   this.velocity = Math.min(0, this.velocity + this.brakeForce * dt);
     }
 
-    // ── Friction ─────────────────────────────────────────────
-    if (Math.abs(this.velocity) > 0.001)
-      this.velocity -= Math.sign(this.velocity) * this.friction * dt;
-    else if (inFwd === 0)
-      this.velocity = 0;
-
-    // ── Steering ─────────────────────────────────────────────
-    if (inSteer !== 0) {
-      this.steerAngle += this.steerSpeed * inSteer * dt;
-      this.steerAngle = THREE.MathUtils.clamp(
-        this.steerAngle, -this.maxSteerAngle, this.maxSteerAngle
-      );
-    } else {
-      if (Math.abs(this.steerAngle) > 0.01)
-        this.steerAngle -= Math.sign(this.steerAngle) * this.steerReturn * dt;
+    // ── Rolling friction (only while coasting) ───────────────
+    if (inFwd === 0) {
+      if (Math.abs(this.velocity) > this.friction * dt)
+        this.velocity -= Math.sign(this.velocity) * this.friction * dt;
       else
-        this.steerAngle = 0;
+        this.velocity = 0;
+    }
+
+    // ── Steering (ease toward the input's target angle) ──────
+    // Analog: half a stick = half the lock. Keyboard still reaches full lock,
+    // but through the same easing so it doesn't snap.
+    {
+      const target = THREE.MathUtils.clamp(inSteer, -1, 1) * this.maxSteerAngle;
+      const rate = (inSteer !== 0 ? this.steerSpeed : this.steerReturn) * dt;
+      const diff = target - this.steerAngle;
+      // proportional ease (10 %/frame) with a small floor so it always settles
+      const step = Math.min(Math.abs(diff), Math.max(rate * 0.2, Math.abs(diff) * 0.1 * dt));
+      this.steerAngle += Math.sign(diff) * step;
+      if (inSteer === 0 && Math.abs(this.steerAngle) < 0.005) this.steerAngle = 0;
     }
 
     // ── Bicycle-model turning ────────────────────────────────
