@@ -77,33 +77,33 @@ const ROAD_HALF = 6;
 // buildings keep their own colour on a stone-block texture.
 const BUILDINGS = [
   // Town Square — entry area (south of roundabout, z > 0)
-  { x: -10.5, z: 28, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',
+  { x: -11.5, z: 28, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',
     chimney: true, label: 'The Tavern', project: null, zone: 'square', tavern: true },
-  { x: -10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
+  { x: -9, z: 14.5, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
     label: 'Adventurer Stats', project: null, zone: 'square' },
   { x: 10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,
     label: 'Guild Board', project: null, zone: 'square' },
 
   // North Arm (Main Street)
-  { x: -10.5, z: -14, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
+  { x: -11, z: -21, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose', zone: 'north' },
-  { x: 10.5, z: -20, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
-    chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'north' },
+  { x: 20, z: -10.5, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
+    chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'east' },
   { x: -10.5, z: -36, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,
     label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },
 
   // East Arm (Research Quarter)
-  { x: 18, z: -12, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
+  { x: 37.5, z: -11, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
     roofSegs: 8, label: 'Prediction Colosseum', project: 'xg', zone: 'east' },
   { x: 22, z: 12, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,
     label: 'Cloud Citadel', project: 'aws', zone: 'east' },
-  { x: 40, z: -12, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
-    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'east' },
+  { x: 11, z: -34, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
+    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'north' },
 
   // West Arm (Services Quarter)
   { x: -20, z: 11, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace', zone: 'west' },
-  { x: -18, z: -12, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,
+  { x: -36, z: -11, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,
     label: 'The Volley Court', project: 'volley', zone: 'west' },
   { x: -40, z: 12, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,
     label: "Navigator's Tower", project: 'instillgcs', zone: 'west' },
@@ -1145,15 +1145,15 @@ function initTownWorld() {
   // Roundabout exit signs
   // (roadside — they used to stand in the middle of each exit)
   const SIGN_X = ROAD_HALF + 1.8;
-  addSignboard(SIGN_X, -14, '← Forge · Ledger · TinyTots →', 0);              // north exit
-  addSignboard(14, SIGN_X,  '← Colosseum · Vortex · Cloud →', Math.PI / 2);   // east exit
-  addSignboard(-14, -SIGN_X, '← Concierge · Nav · Volley →', -Math.PI / 2);   // west exit
-  addSignboard(-SIGN_X, 11, '↓ Town Square · Tavern ↓', Math.PI);             // south exit
+  addSignboard(7.8, -14, "← Forge · Vortex · TinyTots →", 0);  // north exit
+  addSignboard(14, 7.8, "← Ledger · Colosseum · Cloud →", Math.PI / 2);  // east exit
+  addSignboard(-14, -7.8, "← Concierge · Nav · Volley →", -Math.PI / 2);  // west exit
+  addSignboard(-8.5, 10.5, "↓ Town Square · Tavern ↓", Math.PI);  // south exit
 
   // Ring road signposts (beside the spoke-ring intersections)
-  addSignboard(SIGN_X, -RING_R + 8, '← West  ·  Roundabout  ·  East →', 0);
-  addSignboard(RING_R - 8, -SIGN_X, '← North  ·  Roundabout  ·  South →', Math.PI / 2);
-  addSignboard(-RING_R + 8, SIGN_X, '← South  ·  Roundabout  ·  North →', -Math.PI / 2);
+  addSignboard(7.8, -42, "← West  ·  Roundabout  ·  East →", 0);
+  addSignboard(42, -7.8, "← North  ·  Roundabout  ·  South →", Math.PI / 2);
+  addSignboard(-42, 7.8, "← South  ·  Roundabout  ·  North →", -Math.PI / 2);
 
   // ── Lighting ────────────────────────────────────────────────
   const ambientLight = new THREE.AmbientLight(EVENING.ambient.color, EVENING.ambient.intensity);
@@ -1251,7 +1251,8 @@ function initTownWorld() {
       color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 1,
     })
   );
-  orb.position.set(40, 12, -12);   // above the Observatory
+  const OBSERVATORY = BUILDINGS.find(b => b.label === 'Vortex Observatory') || { x: 40, z: -12, h: 10 };
+  orb.position.set(OBSERVATORY.x, OBSERVATORY.h + 2, OBSERVATORY.z);   // above the Observatory
   scene.add(orb);
   const orbLight = new THREE.PointLight(0x06d6a0, 1.2, 12);
   orbLight.position.copy(orb.position);
@@ -1304,16 +1305,29 @@ function initTownWorld() {
   // ── Lamps (circular layout, all set back from the road edges) ──
   const LAMP_X = ROAD_HALF + 1.5;
   const LAMPS = [
-    // Roundabout perimeter
-    [10.5, 10.5], [-10.5, 10.5], [10.5, -10.5], [-10.5, -10.5],
-    // Town Square / entry
-    [-LAMP_X, 21], [LAMP_X, 21], [-18, 35], [-LAMP_X, 38], [LAMP_X, 30],
-    // North spoke
-    [-LAMP_X, -9], [LAMP_X, -15], [-LAMP_X, -28], [LAMP_X, -38],
-    // East spoke
-    [14, -LAMP_X], [14, LAMP_X], [28, -LAMP_X], [28, LAMP_X], [42, -LAMP_X],
-    // West spoke
-    [-14, -LAMP_X], [-14, LAMP_X], [-28, -LAMP_X], [-28, LAMP_X], [-42, LAMP_X],
+    [10.5, 10.5],
+    [-10, 9],
+    [10.5, -10.5],
+    [-10.5, -10.5],
+    [-6.5, 23],
+    [7.5, 21],
+    [-18, 35],
+    [-7.5, 38],
+    [7.5, 30],
+    [-7.5, -9],
+    [7.5, -15],
+    [-7.5, -28],
+    [7.5, -38],
+    [14, -7.5],
+    [14, 7.5],
+    [28, -7.5],
+    [28, 7.5],
+    [42, -7.5],
+    [-14, -7.5],
+    [-15, 6.5],
+    [-28, -7.5],
+    [-26.5, 6.5],
+    [-42, 7.5],
   ];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
@@ -1327,24 +1341,55 @@ function initTownWorld() {
   const treeScale = (i) => 0.85 + ((i * 7919) % 100) / 100 * 0.55;
   const SUN_DIR = new THREE.Vector3(...EVENING.sun.position).normalize();
   const TREES = [
-    // Square
-    [16, 20, 'cherry'], [-19.5, 21, 'green'], [17, 35, 'cherry'], [-20, 38, 'green'],
-    // Main Street (north) & Research (east) & Services (west) inner
-    [17, -25, 'oak'], [-16.5, -23, 'oak'], [16, 12.5, 'green'], [-16, 12.5, 'cherry'],
-    [30, 14, 'birch'], [-30, -15, 'green'], [30, -16, 'birch'], [-30, 16, 'green'],
-    // Around ring road (inside the wall)
-    [58, 10, 'birch'], [58, -10, 'birch'], [-58, 10, 'green'], [-58, -10, 'oak'],
-    [12, -58, 'oak'], [-12, -58, 'oak'], [10, 58, 'cherry'], [-10, 58, 'green'],
-    [42, 38, 'green'], [-42, 38, 'oak'], [42, -38, 'birch'], [-42, -38, 'green'],
-    [38, 42, 'cherry'], [-38, 42, 'green'], [38, -42, 'oak'], [-38, -42, 'oak'],
-    // Wilderness beyond the wall
-    [70, 25, 'green'], [-70, 25, 'oak'], [70, -30, 'birch'], [-70, -30, 'green'],
-    [30, 70, 'green'], [-30, 70, 'cherry'], [30, -70, 'oak'], [-30, -70, 'green'],
-    [60, 52, 'oak'], [-60, 52, 'green'], [55, -58, 'green'], [-55, -58, 'oak'],
-    [80, 5, 'green'], [-80, -5, 'green'], [5, 82, 'oak'], [-8, -80, 'birch'],
-    // Entry approach
-    // (kept clear of the ring road: r 45.5–54.5)
-    [17, 38.5, 'cherry'], [-24, 52, 'green'], [22, 54, 'green'], [-27, 53, 'cherry'],
+    [16, 20, 'cherry'],
+    [-19.5, 21, 'green'],
+    [17, 35, 'cherry'],
+    [-20, 38, 'green'],
+    [22.5, -25, 'oak'],
+    [-23.5, -29.5, 'oak'],
+    [16, 12.5, 'green'],
+    [-16, 12.5, 'cherry'],
+    [30, 14, 'birch'],
+    [-28, -23, 'green'],
+    [28.5, -21, 'birch'],
+    [-30, 16, 'green'],
+    [58, 10, 'birch'],
+    [58, -10, 'birch'],
+    [-58, 10, 'green'],
+    [-58, -10, 'oak'],
+    [12, -58, 'oak'],
+    [-12, -58, 'oak'],
+    [10, 58, 'cherry'],
+    [-10, 58, 'green'],
+    [42, 38, 'green'],
+    [-42, 38, 'oak'],
+    [42, -38, 'birch'],
+    [-42, -38, 'green'],
+    [38, 42, 'cherry'],
+    [-38, 42, 'green'],
+    [38, -42, 'oak'],
+    [-38, -42, 'oak'],
+    [70, 25, 'green'],
+    [-70, 25, 'oak'],
+    [70, -30, 'birch'],
+    [-70, -30, 'green'],
+    [30, 70, 'green'],
+    [-30, 70, 'cherry'],
+    [30, -70, 'oak'],
+    [-30, -70, 'green'],
+    [60, 52, 'oak'],
+    [-60, 52, 'green'],
+    [55, -58, 'green'],
+    [-55, -58, 'oak'],
+    [80, 5, 'green'],
+    [-80, -5, 'green'],
+    [5, 82, 'oak'],
+    [-8, -80, 'birch'],
+    [17, 38.5, 'cherry'],
+    [-24, 52, 'green'],
+    [22, 54, 'green'],
+    [-27, 53, 'cherry'],
+    [-21.5, -25, 'cherry'],
   ].map(([x, z, sp], i) => [x, z, treeScale(i), sp]);
   const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards });
   colliders.push(...trees.colliders);
@@ -1353,7 +1398,7 @@ function initTownWorld() {
   [
     [15, 24], [-19, 24], [25, -16], [-25, -18],
     [10, -30], [-14, -32], [30, 10], [-32, 10],
-    [48, -20], [-48, 18], [20, -48], [-18, 48],
+    [53.5, -22.3], [-53.6, 20.1], [22.3, -53.5], [-20.1, 53.6],
     [55, 35], [-55, -40], [38, -55], [-40, 55],
   ].forEach(([x, z]) => scene.add(createRock(x, z, 0.6 + Math.random() * 0.8)));
 
@@ -1377,7 +1422,7 @@ function initTownWorld() {
   // foliage system + instanced blooms on top.
   const bedMat = new THREE.MeshStandardMaterial({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
-  const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-3, 40]];
+  const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-9.5, 42.5]];
   BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
   const BUSHES = [];
   BED_SLOTS.forEach(([x, z]) => {
@@ -1394,15 +1439,25 @@ function initTownWorld() {
   // ── Bushes (Bruno: Foliage without a trunk) ─────────────────
   // Beside doors, around the fountain, along the inside of the wall.
   BUSHES.push(
-    [-13.3, 19.2, 0.75, 'oak'], [13.3, 19.2, 0.75, 'oak'],          // Stats / Guild Board
-    [-16.8, 33.5, 0.8, 'green'], [-5, 33.8, 0.7, 'green'],            // Tavern front corners
-    [-14.5, -10.2, 0.7, 'oak'], [14.5, -16.6, 0.7, 'oak'],            // Forge / Ledger
-    [-14.8, -32.2, 0.8, 'cherry'], [-6.6, -32.4, 0.6, 'cherry'],      // Tiny Tots
-    [25.8, 16.2, 0.7, 'birch'], [18.2, 16.2, 0.7, 'birch'],           // Cloud Citadel
-    [-24.5, 14.5, 0.7, 'green'], [-15.5, 14.5, 0.6, 'green'],         // Concierge
-    [12.5, 9, 0.55, 'green'], [-12.5, 9, 0.55, 'green'],              // roundabout corners
-    [12.5, -9, 0.55, 'green'], [-12.5, -9, 0.55, 'green'],
-    [8.2, -54, 0.9, 'oak'], [-8.2, -54, 0.9, 'oak'],                  // clock tower base
+
+    [-16, 18, 0.75, 'oak'],
+    [13.3, 19.2, 0.75, 'oak'],
+    [-17.7, 33.5, 0.8, 'green'],
+    [-7.4, 33.8, 0.7, 'green'],
+    [-14.5, -10.2, 0.7, 'oak'],
+    [14.5, -16.6, 0.7, 'oak'],
+    [-14.8, -32.2, 0.8, 'cherry'],
+    [-6.6, -32.4, 0.6, 'cherry'],
+    [25.8, 16.2, 0.7, 'birch'],
+    [18.2, 16.2, 0.7, 'birch'],
+    [-24.5, 14.5, 0.7, 'green'],
+    [-15.5, 14.5, 0.6, 'green'],
+    [12.5, 9, 0.55, 'green'],
+    [-12.5, 9, 0.55, 'green'],
+    [12.5, -9, 0.55, 'green'],
+    [-12.5, -9, 0.55, 'green'],
+    [9.5, -56.5, 0.9, 'oak'],
+    [-9.5, -56.5, 0.9, 'oak'],
   );
   for (let i = 0; i < 14; i++) {                                     // along the wall
     const a = (i / 14) * Math.PI * 2 + 0.15;
@@ -1415,25 +1470,28 @@ function initTownWorld() {
   // ── Wild flowers along the ring road & the approach ─────────
   if (PERF.flowers) {
     buildWildFlowers(scene, [
-      [8, 46], [-9, 46], [22, 42], [-24, 41], [46, 8], [46, -9], [-46, 9], [-46, -8],
-      [9, -44], [-9, -44], [33, 33], [-33, 33], [33, -33], [-33, -33], [18, 55], [-18, 55],
+      [7.1, 40.9], [-11.1, 56.9], [19.3, 36.8], [-29.3, 50.1], [40.9, 7.1], [56.9, -11.1], [-40.7, 8], [-57.1, -9.9], [8.3, -40.7], [-11.6, -56.8], [29.3, 29.3], [-41, 41], [29.3, -29.3], [-41, -41], [12.9, 39.4], [-18, 55.1],
     ]);
   }
 
   // Phase 2.5: NPC silhouettes near stalls, tavern tables and shopfronts
   if (PERF.npcs) {
     buildNpcs(scene, [
-      [-9.5, 19.3, 0], [8.5, 24.5, 1], [-10.5, 37, 2],     // Town Square stalls / tavern terrace
-      [-8, 19.5, 1],                                         // by Adventurer Stats
-      [-8, -10.5, 0], [8.5, -16.8, 2],                       // Main Street: Forge, Ledger
-      [-7.5, -32.5, 2],                                      // outside Tiny Tots
-      [19.5, 16.2, 1], [-16.5, 14, 0],                       // Cloud Citadel, Concierge
-      [8, 33, 0],                                            // browsing the plaza stall
+      [-9.5, 18.5, 0],
+      [8.5, 24.5, 1],
+      [-10.5, 37, 2],
+      [-8, 18.5, 1],
+      [-8, -10.5, 0],
+      [8.5, -16.8, 2],
+      [-7.5, -32.5, 2],
+      [19.5, 16.2, 1],
+      [-16.5, 14, 0],
+      [8, 33, 0],
     ]);
   }
 
   // Market stalls (Town Square) — curved red-orange awnings, off the road
-  [[-9.5, 21.5, Math.PI / 2, false], [9.5, 21.5, -Math.PI / 2, true], [9.5, 31, -Math.PI / 2, false]]
+  [[-9.5, 21, Math.PI / 2, false], [9.5, 21.5, -Math.PI / 2, true], [9.5, 31, -Math.PI / 2, false]]
     .forEach(([x, z, r, red]) => colliders.push(buildStall(scene, x, z, r, { red }).collider));
 
   // Glowing Rune Circles & Floating Books (Research Quarter - East Arm)
@@ -1441,20 +1499,20 @@ function initTownWorld() {
     color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 0.8,
     transparent: true, opacity: 0.6
   });
-  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(8, 0.1, 3, 32), runeMat);
+  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.1, 3, 32), runeMat);   // hugs the tower, stays off the road
   runeRing.rotation.x = -Math.PI/2;
-  runeRing.position.set(40, 0.05, -12);
+  runeRing.position.set(OBSERVATORY.x, 0.05, OBSERVATORY.z);
   scene.add(runeRing);
   animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
 
   const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
   const bookMat = new THREE.MeshStandardMaterial({ color: 0x5e35b1, roughness: 0.4 });
   const books = new THREE.Group();
-  books.position.set(40, 3, -12);
+  books.position.set(OBSERVATORY.x, 3, OBSERVATORY.z);
   scene.add(books);
   for(let i=0; i<3; i++) {
     const b = new THREE.Mesh(bookGeo, bookMat);
-    b.position.set(Math.sin(i * Math.PI*2/3) * 6, Math.sin(i) * 2, Math.cos(i * Math.PI*2/3) * 6);
+    b.position.set(Math.sin(i * Math.PI*2/3) * 4, Math.sin(i) * 2, Math.cos(i * Math.PI*2/3) * 4);
     b.rotation.set(Math.random(), Math.random(), Math.random());
     books.add(b);
   }
@@ -1478,12 +1536,12 @@ function initTownWorld() {
   
   const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 12);
   const barrelMat = new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 });
-  [[-17.3, 29.5], [-17.3, 30.6], [-16.4, 30.1]].forEach(([x,z]) => {
+  [[-17.8, 29.5], [-17.8, 30.6], [-16.9, 30.1]].forEach(([x,z]) => {
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.position.set(x, 0.5, z);
     scene.add(barrel);
   });
-  colliders.push({ circle: true, x: -17, z: 30, r: 1.1 });
+  colliders.push({ circle: true, x: -17.5, z: 30, r: 1.1 });
 
   // ── Grass on open ground (after every collider exists) ───────
   // Roads, plaza, roundabout, ring road and anything solid are excluded.

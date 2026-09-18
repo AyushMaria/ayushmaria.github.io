@@ -54,6 +54,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`town-props.js`**: City wall, clock tower, trees, clouds, mountains, stalls.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
 * **`achievements.js`**: Exploration tracking, achievements and toasts.
+* **`docs/town-map.svg`** / **`docs/town-map-editor.html`**: Top-down placement map and a drag-and-drop editor that exports paste-ready `town-world.js` snippets. Regenerate both with `python3 tools/make-town-map.py` after editing placements, or apply the editor's downloaded JSON directly with `python3 tools/apply-placements.py town-placements.json`.
 * **`wind.js`** / **`grass.js`**: Shared wind field, leaf-card foliage helpers and grass blades (see `docs/wind-foliage-guide.md`).
 * **`implementation_plan.md`**: Our roadmap for future town expansions.
 

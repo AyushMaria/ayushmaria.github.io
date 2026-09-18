@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Map Editor</title>
+<style>
+  :root { color-scheme: light; --ink:#2b2d42; --panel:#fffdf7; --line:#cbbfa6; --accent:#e63946; --gold:#c9a24a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family: Nunito, "Segoe UI", Arial, sans-serif; color: var(--ink); background:#efe8d8; }
+  #app { display:grid; grid-template-columns: 1fr 340px; grid-template-rows: 48px 1fr; height:100%; }
+  header { grid-column: 1 / -1; display:flex; align-items:center; gap:10px; padding:0 14px; background:#2b2d42; color:#f8f0dd; }
+  header h1 { font-size:15px; margin:0 12px 0 0; letter-spacing:.06em; }
+  header button, aside button, .btn { font: inherit; font-size:13px; padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  header button { background:#3a3f5c; color:#f8f0dd; border-color:#555a7a; }
+  header button:hover, aside button:hover { filter:brightness(1.07); }
+  header .spacer { flex:1; }
+  header label { font-size:12px; display:flex; align-items:center; gap:4px; }
+  #map-wrap { position:relative; overflow:hidden; background:#a9c98a; touch-action:none; }
+  svg { width:100%; height:100%; display:block; cursor:grab; }
+  svg.panning { cursor:grabbing; }
+  .obj { cursor:move; }
+  .obj.selected .hit { stroke:var(--accent); stroke-width:3; }
+  .obj.bad .hit { stroke:#ff0000; stroke-dasharray:4 3; stroke-width:3; }
+  .obj.derived { cursor:not-allowed; opacity:.55; }
+  .lbl { pointer-events:none; paint-order:stroke; stroke:#fff; stroke-width:3px; stroke-linejoin:round; font-weight:700; }
+  aside { background:var(--panel); border-left:1px solid var(--line); padding:12px; overflow:auto; font-size:13px; }
+  aside h2 { font-size:13px; letter-spacing:.1em; text-transform:uppercase; margin:14px 0 6px; color:#6b5a44; }
+  aside .row { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  aside .row label { width:64px; color:#555; }
+  aside input[type=number], aside input[type=text], aside select { font:inherit; padding:4px 6px; border:1px solid var(--line); border-radius:6px; width:100%; }
+  aside .warn { background:#ffe8e8; border:1px solid #ff9a9a; color:#8a1a1a; padding:6px 8px; border-radius:6px; margin:6px 0; }
+  aside .ok { color:#2f7a3a; }
+  .add-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  textarea { width:100%; height:180px; font:12px/1.35 ui-monospace, Menlo, Consolas, monospace; border:1px solid var(--line); border-radius:6px; padding:6px; }
+  .muted { color:#777; font-size:12px; }
+  .changes { font-size:12px; max-height:140px; overflow:auto; border:1px solid var(--line); border-radius:6px; padding:6px; background:#fff; }
+  .changes div { padding:1px 0; border-bottom:1px dashed #eee; }
+  kbd { background:#eee; border:1px solid #ccc; border-radius:4px; padding:0 5px; font-size:11px; }
+  @media (max-width: 860px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 48px 1fr 300px; }
+    aside { border-left:0; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🏘️ SETTLEMENT MAP EDITOR</h1>
+    <button id="btn-undo" title="Ctrl+Z">↶ Undo</button>
+    <button id="btn-redo" title="Ctrl+Y">↷ Redo</button>
+    <label><input type="checkbox" id="snap" checked> snap 0.5</label>
+    <label><input type="checkbox" id="show-derived"> show generated items</label>
+    <span class="spacer"></span>
+    <button id="btn-zoom-out">−</button>
+    <button id="btn-zoom-in">+</button>
+    <button id="btn-fit">Fit</button>
+    <button id="btn-reset" title="Discard all edits">Reset</button>
+  </header>
+
+  <div id="map-wrap"><svg id="map" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+  <aside>
+    <div class="muted">Drag anything. Arrow keys nudge the selection (<kbd>Shift</kbd> = 2 units). <kbd>Del</kbd> removes. Drag empty ground to pan, wheel to zoom. Edits auto-save in this browser.</div>
+
+    <h2>Selection</h2>
+    <div id="sel-none" class="muted">Nothing selected.</div>
+    <div id="sel"></div>
+
+    <h2>Add</h2>
+    <div class="add-grid">
+      <button data-add="trees">🌳 Tree</button>
+      <button data-add="bushes">🌿 Bush</button>
+      <button data-add="lamps">💡 Lamp</button>
+      <button data-add="npcs">🧍 NPC</button>
+      <button data-add="flowers">✿ Flowers</button>
+      <button data-add="rocks">🪨 Rock</button>
+      <button data-add="tables">🪑 Table</button>
+      <button data-add="barrels">🛢 Barrel</button>
+    </div>
+    <div class="muted" style="margin-top:4px">New items appear at the centre of the view.</div>
+
+    <h2>Changes <span id="change-count" class="muted"></span></h2>
+    <div class="changes" id="changes"><div class="muted">No changes yet.</div></div>
+
+    <h2>Export</h2>
+    <div class="row">
+      <button id="btn-export">Generate town-world.js snippets</button>
+      <button id="btn-copy">Copy</button>
+      <button id="btn-json">Download JSON</button>
+    </div>
+    <textarea id="out" readonly placeholder="Snippets appear here — paste each block over the matching array in town-world.js."></textarea>
+  </aside>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// DATA (generated by tools/make-town-map.py from town-world.js)
+// ═══════════════════════════════════════════════════════════════════
+const BASE = {"buildings": [{"x": -11.5, "z": 28.0, "w": 10.0, "h": 7.5, "d": 8.0, "label": "The Tavern", "project": null, "zone": "square", "src": "{ x: -11.5, z: 28, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',\n    chimney: true, label: 'The Tavern', project: null, zone: 'square', tavern: true },"}, {"x": -9.0, "z": 14.5, "w": 4.5, "h": 5.5, "d": 4.0, "label": "Adventurer Stats", "project": null, "zone": "square", "src": "{ x: -9, z: 14.5, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,\n    label: 'Adventurer Stats', project: null, zone: 'square' },"}, {"x": 10.0, "z": 16.0, "w": 4.5, "h": 5.5, "d": 4.0, "label": "Guild Board", "project": null, "zone": "square", "src": "{ x: 10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,\n    label: 'Guild Board', project: null, zone: 'square' },"}, {"x": -11.0, "z": -21.0, "w": 5.5, "h": 6.0, "d": 5.0, "label": "The Forge", "project": "mavpose", "zone": "north", "src": "{ x: -11, z: -21, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,\n    chimney: true, label: 'The Forge', project: 'mavpose', zone: 'north' },"}, {"x": 20.0, "z": -10.5, "w": 5.0, "h": 7.5, "d": 4.5, "label": "Ledger Sanctum", "project": "ledger", "zone": "east", "src": "{ x: 20, z: -10.5, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,\n    chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'east' },"}, {"x": -10.5, "z": -36.0, "w": 6.0, "h": 5.5, "d": 5.0, "label": "Tiny Tots Academy", "project": "tinytots", "zone": "north", "src": "{ x: -10.5, z: -36, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,\n    label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },"}, {"x": 37.5, "z": -11.0, "w": 6.0, "h": 5.0, "d": 6.0, "label": "Prediction Colosseum", "project": "xg", "zone": "east", "src": "{ x: 37.5, z: -11, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,\n    roofSegs: 8, label: 'Prediction Colosseum', project: 'xg', zone: 'east' },"}, {"x": 22.0, "z": 12.0, "w": 6.0, "h": 4.0, "d": 6.0, "label": "Cloud Citadel", "project": "aws", "zone": "east", "src": "{ x: 22, z: 12, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,\n    label: 'Cloud Citadel', project: 'aws', zone: 'east' },"}, {"x": 11.0, "z": -34.0, "w": 4.5, "h": 10.0, "d": 4.5, "label": "Vortex Observatory", "project": "vortex", "zone": "north", "src": "{ x: 11, z: -34, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,\n    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'north' },"}, {"x": -20.0, "z": 11.0, "w": 4.5, "h": 9.0, "d": 4.0, "label": "Concierge Parlour", "project": "ace", "zone": "west", "src": "{ x: -20, z: 11, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,\n    roofSegs: 6, label: 'Concierge Parlour', project: 'ace', zone: 'west' },"}, {"x": -36.0, "z": -11.0, "w": 6.0, "h": 4.5, "d": 6.0, "label": "The Volley Court", "project": "volley", "zone": "west", "src": "{ x: -36, z: -11, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,\n    label: 'The Volley Court', project: 'volley', zone: 'west' },"}, {"x": -40.0, "z": 12.0, "w": 3.5, "h": 14.0, "d": 3.5, "label": "Navigator's Tower", "project": "instillgcs", "zone": "west", "src": "{ x: -40, z: 12, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,\n    label: \"Navigator's Tower\", project: 'instillgcs', zone: 'west' },"}], "trees": [{"x": 16.0, "z": 20.0, "species": "cherry"}, {"x": -19.5, "z": 21.0, "species": "green"}, {"x": 17.0, "z": 35.0, "species": "cherry"}, {"x": -20.0, "z": 38.0, "species": "green"}, {"x": 22.5, "z": -25.0, "species": "oak"}, {"x": -23.5, "z": -29.5, "species": "oak"}, {"x": 16.0, "z": 12.5, "species": "green"}, {"x": -16.0, "z": 12.5, "species": "cherry"}, {"x": 30.0, "z": 14.0, "species": "birch"}, {"x": -28.0, "z": -23.0, "species": "green"}, {"x": 28.5, "z": -21.0, "species": "birch"}, {"x": -30.0, "z": 16.0, "species": "green"}, {"x": 58.0, "z": 10.0, "species": "birch"}, {"x": 58.0, "z": -10.0, "species": "birch"}, {"x": -58.0, "z": 10.0, "species": "green"}, {"x": -58.0, "z": -10.0, "species": "oak"}, {"x": 12.0, "z": -58.0, "species": "oak"}, {"x": -12.0, "z": -58.0, "species": "oak"}, {"x": 10.0, "z": 58.0, "species": "cherry"}, {"x": -10.0, "z": 58.0, "species": "green"}, {"x": 42.0, "z": 38.0, "species": "green"}, {"x": -42.0, "z": 38.0, "species": "oak"}, {"x": 42.0, "z": -38.0, "species": "birch"}, {"x": -42.0, "z": -38.0, "species": "green"}, {"x": 38.0, "z": 42.0, "species": "cherry"}, {"x": -38.0, "z": 42.0, "species": "green"}, {"x": 38.0, "z": -42.0, "species": "oak"}, {"x": -38.0, "z": -42.0, "species": "oak"}, {"x": 70.0, "z": 25.0, "species": "green"}, {"x": -70.0, "z": 25.0, "species": "oak"}, {"x": 70.0, "z": -30.0, "species": "birch"}, {"x": -70.0, "z": -30.0, "species": "green"}, {"x": 30.0, "z": 70.0, "species": "green"}, {"x": -30.0, "z": 70.0, "species": "cherry"}, {"x": 30.0, "z": -70.0, "species": "oak"}, {"x": -30.0, "z": -70.0, "species": "green"}, {"x": 60.0, "z": 52.0, "species": "oak"}, {"x": -60.0, "z": 52.0, "species": "green"}, {"x": 55.0, "z": -58.0, "species": "green"}, {"x": -55.0, "z": -58.0, "species": "oak"}, {"x": 80.0, "z": 5.0, "species": "green"}, {"x": -80.0, "z": -5.0, "species": "green"}, {"x": 5.0, "z": 82.0, "species": "oak"}, {"x": -8.0, "z": -80.0, "species": "birch"}, {"x": 17.0, "z": 38.5, "species": "cherry"}, {"x": -24.0, "z": 52.0, "species": "green"}, {"x": 22.0, "z": 54.0, "species": "green"}, {"x": -27.0, "z": 53.0, "species": "cherry"}, {"x": -21.5, "z": -25.0, "species": "cherry"}], "bushes": [{"x": -16.0, "z": 18.0, "scale": 0.75, "species": "oak", "derived": false}, {"x": 13.3, "z": 19.2, "scale": 0.75, "species": "oak", "derived": false}, {"x": -17.7, "z": 33.5, "scale": 0.8, "species": "green", "derived": false}, {"x": -7.4, "z": 33.8, "scale": 0.7, "species": "green", "derived": false}, {"x": -14.5, "z": -10.2, "scale": 0.7, "species": "oak", "derived": false}, {"x": 14.5, "z": -16.6, "scale": 0.7, "species": "oak", "derived": false}, {"x": -14.8, "z": -32.2, "scale": 0.8, "species": "cherry", "derived": false}, {"x": -6.6, "z": -32.4, "scale": 0.6, "species": "cherry", "derived": false}, {"x": 25.8, "z": 16.2, "scale": 0.7, "species": "birch", "derived": false}, {"x": 18.2, "z": 16.2, "scale": 0.7, "species": "birch", "derived": false}, {"x": -24.5, "z": 14.5, "scale": 0.7, "species": "green", "derived": false}, {"x": -15.5, "z": 14.5, "scale": 0.6, "species": "green", "derived": false}, {"x": 12.5, "z": 9.0, "scale": 0.55, "species": "green", "derived": false}, {"x": -12.5, "z": 9.0, "scale": 0.55, "species": "green", "derived": false}, {"x": 12.5, "z": -9.0, "scale": 0.55, "species": "green", "derived": false}, {"x": -12.5, "z": -9.0, "scale": 0.55, "species": "green", "derived": false}, {"x": 9.5, "z": -56.5, "scale": 0.9, "species": "oak", "derived": false}, {"x": -9.5, "z": -56.5, "scale": 0.9, "species": "oak", "derived": false}, {"x": 33.54, "z": 49.15, "scale": 0.9500000000000001, "species": "oak", "derived": true}, {"x": 51.54, "z": 29.73, "scale": 1.1, "species": "birch", "derived": true}, {"x": 55.38, "z": -21.76, "scale": 0.9500000000000001, "species": "oak", "derived": true}, {"x": 40.45, "z": -43.63, "scale": 1.1, "species": "birch", "derived": true}, {"x": 17.52, "z": -56.86, "scale": 0.8, "species": "green", "derived": true}, {"x": -33.54, "z": -49.15, "scale": 1.1, "species": "birch", "derived": true}, {"x": -51.54, "z": -29.73, "scale": 0.8, "species": "green", "derived": true}, {"x": -55.38, "z": 21.76, "scale": 1.1, "species": "birch", "derived": true}, {"x": -40.45, "z": 43.63, "scale": 0.8, "species": "green", "derived": true}, {"x": -17.52, "z": 56.86, "scale": 0.9500000000000001, "species": "oak", "derived": true}, {"x": -14.55, "z": 10.45, "scale": 0.5, "species": "green", "derived": true}, {"x": -13.45, "z": 10.45, "scale": 0.5, "species": "green", "derived": true}, {"x": -14.55, "z": 11.55, "scale": 0.5, "species": "green", "derived": true}, {"x": -13.45, "z": 11.55, "scale": 0.5, "species": "green", "derived": true}, {"x": 13.45, "z": 10.45, "scale": 0.5, "species": "green", "derived": true}, {"x": 14.55, "z": 10.45, "scale": 0.5, "species": "green", "derived": true}, {"x": 13.45, "z": 11.55, "scale": 0.5, "species": "green", "derived": true}, {"x": 14.55, "z": 11.55, "scale": 0.5, "species": "green", "derived": true}, {"x": 13.45, "z": 26.45, "scale": 0.5, "species": "green", "derived": true}, {"x": 14.55, "z": 26.45, "scale": 0.5, "species": "green", "derived": true}, {"x": 13.45, "z": 27.55, "scale": 0.5, "species": "green", "derived": true}, {"x": 14.55, "z": 27.55, "scale": 0.5, "species": "green", "derived": true}, {"x": -10.05, "z": 41.95, "scale": 0.5, "species": "green", "derived": true}, {"x": -8.95, "z": 41.95, "scale": 0.5, "species": "green", "derived": true}, {"x": -10.05, "z": 43.05, "scale": 0.5, "species": "green", "derived": true}, {"x": -8.95, "z": 43.05, "scale": 0.5, "species": "green", "derived": true}], "lamps": [{"x": 10.5, "z": 10.5, "derived": false}, {"x": -10, "z": 9, "derived": false}, {"x": 10.5, "z": -10.5, "derived": false}, {"x": -10.5, "z": -10.5, "derived": false}, {"x": -6.5, "z": 23, "derived": false}, {"x": 7.5, "z": 21, "derived": false}, {"x": -18, "z": 35, "derived": false}, {"x": -7.5, "z": 38, "derived": false}, {"x": 7.5, "z": 30, "derived": false}, {"x": -7.5, "z": -9, "derived": false}, {"x": 7.5, "z": -15, "derived": false}, {"x": -7.5, "z": -28, "derived": false}, {"x": 7.5, "z": -38, "derived": false}, {"x": 14, "z": -7.5, "derived": false}, {"x": 14, "z": 7.5, "derived": false}, {"x": 28, "z": -7.5, "derived": false}, {"x": 28, "z": 7.5, "derived": false}, {"x": 42, "z": -7.5, "derived": false}, {"x": -14, "z": -7.5, "derived": false}, {"x": -15, "z": 6.5, "derived": false}, {"x": -28, "z": -7.5, "derived": false}, {"x": -26.5, "z": 6.5, "derived": false}, {"x": -42, "z": 7.5, "derived": false}, {"x": 0.0, "z": 56.0, "derived": true}, {"x": 48.5, "z": 28.0, "derived": true}, {"x": 48.5, "z": -28.0, "derived": true}, {"x": 0.0, "z": -56.0, "derived": true}, {"x": -48.5, "z": -28.0, "derived": true}, {"x": -48.5, "z": 28.0, "derived": true}], "signs": [], "npcs": [{"x": -9.5, "z": 18.5, "variant": 0}, {"x": 8.5, "z": 24.5, "variant": 1}, {"x": -10.5, "z": 37.0, "variant": 2}, {"x": -8.0, "z": 18.5, "variant": 1}, {"x": -8.0, "z": -10.5, "variant": 0}, {"x": 8.5, "z": -16.8, "variant": 2}, {"x": -7.5, "z": -32.5, "variant": 2}, {"x": 19.5, "z": 16.2, "variant": 1}, {"x": -16.5, "z": 14.0, "variant": 0}, {"x": 8.0, "z": 33.0, "variant": 0}], "stalls": [{"x": -9.5, "z": 21.0, "rot": 90, "red": false}, {"x": 9.5, "z": 21.5, "rot": -90, "red": true}, {"x": 9.5, "z": 31.0, "rot": -90, "red": false}], "tables": [{"x": -8.0, "z": 35.5}, {"x": -13.0, "z": 35.5}, {"x": -16.5, "z": 38.5}], "barrels": [{"x": -17.8, "z": 29.5}, {"x": -17.8, "z": 30.6}, {"x": -16.9, "z": 30.1}], "campfire": [{"x": -12.5, "z": 40.0}], "beds": [{"x": -14.0, "z": 11.0}, {"x": 14.0, "z": 11.0}, {"x": 14.0, "z": 27.0}, {"x": -9.5, "z": 42.5}], "flowers": [{"x": 7.1, "z": 40.9}, {"x": -11.1, "z": 56.9}, {"x": 19.3, "z": 36.8}, {"x": -29.3, "z": 50.1}, {"x": 40.9, "z": 7.1}, {"x": 56.9, "z": -11.1}, {"x": -40.7, "z": 8.0}, {"x": -57.1, "z": -9.9}, {"x": 8.3, "z": -40.7}, {"x": -11.6, "z": -56.8}, {"x": 29.3, "z": 29.3}, {"x": -41.0, "z": 41.0}, {"x": 29.3, "z": -29.3}, {"x": -41.0, "z": -41.0}, {"x": 12.9, "z": 39.4}, {"x": -18.0, "z": 55.1}], "rocks": [{"x": 15.0, "z": 24.0}, {"x": -19.0, "z": 24.0}, {"x": 25.0, "z": -16.0}, {"x": -25.0, "z": -18.0}, {"x": 10.0, "z": -30.0}, {"x": -14.0, "z": -32.0}, {"x": 30.0, "z": 10.0}, {"x": -32.0, "z": 10.0}, {"x": 53.5, "z": -22.3}, {"x": -53.6, "z": 20.1}, {"x": 22.3, "z": -53.5}, {"x": -20.1, "z": 53.6}, {"x": 55.0, "z": 35.0}, {"x": -55.0, "z": -40.0}, {"x": 38.0, "z": -55.0}, {"x": -40.0, "z": 55.0}], "spawns": [{"key": "square", "name": "Town Square", "x": 0.0, "z": 30.0, "rotDeg": 180}, {"key": "north", "name": "Main Street", "x": 0.0, "z": -12.0, "rotDeg": 180}, {"key": "east", "name": "Research Quarter", "x": 14.0, "z": 0.0, "rotDeg": 90}, {"key": "west", "name": "Services Quarter", "x": -14.0, "z": 0.0, "rotDeg": 270}]};
+
+// ── Constants that mirror town-world.js ──────────────────────────
+const ROAD_HALF = 6, RING_R = 50, RING_W = 9, ROUNDABOUT_R = 13, WALL_R = 63;
+const PLAZA = { x0: -17, x1: 13, z0: 17, z1: 37 };
+const SPECIES = { oak: '#c8c24a', birch: '#ff7040', cherry: '#ff8a9a', green: '#4f9b3c' };
+const ZONE_COLOR = { square: '#ffd166', north: '#e08a2e', east: '#06d6a0', west: '#b07cf0' };
+const treeScale = i => 0.85 + ((i * 7919) % 100) / 100 * 0.55;
+
+// ── State ────────────────────────────────────────────────────────
+let data = deepClone(BASE);
+let history = [], future = [];
+let selected = null;          // { type, index }
+const S = 10, EXT = 72;
+let view = { x: -EXT * S - 20, y: -EXT * S - 20, w: EXT * 2 * S + 40, h: EXT * 2 * S + 40 };
+
+function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+function snapV(v) { return document.getElementById('snap').checked ? Math.round(v * 2) / 2 : Math.round(v * 100) / 100; }
+function X(x) { return x * S; }
+function Y(z) { return z * S; }
+
+// Local draft (per-browser convenience only)
+try { const d = localStorage.getItem('settlement-map-editor'); if (d) { const parsed = JSON.parse(d); if (parsed && parsed.buildings) data = parsed; } } catch (_) {}
+function saveDraft() { try { localStorage.setItem('settlement-map-editor', JSON.stringify(data)); } catch (_) {} }
+
+function pushHistory() { history.push(deepClone(data)); if (history.length > 100) history.shift(); future = []; }
+
+// ── Validation ───────────────────────────────────────────────────
+function onRoad(x, z, pad = 0) {
+  const r = Math.hypot(x, z);
+  if (r < ROUNDABOUT_R + pad) return 'roundabout';
+  if (Math.abs(r - RING_R) < RING_W / 2 + pad) return 'ring road';
+  if (Math.abs(x) < ROAD_HALF + pad && z > -52 - pad && z < 61 + pad) return 'north/south road';
+  if (Math.abs(z) < ROAD_HALF + pad && Math.abs(x) < 61 + pad) return 'east/west road';
+  if (r > WALL_R - 1.2 - pad * 0.5 && r < WALL_R + 1.2 + pad * 0.5) return 'city wall';
+  return null;
+}
+function rectOnRoad(b) {
+  const pts = [[b.x - b.w/2, b.z - b.d/2], [b.x + b.w/2, b.z - b.d/2], [b.x - b.w/2, b.z + b.d/2], [b.x + b.w/2, b.z + b.d/2], [b.x, b.z]];
+  for (const [px, pz] of pts) { const r = onRoad(px, pz, 0.3); if (r) return r; }
+  return null;
+}
+function hitsBuilding(x, z, radius, skipType, skipIndex) {
+  for (let i = 0; i < data.buildings.length; i++) {
+    if (skipType === 'buildings' && skipIndex === i) continue;
+    const b = data.buildings[i];
+    if (x > b.x - b.w/2 - radius && x < b.x + b.w/2 + radius && z > b.z - b.d/2 - radius && z < b.z + b.d/2 + radius) return b.label;
+  }
+  const t = { x: 0, z: -58, w: 6, d: 6, label: 'Clock Tower' };
+  if (x > t.x - t.w/2 - radius && x < t.x + t.w/2 + radius && z > t.z - t.d/2 - radius && z < t.z + t.d/2 + radius) return t.label;
+  return null;
+}
+function buildingsOverlap(b, idx) {
+  for (let i = 0; i < data.buildings.length; i++) {
+    if (i === idx) continue;
+    const o = data.buildings[i];
+    if (Math.abs(b.x - o.x) < (b.w + o.w) / 2 + 0.5 && Math.abs(b.z - o.z) < (b.d + o.d) / 2 + 0.5) return o.label;
+  }
+  return null;
+}
+function problems(type, i) {
+  const it = data[type][i];
+  const out = [];
+  if (type === 'buildings') {
+    const r = rectOnRoad(it); if (r) out.push(`footprint touches the ${r}`);
+    const o = buildingsOverlap(it, i); if (o) out.push(`overlaps ${o}`);
+    if (Math.hypot(it.x, it.z) + Math.max(it.w, it.d) / 2 > WALL_R - 2) out.push('outside / inside the wall line');
+  } else {
+    const radius = footprintRadius(type, it, i);
+    const r = onRoad(it.x, it.z, type === 'npcs' ? 0 : radius * 0.6); if (r && type !== 'spawns' && type !== 'signs' && type !== 'lamps') out.push(`on the ${r}`);
+    if (type === 'spawns' && !onRoad(it.x, it.z, 0)) out.push('spawn should be on a road');
+    const b = hitsBuilding(it.x, it.z, radius * 0.7, type, i); if (b) out.push(`inside ${b}`);
+  }
+  return out;
+}
+function footprintRadius(type, it, i) {
+  switch (type) {
+    case 'trees': return 1.9 * (it.scale ?? treeScale(i));
+    case 'bushes': return (it.scale ?? 0.7) * 0.9;
+    case 'stalls': return 1.9;
+    case 'tables': return 1.0;
+    case 'campfire': return 1.1;
+    case 'beds': return 1.5;
+    case 'lamps': return 0.35;
+    case 'signs': return 0.4;
+    case 'npcs': return 0.5;
+    case 'flowers': return 1.5;
+    case 'rocks': return 0.7;
+    case 'barrels': return 0.5;
+    case 'spawns': return 1.0;
+    default: return 0.5;
+  }
+}
+
+// ── Rendering ────────────────────────────────────────────────────
+const svg = document.getElementById('map');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs = {}, children = []) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  for (const c of children) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  return e;
+}
+function applyView() { svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`); }
+
+function renderStatic() {
+  const g = el('g', { id: 'static' });
+  g.appendChild(el('rect', { x: X(-EXT), y: Y(-EXT), width: EXT * 2 * S, height: EXT * 2 * S, fill: '#a9c98a' }));
+  for (let v = -70; v <= 70; v += 10) {
+    g.appendChild(el('line', { x1: X(v), y1: Y(-EXT), x2: X(v), y2: Y(EXT), stroke: '#fff', 'stroke-opacity': .35 }));
+    g.appendChild(el('line', { x1: X(-EXT), y1: Y(v), x2: X(EXT), y2: Y(v), stroke: '#fff', 'stroke-opacity': .35 }));
+    g.appendChild(el('text', { x: X(v), y: Y(-EXT) - 6, 'font-size': 11, 'text-anchor': 'middle', fill: '#444' }, [`x ${v}`]));
+    g.appendChild(el('text', { x: X(-EXT) - 6, y: Y(v) + 4, 'font-size': 11, 'text-anchor': 'end', fill: '#444' }, [`z ${v}`]));
+  }
+  g.appendChild(el('line', { x1: 0, y1: Y(-EXT), x2: 0, y2: Y(EXT), stroke: '#000', 'stroke-opacity': .18, 'stroke-width': 1.5 }));
+  g.appendChild(el('line', { x1: X(-EXT), y1: 0, x2: X(EXT), y2: 0, stroke: '#000', 'stroke-opacity': .18, 'stroke-width': 1.5 }));
+  // wall + gates + towers
+  g.appendChild(el('circle', { cx: 0, cy: 0, r: WALL_R * S, fill: 'none', stroke: '#8c7b62', 'stroke-width': 1.8 * S, 'stroke-opacity': .85 }));
+  for (const [name, a] of [['S gate', 0], ['E gate', Math.PI / 2], ['W gate', -Math.PI / 2]]) {
+    g.appendChild(el('circle', { cx: X(Math.sin(a) * WALL_R), cy: Y(Math.cos(a) * WALL_R), r: 5.2 * S, fill: '#5c3a1e' }));
+    g.appendChild(el('text', { x: X(Math.sin(a) * WALL_R), y: Y(Math.cos(a) * WALL_R) + 4, 'font-size': 11, 'text-anchor': 'middle', fill: '#fff' }, [name]));
+    for (const sgn of [-1, 1]) { const t = a + sgn * (5.2 + 1.6) / WALL_R; g.appendChild(el('circle', { cx: X(Math.sin(t) * WALL_R), cy: Y(Math.cos(t) * WALL_R), r: 2.4 * S, fill: '#b9a98e', stroke: '#6b5a44' })); }
+  }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 8; g.appendChild(el('circle', { cx: X(Math.sin(a) * WALL_R), cy: Y(Math.cos(a) * WALL_R), r: 2.4 * S, fill: '#b9a98e', stroke: '#6b5a44' })); }
+  // roads
+  g.appendChild(el('circle', { cx: 0, cy: 0, r: RING_R * S, fill: 'none', stroke: '#c9b48e', 'stroke-width': RING_W * S }));
+  g.appendChild(el('rect', { x: X(-ROAD_HALF), y: Y(-52), width: 2 * ROAD_HALF * S, height: (61 + 52) * S, fill: '#c9b48e' }));
+  g.appendChild(el('rect', { x: X(-61), y: Y(-ROAD_HALF), width: 122 * S, height: 2 * ROAD_HALF * S, fill: '#c9b48e' }));
+  g.appendChild(el('rect', { x: X(PLAZA.x0), y: Y(PLAZA.z0), width: (PLAZA.x1 - PLAZA.x0) * S, height: (PLAZA.z1 - PLAZA.z0) * S, fill: '#d7bb8f' }));
+  g.appendChild(el('circle', { cx: 0, cy: 0, r: ROUNDABOUT_R * S, fill: '#d7bb8f' }));
+  g.appendChild(el('circle', { cx: 0, cy: 0, r: 4 * S, fill: '#a9c98a' }));
+  g.appendChild(el('circle', { cx: 0, cy: 0, r: 2.8 * S, fill: '#7fc8e8', stroke: '#3f7fa8' }));
+  // clock tower (fixed)
+  g.appendChild(el('rect', { x: X(-3), y: Y(-61), width: 6 * S, height: 6 * S, fill: '#b9a98e', stroke: '#4a4034', 'stroke-width': 2 }));
+  g.appendChild(el('text', { x: 0, y: Y(-58) + 4, 'font-size': 10, 'text-anchor': 'middle', class: 'lbl' }, ['Clock Tower']));
+  for (const [txt, x, z] of [['TOWN SQUARE', 0, 44], ['MAIN STREET', 0, -44], ['RESEARCH QUARTER', 34, -22], ['SERVICES QUARTER', -34, 22]])
+    g.appendChild(el('text', { x: X(x), y: Y(z), 'font-size': 14, 'text-anchor': 'middle', class: 'lbl', 'letter-spacing': 2, fill: '#2b2d42' }, [txt]));
+  return g;
+}
+
+const ORDER = ['flowers', 'rocks', 'beds', 'bushes', 'trees', 'buildings', 'stalls', 'tables', 'barrels', 'campfire', 'lamps', 'signs', 'npcs', 'spawns'];
+
+function renderItem(type, i, it) {
+  const g = el('g', { class: 'obj', 'data-type': type, 'data-index': i, transform: `translate(${X(it.x)},${Y(it.z)})` });
+  if (it.derived) g.classList.add('derived');
+  let hit;
+  switch (type) {
+    case 'buildings': {
+      hit = el('rect', { class: 'hit', x: -it.w / 2 * S, y: -it.d / 2 * S, width: it.w * S, height: it.d * S, fill: '#f3e4c4', stroke: ZONE_COLOR[it.zone] || '#888', 'stroke-width': 3 });
+      g.appendChild(hit);
+      g.appendChild(el('rect', { x: -0.55 * S, y: it.d / 2 * S - 3, width: 1.1 * S, height: 5, fill: '#5c3a1e' }));
+      g.appendChild(el('text', { x: 0, y: -3, 'font-size': 10, 'text-anchor': 'middle', class: 'lbl' }, [it.label + (it.project ? ' ★' : '')]));
+      g.appendChild(el('text', { x: 0, y: 9, 'font-size': 8.5, 'text-anchor': 'middle', class: 'lbl', 'font-weight': 400 }, [`(${it.x}, ${it.z})`]));
+      break; }
+    case 'trees': {
+      const r = 1.9 * (it.scale ?? treeScale(i));
+      hit = el('circle', { class: 'hit', r: r * S, fill: SPECIES[it.species] || '#4f9b3c', 'fill-opacity': .85, stroke: '#2f5a25' });
+      g.appendChild(hit); g.appendChild(el('circle', { r: 0.3 * S, fill: '#6b4a2e' })); break; }
+    case 'bushes': hit = el('circle', { class: 'hit', r: (it.scale ?? 0.7) * 0.9 * S, fill: SPECIES[it.species] || '#4f9b3c', 'fill-opacity': .85, stroke: '#2f5a25' }); g.appendChild(hit); break;
+    case 'lamps': hit = el('circle', { class: 'hit', r: 5, fill: '#ffd166', stroke: '#7a5a10' }); g.appendChild(hit); break;
+    case 'signs': hit = el('rect', { class: 'hit', x: -6, y: -6, width: 12, height: 12, fill: '#3a2210', transform: 'rotate(45)' }); g.appendChild(hit); break;
+    case 'npcs': hit = el('circle', { class: 'hit', r: 5, fill: '#2a1a10', stroke: '#ffbe6e' }); g.appendChild(hit); break;
+    case 'stalls': hit = el('rect', { class: 'hit', x: -1.6 * S, y: -0.8 * S, width: 3.2 * S, height: 1.6 * S, fill: it.red ? '#d8462f' : '#e86f2b', stroke: '#7a3a10', transform: `rotate(${-it.rot})` }); g.appendChild(hit); g.appendChild(el('text', { y: 4, 'font-size': 8, 'text-anchor': 'middle', class: 'lbl' }, ['stall'])); break;
+    case 'tables': hit = el('circle', { class: 'hit', r: 0.8 * S, fill: '#6b4226', stroke: '#3a2416' }); g.appendChild(hit); break;
+    case 'barrels': hit = el('circle', { class: 'hit', r: 0.4 * S + 2, fill: '#5a4033' }); g.appendChild(hit); break;
+    case 'campfire': hit = el('circle', { class: 'hit', r: 0.9 * S, fill: '#ff6b35', stroke: '#8a2a00', 'stroke-width': 2 }); g.appendChild(hit); g.appendChild(el('text', { y: 16, 'font-size': 8, 'text-anchor': 'middle', class: 'lbl' }, ['campfire'])); break;
+    case 'beds': hit = el('rect', { class: 'hit', x: -1.2 * S, y: -1.2 * S, width: 2.4 * S, height: 2.4 * S, fill: '#5c3d2e', 'fill-opacity': .35, stroke: '#5c3d2e', 'stroke-width': 2 }); g.appendChild(hit); break;
+    case 'flowers': hit = el('circle', { class: 'hit', r: 9, fill: '#fff', 'fill-opacity': .5, stroke: '#c77dff' }); g.appendChild(hit); g.appendChild(el('text', { y: 5, 'font-size': 13, 'text-anchor': 'middle', 'pointer-events': 'none' }, ['✿'])); break;
+    case 'rocks': hit = el('circle', { class: 'hit', r: 0.6 * S, fill: '#8a8a8a', stroke: '#555' }); g.appendChild(hit); break;
+    case 'spawns': hit = el('circle', { class: 'hit', r: 8, fill: '#fff', 'fill-opacity': .3, stroke: '#e63946', 'stroke-width': 2.5, 'stroke-dasharray': '3 2' }); g.appendChild(hit); g.appendChild(el('text', { x: 11, y: 4, 'font-size': 9, class: 'lbl', fill: '#e63946' }, [`spawn: ${it.key}`])); break;
+  }
+  if (selected && selected.type === type && selected.index === i) g.classList.add('selected');
+  if (!it.derived && problems(type, i).length) g.classList.add('bad');
+  return g;
+}
+
+let dyn;
+function renderAll() {
+  svg.innerHTML = '';
+  svg.appendChild(renderStatic());
+  dyn = el('g', { id: 'dyn' });
+  const showDerived = document.getElementById('show-derived').checked;
+  for (const type of ORDER) {
+    (data[type] || []).forEach((it, i) => {
+      if (it.removed) return;
+      if (it.derived && !showDerived) return;
+      dyn.appendChild(renderItem(type, i, it));
+    });
+  }
+  svg.appendChild(dyn);
+  applyView();
+  renderPanel();
+  renderChanges();
+  saveDraft();
+}
+function rerenderItem(type, i) {
+  const old = dyn.querySelector(`.obj[data-type="${type}"][data-index="${i}"]`);
+  const it = data[type][i];
+  if (!old) return renderAll();
+  if (it.removed) { old.remove(); return; }
+  old.replaceWith(renderItem(type, i, it));
+}
+
+// ── Interaction: drag / pan / zoom ───────────────────────────────
+function svgPoint(evt) {
+  const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return { x: p.x / S, z: p.y / S };
+}
+let drag = null;
+svg.addEventListener('pointerdown', e => {
+  const objEl = e.target.closest('.obj');
+  const p = svgPoint(e);
+  if (objEl && !objEl.classList.contains('derived')) {
+    const type = objEl.dataset.type, index = +objEl.dataset.index;
+    select(type, index);
+    const it = data[type][index];
+    drag = { type, index, dx: it.x - p.x, dz: it.z - p.z, moved: false, start: { x: it.x, z: it.z } };
+    svg.setPointerCapture(e.pointerId);
+  } else {
+    drag = { pan: true, sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+    svg.classList.add('panning');
+    svg.setPointerCapture(e.pointerId);
+    if (!objEl) select(null);
+  }
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (drag.pan) {
+    const k = view.w / svg.clientWidth;
+    view.x = drag.vx - (e.clientX - drag.sx) * k;
+    view.y = drag.vy - (e.clientY - drag.sy) * k;
+    applyView(); return;
+  }
+  const p = svgPoint(e);
+  const it = data[drag.type][drag.index];
+  if (!drag.moved) { pushHistory(); drag.moved = true; }
+  it.x = snapV(p.x + drag.dx); it.z = snapV(p.z + drag.dz);
+  rerenderItem(drag.type, drag.index);
+  renderPanel();
+});
+function endDrag() {
+  if (drag && !drag.pan && drag.moved) { renderChanges(); saveDraft(); }
+  svg.classList.remove('panning');
+  drag = null;
+}
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const p = svgPoint(e);
+  const f = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+  view.x = p.x * S - (p.x * S - view.x) * f; view.y = p.z * S - (p.z * S - view.y) * f;
+  view.w *= f; view.h *= f; applyView();
+}, { passive: false });
+document.getElementById('btn-zoom-in').onclick = () => zoomAt(1 / 1.3);
+document.getElementById('btn-zoom-out').onclick = () => zoomAt(1.3);
+document.getElementById('btn-fit').onclick = () => { view = { x: -EXT * S - 20, y: -EXT * S - 20, w: EXT * 2 * S + 40, h: EXT * 2 * S + 40 }; applyView(); };
+function zoomAt(f) { const cx = view.x + view.w / 2, cy = view.y + view.h / 2; view.w *= f; view.h *= f; view.x = cx - view.w / 2; view.y = cy - view.h / 2; applyView(); }
+
+// ── Selection panel ──────────────────────────────────────────────
+function select(type, index) {
+  const prev = selected; selected = type ? { type, index } : null;
+  if (prev) { const e = dyn.querySelector(`.obj[data-type="${prev.type}"][data-index="${prev.index}"]`); if (e) e.classList.remove('selected'); }
+  if (selected) { const e = dyn.querySelector(`.obj[data-type="${type}"][data-index="${index}"]`); if (e) e.classList.add('selected'); }
+  renderPanel();
+}
+function field(label, key, it, type, i, opts = {}) {
+  const row = document.createElement('div'); row.className = 'row';
+  const lab = document.createElement('label'); lab.textContent = label; row.appendChild(lab);
+  let input;
+  if (opts.options) {
+    input = document.createElement('select');
+    for (const o of opts.options) { const op = document.createElement('option'); op.value = o; op.textContent = o; if (String(it[key]) === String(o)) op.selected = true; input.appendChild(op); }
+  } else {
+    input = document.createElement('input'); input.type = opts.type || 'number'; input.step = opts.step || 0.5; input.value = it[key] ?? '';
+  }
+  input.onchange = () => {
+    pushHistory();
+    it[key] = (opts.type === 'text' || opts.options && isNaN(+input.value)) ? input.value : (input.value === 'true' ? true : input.value === 'false' ? false : +input.value);
+    renderAll();
+  };
+  row.appendChild(input); return row;
+}
+function renderPanel() {
+  const box = document.getElementById('sel'), none = document.getElementById('sel-none');
+  box.innerHTML = '';
+  if (!selected) { none.style.display = ''; return; }
+  none.style.display = 'none';
+  const { type, index } = selected; const it = data[type][index];
+  const title = document.createElement('div'); title.innerHTML = `<b>${labelOf(type, it, index)}</b> <span class="muted">(${type}[${index}])</span>`; box.appendChild(title);
+  box.appendChild(field('x', 'x', it, type, index));
+  box.appendChild(field('z', 'z', it, type, index));
+  if (type === 'buildings') {
+    box.appendChild(field('width w', 'w', it, type, index));
+    box.appendChild(field('depth d', 'd', it, type, index));
+    box.appendChild(field('height h', 'h', it, type, index));
+    box.appendChild(field('zone', 'zone', it, type, index, { options: ['square', 'north', 'east', 'west'] }));
+    box.appendChild(field('label', 'label', it, type, index, { type: 'text' }));
+  }
+  if (type === 'trees' || type === 'bushes') {
+    box.appendChild(field('species', 'species', it, type, index, { options: Object.keys(SPECIES) }));
+    if (type === 'bushes') box.appendChild(field('scale', 'scale', it, type, index, { step: 0.05 }));
+    else { const note = document.createElement('div'); note.className = 'muted'; note.textContent = 'Tree scale is derived from its position in the TREES array.'; box.appendChild(note); }
+  }
+  if (type === 'stalls' || type === 'signs') box.appendChild(field('rotation°', 'rot', it, type, index, { step: 15 }));
+  if (type === 'stalls') box.appendChild(field('red awning', 'red', it, type, index, { options: ['true', 'false'] }));
+  if (type === 'npcs') box.appendChild(field('variant', 'variant', it, type, index, { options: ['0', '1', '2'] }));
+  if (type === 'signs') box.appendChild(field('text', 'text', it, type, index, { type: 'text' }));
+  if (type === 'spawns') box.appendChild(field('facing°', 'rotDeg', it, type, index, { step: 90 }));
+  const probs = problems(type, index);
+  const p = document.createElement('div');
+  if (probs.length) { p.className = 'warn'; p.textContent = '⚠ ' + probs.join(' · '); }
+  else { p.className = 'ok'; p.textContent = '✓ clear of roads and buildings'; }
+  box.appendChild(p);
+  if (!['buildings', 'spawns', 'campfire', 'beds', 'stalls', 'signs'].includes(type)) {
+    const del = document.createElement('button'); del.textContent = '🗑 Remove'; del.onclick = () => { pushHistory(); it.removed = true; select(null); renderAll(); };
+    box.appendChild(del);
+  }
+}
+function labelOf(type, it, i) {
+  if (it.label) return it.label;
+  if (type === 'spawns') return `Spawn · ${it.key}`;
+  if (type === 'trees') return `Tree · ${it.species}`;
+  if (type === 'bushes') return `Bush · ${it.species}`;
+  return type.replace(/s$/, '') + ' #' + i;
+}
+
+// ── Keyboard ─────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (!selected) return;
+  const it = data[selected.type][selected.index];
+  const step = e.shiftKey ? 2 : 0.5;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (moves[e.key]) { e.preventDefault(); pushHistory(); it.x = +(it.x + moves[e.key][0]).toFixed(2); it.z = +(it.z + moves[e.key][1]).toFixed(2); renderAll(); }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !['buildings', 'spawns', 'campfire', 'beds', 'stalls', 'signs'].includes(selected.type)) { pushHistory(); it.removed = true; select(null); renderAll(); }
+});
+function undo() { if (!history.length) return; future.push(deepClone(data)); data = history.pop(); select(null); renderAll(); }
+function redo() { if (!future.length) return; history.push(deepClone(data)); data = future.pop(); select(null); renderAll(); }
+document.getElementById('btn-undo').onclick = undo;
+document.getElementById('btn-redo').onclick = redo;
+document.getElementById('btn-reset').onclick = () => { if (confirm('Discard every edit and reload the map from town-world.js data?')) { pushHistory(); data = deepClone(BASE); select(null); renderAll(); } };
+document.getElementById('show-derived').onchange = renderAll;
+
+// ── Add ──────────────────────────────────────────────────────────
+document.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => {
+  const type = btn.dataset.add;
+  const cx = snapV((view.x + view.w / 2) / S), cz = snapV((view.y + view.h / 2) / S);
+  const base = { x: cx, z: cz, added: true };
+  const extra = { trees: { species: 'green' }, bushes: { species: 'green', scale: 0.7 }, npcs: { variant: 0 } }[type] || {};
+  pushHistory();
+  data[type] = data[type] || [];
+  data[type].push(Object.assign(base, extra));
+  renderAll();
+  select(type, data[type].length - 1);
+});
+
+// ── Changes list ─────────────────────────────────────────────────
+function changes() {
+  const out = [];
+  for (const type of ORDER) {
+    (data[type] || []).forEach((it, i) => {
+      const b = (BASE[type] || [])[i];
+      if (it.added && !it.removed) { out.push(`+ ${labelOf(type, it, i)} at (${it.x}, ${it.z})`); return; }
+      if (!b) return;
+      if (it.removed && !b.removed) { out.push(`− ${labelOf(type, b, i)} (${b.x}, ${b.z})`); return; }
+      const diffs = [];
+      for (const k of Object.keys(it)) if (k !== 'removed' && k !== 'added' && JSON.stringify(it[k]) !== JSON.stringify(b[k])) diffs.push(`${k}: ${b[k]} → ${it[k]}`);
+      if (diffs.length) out.push(`~ ${labelOf(type, it, i)}: ${diffs.join(', ')}`);
+    });
+  }
+  return out;
+}
+function renderChanges() {
+  const c = changes(); const box = document.getElementById('changes');
+  document.getElementById('change-count').textContent = c.length ? `(${c.length})` : '';
+  box.innerHTML = c.length ? c.map(s => `<div>${s}</div>`).join('') : '<div class="muted">No changes yet.</div>';
+}
+
+// ── Export ───────────────────────────────────────────────────────
+const num = v => (Math.round(v * 100) / 100).toString();
+function exportSnippets() {
+  const L = [];
+  const live = type => (data[type] || []).filter(it => !it.removed && !it.derived);
+  L.push('// ═══ Paste each block over the matching array in town-world.js ═══\n');
+
+  L.push('// BUILDINGS — only the x/z/w/h/d numbers change; colours, roofs, labels are kept from the original line');
+  L.push('const BUILDINGS = [');
+  for (const b of live('buildings')) {
+    const src = b.src.replace(/x: -?[\d.]+, z: -?[\d.]+, w: [\d.]+, h: [\d.]+, d: [\d.]+/, `x: ${num(b.x)}, z: ${num(b.z)}, w: ${num(b.w)}, h: ${num(b.h)}, d: ${num(b.d)}`)
+      .replace(/label: (['"]).*?\1/, `label: ${JSON.stringify(b.label)}`).replace(/zone: '\w+'/, `zone: '${b.zone}'`);
+    L.push('  ' + src.replace(/\n\s*/g, '\n    '));
+  }
+  L.push('];\n');
+
+  L.push('// TREES (inside the .map(...) in town-world.js) — [x, z, species]; scale comes from the index');
+  L.push('  const TREES = [');
+  for (const t of live('trees')) L.push(`    [${num(t.x)}, ${num(t.z)}, '${t.species}'],`);
+  L.push('  ].map(([x, z, sp], i) => [x, z, treeScale(i), sp]);\n');
+
+  L.push('// BUSHES.push( ... ) — hand-placed bushes only (bed and wall bushes are generated in code)');
+  L.push('  BUSHES.push(');
+  for (const b of live('bushes')) L.push(`    [${num(b.x)}, ${num(b.z)}, ${num(b.scale ?? 0.7)}, '${b.species}'],`);
+  L.push('  );\n');
+
+  L.push('// LAMPS — hand-placed (the 6 ring-road lamps are generated in code)');
+  L.push('  const LAMPS = [');
+  for (const l of live('lamps')) L.push(`    [${num(l.x)}, ${num(l.z)}],`);
+  L.push('  ];\n');
+
+  L.push('// NPC placements — buildNpcs(scene, [ ... ])');
+  L.push('    buildNpcs(scene, [');
+  for (const n of live('npcs')) L.push(`      [${num(n.x)}, ${num(n.z)}, ${n.variant ?? 0}],`);
+  L.push('    ]);\n');
+
+  L.push('// Wild flower clusters — buildWildFlowers(scene, [ ... ])');
+  L.push('    buildWildFlowers(scene, [');
+  L.push('      ' + live('flowers').map(f => `[${num(f.x)}, ${num(f.z)}]`).join(', ') + ',');
+  L.push('    ]);\n');
+
+  L.push('// Market stalls — [x, z, rotation, redAwning]');
+  L.push('  [' + live('stalls').map(s => `[${num(s.x)}, ${num(s.z)}, ${rotExpr(s.rot)}, ${!!s.red}]`).join(', ') + ']');
+  L.push('    .forEach(([x, z, r, red]) => colliders.push(buildStall(scene, x, z, r, { red }).collider));\n');
+
+  L.push('// Tavern terrace');
+  L.push('  const TABLES = [' + live('tables').map(t => `[${num(t.x)}, ${num(t.z)}]`).join(', ') + '];');
+  const cf = live('campfire')[0]; if (cf) L.push(`  const CAMPFIRE = { x: ${num(cf.x)}, z: ${num(cf.z)} };`);
+  L.push('  // barrels');
+  L.push('  [' + live('barrels').map(b => `[${num(b.x)}, ${num(b.z)}]`).join(', ') + '].forEach(([x,z]) => {\n');
+
+  L.push('// Flower beds');
+  L.push('  const BED_SLOTS = [' + live('beds').map(b => `[${num(b.x)}, ${num(b.z)}]`).join(', ') + '];\n');
+
+  L.push('// Rocks');
+  L.push('  [' + live('rocks').map(r => `[${num(r.x)}, ${num(r.z)}]`).join(', ') + '].forEach(([x, z]) => scene.add(createRock(x, z, 0.6 + Math.random() * 0.8)));\n');
+
+  L.push('// Signboards — addSignboard(x, z, text, rotY)');
+  for (const s of live('signs')) L.push(`  addSignboard(${num(s.x)}, ${num(s.z)}, ${JSON.stringify(s.text || '')}, ${rotExpr(s.rot)});`);
+  L.push('');
+
+  L.push('// ZONES spawn points (fast-travel) — rot in radians');
+  L.push('export const ZONES = {');
+  for (const sp of live('spawns')) L.push(`  ${sp.key.padEnd(8)}: { name: ${JSON.stringify(sp.name)}, spawn: { x: ${num(sp.x)}, z: ${num(sp.z)}, rot: ${rotExpr(sp.rotDeg)} } },`);
+  L.push('};');
+  return L.join('\n');
+}
+function rotExpr(deg) {
+  const d = ((deg % 360) + 360) % 360;
+  const map = { 0: '0', 90: 'Math.PI / 2', 180: 'Math.PI', 270: '-Math.PI / 2' };
+  return map[d] ?? `${(d * Math.PI / 180).toFixed(4)}`;
+}
+document.getElementById('btn-export').onclick = () => { document.getElementById('out').value = exportSnippets(); };
+document.getElementById('btn-copy').onclick = async () => {
+  const ta = document.getElementById('out'); if (!ta.value) ta.value = exportSnippets();
+  try { await navigator.clipboard.writeText(ta.value); document.getElementById('btn-copy').textContent = 'Copied ✓'; setTimeout(() => document.getElementById('btn-copy').textContent = 'Copy', 1500); }
+  catch (_) { ta.select(); }
+};
+document.getElementById('btn-json').onclick = () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'town-placements.json'; a.click();
+};
+
+renderAll();
+</script>
+</body>
+</html>
