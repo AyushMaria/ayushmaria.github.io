@@ -140,8 +140,14 @@
 - [x] Grass blades on open ground (tip-only wind, camera-facing, fog; 22k blades high tier / 6k low; excluded from roads, plaza, ring road and every collider)
 - [x] Wild flower clusters along the ring road and the approach (high tier only)
 - [x] Reduced-motion wind floor (0.08) and `window._wind` tweakables; `?debug` log shows grass count and wind strength
+- [x] **Placement tooling** — `tools/make-town-map.py` generates `docs/town-map.svg` + `docs/town-map-editor.html` (drag objects, road/overlap warnings, export snippets); the audit found and fixed flowers/rocks on the ring road, a bed on the south road and the Tavern touching the road
 - [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
 - [ ] Grass "see-through" fade around the cart when it drives through tall patches
+
+## 2.9 Town Square Fountain
+- [x] Three-tier stone fountain (`buildFountain` in `town-props.js`) — round rimmed pool, fluted pedestal, three lathe-turned bowls (large → small) with a finial jet on top; replaces the old pipe-and-disc placeholder
+- [x] Water: pool + per-bowl water discs, translucent spill sheets from each rim, `createFountainFall` droplets per tier and a parameterised `createFountainSpray` jet at the top
+- [x] Roundabout cobbles extended under the pool rim; collider r 3.9; audio + shimmer still attached to the pool water
 
 ---
 

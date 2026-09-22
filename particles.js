@@ -173,7 +173,7 @@ export class ParticleSystem {
   }
 
   // 3. Fountain spray
-  createFountainSpray(origin, count = 100) {
+  createFountainSpray(origin, count = 100, { up = 2.5, upVar = 1.0, spread = 0.8, size = 15.0, gravity = 5.0 } = {}) {
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(count * 3);
     const life = new Float32Array(count);
@@ -184,9 +184,9 @@ export class ParticleSystem {
         
         // Arc velocities
         const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * 0.8 + 0.2;
+        const radius = Math.random() * spread + 0.2;
         baseVel[i*3] = Math.cos(angle) * radius;
-        baseVel[i*3+1] = 2.5 + Math.random(); // Upwards shoot
+        baseVel[i*3+1] = up + Math.random() * upVar; // Upwards shoot
         baseVel[i*3+2] = Math.sin(angle) * radius;
     }
 
@@ -198,12 +198,14 @@ export class ParticleSystem {
       uniforms: {
         uTime: { value: 0 },
         uOrigin: { value: origin },
-        uGravity: { value: 5.0 }
+        uGravity: { value: gravity },
+        uSize: { value: size }
       },
       vertexShader: `
         uniform float uTime;
         uniform vec3 uOrigin;
         uniform float uGravity;
+        uniform float uSize;
         attribute float aLife;
         attribute vec3 aVel;
         
@@ -222,7 +224,7 @@ export class ParticleSystem {
           vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
           gl_Position = projectionMatrix * mvPosition;
           
-          gl_PointSize = 15.0 / -mvPosition.z;
+          gl_PointSize = uSize / -mvPosition.z;
           vAlpha = 1.0 - tNorm;
         }
       `,
@@ -247,6 +249,71 @@ export class ParticleSystem {
     this.systems.push({
       update: (delta, time) => { mat.uniforms.uTime.value = time; }
     });
+    return points;
+  }
+
+  // 3b. Water spilling over a bowl rim (tiered fountain)
+  // Particles start on a ring of radius `ringR`, drift slightly outward and
+  // fall `drop` units under gravity, looping. Additive, pale blue-white.
+  createFountainFall(origin, ringR, count = 60, drop = 1.0, gravity = 6.0) {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const life = new Float32Array(count);
+    const vel = new Float32Array(count * 3);
+    const T = Math.sqrt(2 * drop / gravity) + 0.15;   // seconds to reach the bowl below
+
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      pos[i*3]   = Math.cos(a) * ringR;
+      pos[i*3+1] = 0;
+      pos[i*3+2] = Math.sin(a) * ringR;
+      life[i] = Math.random() * T;
+      const out = 0.15 + Math.random() * 0.35;
+      vel[i*3]   = Math.cos(a) * out;
+      vel[i*3+1] = 0.1 + Math.random() * 0.2;         // tiny lip before it falls
+      vel[i*3+2] = Math.sin(a) * out;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aLife', new THREE.BufferAttribute(life, 1));
+    geo.setAttribute('aVel', new THREE.BufferAttribute(vel, 3));
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:    { value: 0 },
+        uOrigin:  { value: origin },
+        uGravity: { value: gravity },
+        uLoop:    { value: T },
+      },
+      vertexShader: `
+        uniform float uTime, uGravity, uLoop;
+        uniform vec3 uOrigin;
+        attribute float aLife;
+        attribute vec3 aVel;
+        varying float vAlpha;
+        void main() {
+          float t = mod(uTime + aLife, uLoop);
+          vec3 p = uOrigin + position;
+          p.xz += aVel.xz * t;
+          p.y  += aVel.y * t - 0.5 * uGravity * t * t;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = 9.0 / -mv.z;
+          float tn = t / uLoop;
+          vAlpha = smoothstep(0.0, 0.08, tn) * (1.0 - smoothstep(0.85, 1.0, tn));
+        }`,
+      fragmentShader: `
+        varying float vAlpha;
+        void main() {
+          float d = distance(gl_PointCoord, vec2(0.5));
+          if (d > 0.5) discard;
+          gl_FragColor = vec4(vec3(0.75, 0.9, 1.0), (1.0 - d * 2.0) * vAlpha * 0.7);
+        }`,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    this.scene.add(points);
+    this.systems.push({ update: (delta, time) => { mat.uniforms.uTime.value = time; } });
     return points;
   }
 

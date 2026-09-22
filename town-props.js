@@ -599,3 +599,104 @@ export function buildStall(scene, x, z, rotY, { red = false } = {}) {
   scene.add(g);
   return { group: g, collider: { circle: true, x, z, r: 1.9 } };
 }
+
+// ── Three-tier stone fountain ───────────────────────────────────
+/**
+ * Classic tiered fountain: a round stone-rimmed pool, a fluted pedestal and
+ * three stacked bowls (large → small) with a finial jet on top. Water spills
+ * from each bowl rim as a translucent "sheet" plus falling droplets.
+ *
+ * Returns { group, water (pool disc — use for audio / shimmer), collider }.
+ */
+export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles = 120 } = {}) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+
+  const marble = new THREE.MeshStandardMaterial({ map: stoneTexture(), color: 0xf3eee3, roughness: 0.7 });
+  const marbleDark = new THREE.MeshStandardMaterial({ map: stoneTexture(), color: 0xd9d2c4, roughness: 0.8 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x5fcbf5, transparent: true, opacity: 0.72, roughness: 0.08, metalness: 0.25,
+  });
+  const sheetMat = new THREE.MeshStandardMaterial({
+    color: 0xbfe9ff, transparent: true, opacity: 0.22, roughness: 0.1, metalness: 0.1,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+
+  const add = (mesh, y = 0, cast = true) => {
+    mesh.position.y = y; mesh.castShadow = cast; mesh.receiveShadow = true; g.add(mesh); return mesh;
+  };
+
+  // Pool: outer rim ring + floor + water disc
+  const POOL_R = 3.6, RIM_W = 0.5, RIM_H = 0.7;
+  const rimProfile = [
+    new THREE.Vector2(POOL_R - RIM_W, 0),
+    new THREE.Vector2(POOL_R,         0),
+    new THREE.Vector2(POOL_R + 0.05,  RIM_H * 0.6),
+    new THREE.Vector2(POOL_R,         RIM_H),
+    new THREE.Vector2(POOL_R - RIM_W, RIM_H),
+    new THREE.Vector2(POOL_R - RIM_W, 0),
+  ];
+  add(new THREE.Mesh(new THREE.LatheGeometry(rimProfile, 40), marbleDark), 0.05);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(POOL_R - RIM_W + 0.02, POOL_R - RIM_W + 0.02, 0.12, 40), marbleDark), 0.11, false);
+  const water = add(new THREE.Mesh(new THREE.CircleGeometry(POOL_R - RIM_W, 40), waterMat), 0.4, false);
+  water.rotation.x = -Math.PI / 2;
+
+  // Pedestal: plinth + fluted column
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.0, 0.35, 12), marble), 0.3);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 1.2, 10), marble), 1.05);
+
+  // Bowls (bottom → top): [inner radius, y of rim, depth, stem radius, stem height]
+  const TIERS = [
+    { r: 1.95, y: 1.75, depth: 0.55, stemR: 0.30, stemH: 1.15 },
+    { r: 1.20, y: 3.20, depth: 0.42, stemR: 0.22, stemH: 0.95 },
+    { r: 0.62, y: 4.35, depth: 0.30, stemR: 0.16, stemH: 0.55 },
+  ];
+  const bowlMat = marble.clone(); bowlMat.side = THREE.DoubleSide;
+  const bowlGeo = (r, depth) => {
+    // inner surface: centre-bottom (0,0) curving up to the rim (r, depth),
+    // then a rolled lip and the outer skin back down to the stem.
+    const pts = [];
+    const n = 9;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      pts.push(new THREE.Vector2(r * t, depth * t * t));
+    }
+    pts.push(new THREE.Vector2(r + 0.12, depth + 0.02));
+    pts.push(new THREE.Vector2(r + 0.14, depth - 0.12));
+    pts.push(new THREE.Vector2(r * 0.55, -0.05));
+    pts.push(new THREE.Vector2(0, -0.05));
+    return new THREE.LatheGeometry(pts, 36);
+  };
+
+  TIERS.forEach((t, i) => {
+    const bowlBottom = t.y - t.depth;
+    // stem beneath this bowl
+    add(new THREE.Mesh(new THREE.CylinderGeometry(t.stemR, t.stemR * 1.25, t.stemH, 10), marble), bowlBottom - t.stemH / 2 + 0.05);
+    // bowl
+    add(new THREE.Mesh(bowlGeo(t.r, t.depth), bowlMat), bowlBottom);
+    // water in the bowl
+    const w = add(new THREE.Mesh(new THREE.CircleGeometry(t.r - 0.03, 36), waterMat), t.y - 0.05, false);
+    w.rotation.x = -Math.PI / 2;
+    // translucent water sheet spilling from the rim
+    const below = i === 0 ? 0.4 : TIERS[i - 1].y - 0.05;
+    const sheetH = t.y - below;
+    const sheet = new THREE.Mesh(new THREE.CylinderGeometry(t.r + 0.13, t.r + 0.22, sheetH, 36, 1, true), sheetMat);
+    add(sheet, below + sheetH / 2, false);
+    // falling droplets
+    if (particleSystem) {
+      particleSystem.createFountainFall(new THREE.Vector3(x, t.y + 0.02, z), t.r + 0.14, Math.round(particles * 0.45), sheetH, 6.0);
+    }
+  });
+
+  // Finial + jet
+  const top = TIERS[TIERS.length - 1];
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.45, 8), marble), top.y + 0.2);
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 10), marbleDark), top.y + 0.68);
+  if (particleSystem) {
+    particleSystem.createFountainSpray(new THREE.Vector3(x, top.y + 0.95, z), particles,
+      { up: 2.4, upVar: 0.8, spread: 0.35, size: 11.0, gravity: 6.0 });
+  }
+
+  scene.add(g);
+  return { group: g, water, collider: { circle: true, x, z, r: POOL_R + 0.3 } };
+}

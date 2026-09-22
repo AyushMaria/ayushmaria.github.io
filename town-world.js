@@ -15,7 +15,7 @@ import { cobbleTexture, plasterTexture, stoneTexture, windowTexture, grassTextur
 import {
   propMaterials, gableRoofGeometry, buildCityWall, buildClockTower,
   buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
-  buildClouds, buildMountains, buildStall,
+  buildClouds, buildMountains, buildStall, buildFountain,
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
@@ -1058,7 +1058,7 @@ function initTownWorld() {
 
   // Roundabout (cobbled ring around the fountain)
   const ROUNDABOUT_R = 13;
-  const rbGeo = new THREE.RingGeometry(4, ROUNDABOUT_R, 48);
+  const rbGeo = new THREE.RingGeometry(3.4, ROUNDABOUT_R, 48);
   tileUVs(rbGeo, ROUNDABOUT_R * 2, ROUNDABOUT_R * 2, COBBLE_UNIT);
   const roundabout = new THREE.Mesh(rbGeo, SHARED.cobbleWarm);
   roundabout.rotation.x = -Math.PI / 2;
@@ -1209,40 +1209,14 @@ function initTownWorld() {
   buildShutters(scene);
   windowMats.push(SHARED.windowPane);
 
-  // ── Town Square fountain ────────────────────────────────────
-  const fountainBase = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.5, 2.8, 0.6, 16),
-    new THREE.MeshStandardMaterial({ color: 0xd4c9b0, roughness: 0.95 })
-  );
-  fountainBase.position.set(0, 0.3, 0);
-  fountainBase.castShadow = true;
-  scene.add(fountainBase);
-
-  colliders.push({ circle: true, x: 0, z: 0, r: 3.1 });
-
-  const water = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.2, 2.2, 0.1, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0x4fc3f7, transparent: true, opacity: 0.7,
-      roughness: 0.1, metalness: 0.3,
-    })
-  );
-  water.position.set(0, 0.65, 0);
-  scene.add(water);
+  // ── Town Square fountain (three-tier stone fountain) ────────
+  const fountain = buildFountain(scene, particleSystem, { particles: PERF.fountain });
+  colliders.push(fountain.collider);
+  const water = fountain.water;
 
   // Audio system integration
   const audioSys = new AudioSystem(camera);
   audioSys.attachFountain(water);
-
-  // Fountain spout
-  const spout = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.15, 0.15, 2.2, 8),
-    new THREE.MeshStandardMaterial({ color: 0xd4c9b0, roughness: 0.9 })
-  );
-  spout.position.set(0, 1.5, 0);
-  scene.add(spout);
-
-  particleSystem.createFountainSpray(new THREE.Vector3(0, 2.6, 0), PERF.fountain);
 
   // ── Vortex orb (East arm — above Observatory) ───────────────
   const orb = new THREE.Mesh(
@@ -1912,7 +1886,7 @@ function initTownWorld() {
     fireGlow.intensity = 1.6 + Math.sin(elapsed * 3) * 0.4;
 
     // Water shimmer
-    water.rotation.y = elapsed * 0.3;
+    water.rotation.z = elapsed * 0.3;
 
     // Render through post-processing pipeline
     postFx.render();
