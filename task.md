@@ -119,15 +119,17 @@
 - [ ] **Hanging lanterns** on facades (reference: bracketed lamps beside doors)
 
 ## 2.6 Audio System (`audio.js`)
-- [x] Ambient wind (looping, fluctuating volume)
-- [x] Cart rolling sound (speed-linked volume + filter frequency)
-- [x] Cart brake screech (highpass filtered, brake-gated)
-- [x] Fountain splash (positional audio, bandpass filtered)
-- [x] Fire crackle (positional audio, lowpass filtered, random volume)
-- [x] Crickets at night (pulsating, highpass filtered)
-- [x] Zone transition chime (procedural C6-E6-G6 arpeggio)
+- [x] Shaped noise sources — pink (wind, fountain, brake, crickets) and brown (wheels, fire bed) instead of raw white noise; seamless loop points; smoothed (`setTargetAtTime`) volume changes, no zipper clicks
+- [x] Ambient wind (low-passed pink, slow breathing)
+- [x] Cart rolling rumble (speed-linked volume + filter opening; speed scale matches `cart.js` units)
+- [x] Cart brake hush (band-passed, brake-gated — the old highpass screech is gone)
+- [x] Fountain (positional, band-passed pink with a slow burble AM, rolloff + max distance)
+- [x] Campfire (positional brown bed + short square-wave crackle pops)
+- [x] Evening crickets (narrow band, 22 Hz chirp pulse, very quiet)
+- [x] Zone transition chime (triangle C6-E6-G6, routed through the master gain)
 - [x] Lazy audio context init on first user interaction
 - [x] Zone detection via position angle (Town Square / East / West / North)
+- [x] **Mute that works** — `#sound-toggle` is one site-wide switch (icon shows the current state: 🔊 on / 🔇 muted), dispatches `sound:change`; the town's `AudioSystem` drives the listener master gain from it; landing-page loops are torn down on `town:enter`; preference saved in `localStorage['isekai-sound']`
 - [ ] **Engine/horse sound** — Dedicated clip-clop or engine hum tied to cart cadence
 - [ ] **UI interaction sounds** — Proximity prompt appear, modal open/close
 

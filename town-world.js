@@ -1216,6 +1216,7 @@ function initTownWorld() {
 
   // Audio system integration
   const audioSys = new AudioSystem(camera);
+  window._audio = audioSys;
   audioSys.attachFountain(water);
 
   // ── Vortex orb (East arm — above Observatory) ───────────────

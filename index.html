@@ -940,10 +940,10 @@
       var themeBtn = document.getElementById('theme-toggle');
       if (themeBtn) {
         themeBtn.addEventListener('click', function() {
-          if (!isOn) return;
+          if (!isOn || window._townWorldBooted) return;
           // Fade out current sounds and restart after theme switches
           teardown();
-          setTimeout(function() { if (isOn) bootSounds(); }, 650);
+          setTimeout(function() { if (isOn && !window._townWorldBooted) bootSounds(); }, 650);
         });
       }
 
@@ -984,17 +984,42 @@
       }
 
       // ── TOGGLE BUTTON ────────────────────────────────────────
-      soundBtn.addEventListener('click', function() {
-        isOn = !isOn;
-        soundBtn.textContent = isOn ? '🔇' : '🔊';
+      // One switch for the whole site. The icon shows the CURRENT state
+      // (🔊 = sound on, 🔇 = muted). On the landing page it drives the
+      // ambient loops above; inside the 3D town it drives the town's
+      // AudioSystem (audio.js) via the `sound:change` event.
+      function renderBtn() {
+        soundBtn.textContent = isOn ? '🔊' : '🔇';
         soundBtn.classList.toggle('sound-on', isOn);
-        soundBtn.setAttribute('aria-label', isOn ? 'Mute ambient sound' : 'Enable ambient sound');
-
-        if (isOn) {
-          bootSounds();
+        soundBtn.setAttribute('aria-label', isOn ? 'Mute sound' : 'Unmute sound');
+        soundBtn.title = isOn ? 'Mute sound' : 'Unmute sound';
+      }
+      function setSound(on, opts) {
+        isOn = !!on;
+        renderBtn();
+        try { localStorage.setItem('isekai-sound', isOn ? 'on' : 'off'); } catch (e) {}
+        if (window._townWorldBooted) {
+          teardown();                      // landing-page loops never play over the town
+        } else if (isOn) {
+          if (!handles.length) bootSounds();
         } else {
           teardown();
         }
+        if (!(opts && opts.silent)) {
+          window.dispatchEvent(new CustomEvent('sound:change', { detail: { on: isOn } }));
+        }
+      }
+      window.setSiteSound = setSound;
+      renderBtn();
+
+      soundBtn.addEventListener('click', function() { setSound(!isOn); });
+
+      // Entering the town: stop the landing-page loops and adopt the saved
+      // preference (default on) so the button reflects what the town plays.
+      window.addEventListener('town:enter', function() {
+        var pref = 'on';
+        try { pref = localStorage.getItem('isekai-sound') || 'on'; } catch (e) {}
+        setSound(pref !== 'off');
       });
 
       // ============================================================================
@@ -1704,6 +1729,7 @@
                   document.getElementById('hero').style.display = 'none';
                   document.getElementById('town-world').style.display = 'block';
                   initTownWorld(); // boot the 3D town scene
+                  window.dispatchEvent(new CustomEvent('town:enter'));
                 }
               });
             }
