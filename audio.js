@@ -37,7 +37,7 @@ export class AudioSystem {
 
     // Web Audio needs a user gesture before it will make sound.
     const initAudio = () => {
-      if (this.listener.context.state === 'suspended') this.listener.context.resume();
+      if (this.enabled && this.listener.context.state === 'suspended') this.listener.context.resume();
       if (!this.initialized) {
         this.initialized = true;
         this.setupSounds();
@@ -58,14 +58,27 @@ export class AudioSystem {
   }
 
   // ── Mute / unmute ─────────────────────────────────────────────
+  // Fades the listener's master gain, then suspends the AudioContext so
+  // nothing at all reaches the speakers while muted (belt and braces).
   setEnabled(on) {
     this.enabled = !!on;
     writeSoundPref(this.enabled);
     const ctx = this.listener.context;
     const g = this.listener.gain.gain;
-    if (this.enabled && ctx.state === 'suspended') ctx.resume();
-    g.cancelScheduledValues(ctx.currentTime);
-    g.setTargetAtTime(this.enabled ? 1 : 0, ctx.currentTime, 0.08);
+    clearTimeout(this._suspendTimer);
+    if (this.enabled) {
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+      g.cancelScheduledValues(ctx.currentTime);
+      g.setValueAtTime(g.value, ctx.currentTime);
+      g.linearRampToValueAtTime(1, ctx.currentTime + 0.25);
+    } else {
+      g.cancelScheduledValues(ctx.currentTime);
+      g.setValueAtTime(g.value, ctx.currentTime);
+      g.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+      this._suspendTimer = setTimeout(() => {
+        if (!this.enabled && ctx.state === 'running') ctx.suspend().catch(() => {});
+      }, 180);
+    }
   }
   toggle() { this.setEnabled(!this.enabled); return this.enabled; }
 
@@ -138,7 +151,7 @@ export class AudioSystem {
     const brown = this._brownBuffer(ctx, 3);
 
     // 1. Wind — pink noise, low-passed, breathing slowly.
-    this.wind = this._loop(pink, 0.0, this._filter(ctx, 'lowpass', 420, 0.4));
+    this.wind = this._loop(pink, 0.0, this._filter(ctx, 'lowpass', 300, 0.3));
     this.wind.play();
 
     // 2. Cart rolling — brown rumble, filter opens with speed.
@@ -152,23 +165,23 @@ export class AudioSystem {
 
     // 4. Fountain — pink noise through a band around 900 Hz with a gentle
     //    burble (slow AM), positional so it fades with distance.
-    const fBand = this._filter(ctx, 'bandpass', 900, 0.9);
-    this.fountain = this._loop(pink, 0.55, fBand, true);
-    this.fountain.setRefDistance(6);
-    this.fountain.setRolloffFactor(1.4);
-    this.fountain.setMaxDistance(60);
+    const fBand = this._filter(ctx, 'bandpass', 1100, 0.7);
+    this.fountain = this._loop(pink, 0.3, fBand, true);
+    this.fountain.setRefDistance(4);
+    this.fountain.setRolloffFactor(2.2);
+    this.fountain.setMaxDistance(30);
     this._burble = ctx.createOscillator();
     this._burble.frequency.value = 0.7;
-    const burbleGain = ctx.createGain(); burbleGain.gain.value = 0.12;
+    const burbleGain = ctx.createGain(); burbleGain.gain.value = 0.08;
     this._burble.connect(burbleGain); burbleGain.connect(this.fountain.gain.gain);
     this._burble.start();
     this.fountain.play();
 
     // 5. Campfire — brown bed, low-passed; crackles are added in update().
-    this.fire = this._loop(brown, 0.35, this._filter(ctx, 'lowpass', 320, 0.6), true);
-    this.fire.setRefDistance(5);
-    this.fire.setRolloffFactor(1.6);
-    this.fire.setMaxDistance(45);
+    this.fire = this._loop(brown, 0.22, this._filter(ctx, 'lowpass', 280, 0.6), true);
+    this.fire.setRefDistance(4);
+    this.fire.setRolloffFactor(2.2);
+    this.fire.setMaxDistance(28);
     this.fire.play();
     this._nextCrackle = 0;
 
@@ -176,10 +189,90 @@ export class AudioSystem {
     this.crickets = this._loop(pink, 0.0, this._filter(ctx, 'bandpass', 4300, 14));
     this._chirp = ctx.createOscillator();
     this._chirp.frequency.value = 22;
-    const chirpGain = ctx.createGain(); chirpGain.gain.value = 0.012;
+    const chirpGain = ctx.createGain(); chirpGain.gain.value = 0.006;
     this._chirp.connect(chirpGain); chirpGain.connect(this.crickets.gain.gain);
     this._chirp.start();
     this.crickets.play();
+
+    // 7. Music — a soft evolving pad and sparse pentatonic bells. This is
+    //    what you actually notice; the noise beds sit underneath it.
+    this._startMusic();
+  }
+
+  // ── Music layer ───────────────────────────────────────────────
+  _startMusic() {
+    const ctx = this.listener.context;
+    const out = this.listener.getInput();
+
+    // Pad bus: lowpass + gentle tremolo
+    const padOut = ctx.createGain(); padOut.gain.value = 0;
+    const padLP = this._filter(ctx, 'lowpass', 750, 0.4);
+    padLP.connect(padOut); padOut.connect(out);
+    const trem = ctx.createOscillator(); trem.frequency.value = 0.18;
+    const tremG = ctx.createGain(); tremG.gain.value = 0.05;
+    trem.connect(tremG); tremG.connect(padOut.gain); trem.start();
+    this._padOut = padOut;
+    padOut.gain.setTargetAtTime(0.16, ctx.currentTime + 0.5, 4);   // slow fade-in
+
+    // Chord progression (Hz): Cmaj7 → Am9 → Fmaj7 → G6, 12 s each, crossfaded
+    const CHORDS = [
+      [130.81, 196.00, 246.94, 329.63],   // C3 G3 B3 E4
+      [110.00, 164.81, 261.63, 329.63],   // A2 E3 C4 E4
+      [87.31, 130.81, 220.00, 329.63],    // F2 C3 A3 E4
+      [98.00, 146.83, 246.94, 293.66],    // G2 D3 B3 D4
+    ];
+    const CHORD_LEN = 12, XFADE = 3;
+    let idx = 0;
+    const playChord = (freqs, at) => {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(1, at + XFADE);
+      g.gain.setValueAtTime(1, at + CHORD_LEN);
+      g.gain.linearRampToValueAtTime(0, at + CHORD_LEN + XFADE);
+      g.connect(padLP);
+      freqs.forEach((f, i) => {
+        [-5, 5].forEach(cents => {
+          const o = ctx.createOscillator();
+          o.type = i === 0 ? 'sine' : 'triangle';
+          o.frequency.value = f;
+          o.detune.value = cents;
+          const vg = ctx.createGain(); vg.gain.value = i === 0 ? 0.32 : 0.18;
+          o.connect(vg); vg.connect(g);
+          o.start(at); o.stop(at + CHORD_LEN + XFADE + 0.1);
+        });
+      });
+    };
+    const scheduleNext = () => {
+      if (this._disposed) return;
+      if (ctx.state !== 'running') { this._chordTimer = setTimeout(scheduleNext, 500); return; }   // muted: wait
+      playChord(CHORDS[idx % CHORDS.length], ctx.currentTime + 0.05);
+      idx++;
+      this._chordTimer = setTimeout(scheduleNext, CHORD_LEN * 1000);
+    };
+    scheduleNext();
+
+    // Bells: C major pentatonic, C5–E6, one every few seconds, stereo-spread
+    const NOTES = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7, 1318.5];
+    const bellOut = ctx.createGain(); bellOut.gain.value = 0.9; bellOut.connect(out);
+    const bell = () => {
+      if (this._disposed) return;
+      if (ctx.state !== 'running') { this._bellTimer = setTimeout(bell, 500); return; }
+      const f = NOTES[Math.floor(Math.random() * NOTES.length)];
+      const now = ctx.currentTime;
+      const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      const dest = pan ? (pan.pan.value = (Math.random() - 0.5) * 1.2, pan.connect(bellOut), pan) : bellOut;
+      [[1, 0.05], [3.01, 0.012]].forEach(([mult, amp]) => {
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f * mult;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(amp, now + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0004, now + 1.8 + Math.random() * 1.2);
+        o.connect(g); g.connect(dest);
+        o.start(now); o.stop(now + 3.2);
+      });
+      this._bellTimer = setTimeout(bell, 2600 + Math.random() * 5000);
+    };
+    this._bellTimer = setTimeout(bell, 1500);
   }
 
   attachFountain(mesh) {
@@ -241,18 +334,18 @@ export class AudioSystem {
     if (!this.initialized) return;
 
     // Wind breathes slowly
-    const windVol = 0.16 + Math.sin(elapsed * 0.37) * 0.05 + Math.sin(elapsed * 0.11) * 0.04;
+    const windVol = 0.07 + Math.sin(elapsed * 0.37) * 0.03 + Math.sin(elapsed * 0.11) * 0.025;
     this._setVol(this.wind, Math.max(0, windVol), 0.5);
 
     // Cart rolling — speed is in world units per frame (max ≈ 0.20)
     const speed = Math.abs(cart.getSpeed() || 0);
     const ratio = Math.min(speed / 0.2, 1);
-    this._setVol(this.roll, ratio * 0.28, 0.15);
+    this._setVol(this.roll, ratio * 0.18, 0.15);
     this.rollFilter.frequency.setTargetAtTime(220 + ratio * 500, this.listener.context.currentTime, 0.2);
 
     // Brake hush
     const braking = cart.keys && cart.keys.brake && ratio > 0.15;
-    this._setVol(this.brake, braking ? 0.06 + ratio * 0.06 : 0, 0.08);
+    this._setVol(this.brake, braking ? 0.04 + ratio * 0.04 : 0, 0.08);
 
     // Campfire crackles
     if (this.fire && elapsed > this._nextCrackle) {
@@ -261,7 +354,7 @@ export class AudioSystem {
     }
 
     // Crickets only in the evening, and only quietly
-    this._setVol(this.crickets, isNight ? 0.05 : 0, 0.8);
+    this._setVol(this.crickets, isNight ? 0.025 : 0, 0.8);
 
     // Zone change chime
     const pos = cart.getPosition();
@@ -273,6 +366,8 @@ export class AudioSystem {
   }
 
   dispose() {
+    this._disposed = true;
+    clearTimeout(this._chordTimer); clearTimeout(this._bellTimer); clearTimeout(this._suspendTimer);
     window.removeEventListener('sound:change', this._onChange);
   }
 }
