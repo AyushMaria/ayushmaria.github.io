@@ -3713,6 +3713,32 @@
         color: #0a0a1a;
     }
 
+    button.map-entry {
+        background: none;
+        border: none;
+        text-align: left;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    button.map-entry:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+    }
+    #town-map.in-town #town-map-toggle {
+        background: rgba(20, 12, 40, 0.72);
+        border-color: rgba(255, 209, 102, 0.45);
+        color: #fff;
+    }
+    #town-map.in-town #town-map-panel {
+        background: rgba(20, 12, 40, 0.88);
+        border-color: rgba(255, 209, 102, 0.35);
+        backdrop-filter: blur(6px);
+    }
+    #town-map.in-town .map-title,
+    #town-map.in-town .map-entry.active { color: #ffd166; }
+    #town-map.in-town .map-entry { color: #f3ead7; }
+    #town-map.in-town .map-entry:hover { background: rgba(255, 209, 102, 0.9); color: #1a1026; }
+
     .map-entry.active {
         background: rgba(6, 214, 160, 0.15);
         color: var(--accent);

@@ -62,9 +62,9 @@ export const animatedProps = [];
 // achievements and the project modal's contextual header.
 export const ZONES = {
   square:   { name: 'Town Square',      spawn: { x: 0,   z: 30, rot:  Math.PI     } },
-  north:    { name: 'Main Street',      spawn: { x: 0,   z: -12, rot: Math.PI     } },
-  east:     { name: 'Research Quarter', spawn: { x: 14,  z: 0,  rot:  Math.PI / 2 } },
-  west:     { name: 'Services Quarter', spawn: { x: -14, z: 0,  rot: -Math.PI / 2 } },
+  north:    { name: 'Main Street',      spawn: { x: 0,   z: -24, rot: Math.PI     } },
+  east:     { name: 'Research Quarter', spawn: { x: 24,  z: 0,  rot:  Math.PI / 2 } },
+  west:     { name: 'Services Quarter', spawn: { x: -24, z: 0,  rot: -Math.PI / 2 } },
 };
 
 // Road half-widths (see the road section in initTownWorld): spokes 6, ring 4.5,

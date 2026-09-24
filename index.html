@@ -606,7 +606,52 @@
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
       }
 
-      toggle.addEventListener('click', function() { setOpen(!isOpen); });
+      toggle.addEventListener('click', function() {
+        if (!isOpen && window._townWorldBooted) enterTownMode();
+        if (!isOpen && townMode) syncTownActive();
+        setOpen(!isOpen);
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (isOpen && e.key === 'Escape') { setOpen(false); toggle.focus(); }
+      });
+
+      // ── Town mode ─────────────────────────────────────────────
+      // Inside the 3D town the landing-page sections are hidden, so the
+      // panel becomes a fast-travel list mirroring the zone HUD buttons
+      // (which own the teleport logic in town-world.js).
+      var townMode = false;
+      var townEntries = [];
+      function enterTownMode() {
+        if (townMode) return;
+        var hudBtns = document.querySelectorAll('#zone-hud [data-zone]');
+        if (!hudBtns.length) return;
+        townMode = true;
+        mapEl.classList.add('in-town');
+        toggle.setAttribute('aria-label', 'Town map: fast travel');
+        panel.setAttribute('aria-label', 'Fast travel');
+        panel.innerHTML = '<div class="map-title">Fast Travel</div>';
+        hudBtns.forEach(function(hud) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'map-link map-entry';
+          b.dataset.zone = hud.dataset.zone;
+          var icon  = hud.querySelector('.zone-hud-icon');
+          var label = hud.getAttribute('aria-label') || '';
+          b.textContent = (icon ? icon.textContent + ' ' : '') + label.replace(/^Fast travel to /, '');
+          b.addEventListener('click', function() {
+            hud.click();                 // teleport via town-world.js
+            setOpen(false);
+            b.blur();                    // so Space/Enter go back to the cart
+          });
+          panel.appendChild(b);
+          townEntries.push({ btn: b, hud: hud });
+        });
+      }
+      function syncTownActive() {
+        townEntries.forEach(function(t) { t.btn.classList.toggle('active', t.hud.classList.contains('active')); });
+      }
+      window.addEventListener('town:enter', enterTownMode);
 
       // Close when clicking a map entry
       entries.forEach(function(a) {
@@ -1368,16 +1413,6 @@
     })();
   </script>
   
-  <div id="town-map" role="navigation" aria-label="Page mini-map">
-    <button id="town-map-toggle" aria-label="Toggle map" aria-expanded="false">🗺</button>
-    <nav class="map-nav" id="town-map-panel" aria-hidden="true">
-      <a href="#hero"     class="map-link map-entry active" data-section="hero">🏯 Gate</a>
-      <a href="#about"    class="map-link map-entry"        data-section="about">🗺️ Square</a>
-      <a href="#town"     class="map-link map-entry"        data-section="town">🏘️ Main St</a>
-      <a href="#research" class="map-link map-entry"        data-section="research">🔬 Research</a>
-      <a href="#tavern"   class="map-link map-entry"        data-section="tavern">🍺 Tavern</a>
-    </nav>
-  </div>
   <script type="module">
     import * as THREE from 'three';
     window.THREE = THREE; // Expose for any other script relying on the global

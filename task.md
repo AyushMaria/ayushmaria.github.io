@@ -146,6 +146,12 @@
 - [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
 - [ ] Grass "see-through" fade around the cart when it drives through tall patches
 
+## 2.10 Map Button Fix
+- [x] Removed a duplicate `#town-map` block (no click handler) that sat on top of the real map button and swallowed every click
+- [x] Map button is context-aware: section links on the landing page, **Fast Travel** list (mirrors the zone HUD, highlights the current quarter, Esc / outside click closes) inside the town
+- [x] Quarter spawns moved out onto the spokes (±24) so fast travel actually lands in Main Street / Research / Services instead of inside the Square radius
+- [x] `tools/make-town-map.py` reads double-quoted signboard text again (signs were missing from the editor after `apply-placements.py`)
+
 ## 2.9 Town Square Fountain
 - [x] Three-tier stone fountain (`buildFountain` in `town-props.js`) — round rimmed pool, fluted pedestal, three lathe-turned bowls (large → small) with a finial jet on top; replaces the old pipe-and-disc placeholder
 - [x] Water: pool + per-bowl water discs, translucent spill sheets from each rim, `createFountainFall` droplets per tier and a parameterised `createFountainSpray` jet at the top
