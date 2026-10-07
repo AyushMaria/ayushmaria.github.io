@@ -1209,6 +1209,72 @@ function initTownWorld() {
   buildShutters(scene);
   windowMats.push(SHARED.windowPane);
 
+  // ── Isometric occlusion fade ────────────────────────────────
+  // The camera looks down from the south-east, so a building between it
+  // and the cart would hide the cart. Each frame we cast two rays (cart
+  // body + roof height) from the camera to the cart against every
+  // building's bounds; a building that blocks them fades to ~25% using
+  // per-building transparent material clones, and swaps back to its
+  // original (opaque, depth-writing) materials once it's clear again.
+  const occluders = buildingMeta.map(bm => {
+    bm.mesh.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    bm.mesh.traverse(m => {
+      if (!m.isMesh || m === bm.mesh.userData.marker || m.material.isShaderMaterial) return;
+      box.expandByObject(m);
+    });
+    return { group: bm.mesh, box, fade: 1, swapped: false, parts: null };
+  });
+  const _occRay = new THREE.Ray(), _occPt = new THREE.Vector3(), _occHit = new THREE.Vector3();
+  const OCC_MIN = 0.25;
+
+  function occParts(o) {
+    if (o.parts) return o.parts;
+    o.parts = [];
+    o.group.traverse(m => {
+      if (!m.isMesh || m === o.group.userData.marker) return;
+      const orig = m.material;
+      const list = Array.isArray(orig) ? orig : [orig];
+      if (list.some(x => x.isShaderMaterial)) return;          // cone lights stay as they are
+      const clones = list.map(x => {
+        const c = x.clone();
+        c.transparent = true;
+        c.depthWrite = false;
+        c.userData.baseOpacity = x.opacity;
+        return c;
+      });
+      o.parts.push({ mesh: m, orig, faded: Array.isArray(orig) ? clones : clones[0], clones });
+    });
+    return o.parts;
+  }
+  function occSwap(o, faded) {
+    occParts(o).forEach(p => { p.mesh.material = faded ? p.faded : p.orig; });
+    o.swapped = faded;
+  }
+
+  function updateOcclusion(dt) {
+    const cam = camera.position;
+    const cp  = cart.getPosition();
+    const k   = Math.min(1, dt * 8);
+    for (const o of occluders) {
+      let hit = false;
+      for (const yOff of [0.7, 2.0]) {
+        _occPt.set(cp.x, yOff, cp.z);
+        _occRay.origin.copy(cam);
+        _occRay.direction.subVectors(_occPt, cam);
+        const d = _occRay.direction.length();
+        _occRay.direction.divideScalar(d);
+        if (_occRay.intersectBox(o.box, _occHit) && _occHit.distanceTo(cam) < d - 0.4) { hit = true; break; }
+      }
+      const target = hit ? OCC_MIN : 1;
+      if (!o.swapped && !hit) continue;
+      o.fade += (target - o.fade) * k;
+      if (!o.swapped) occSwap(o, true);
+      if (!hit && o.fade > 0.99) { o.fade = 1; occSwap(o, false); continue; }
+      for (const p of o.parts) for (const c of p.clones) c.opacity = c.userData.baseOpacity * o.fade;
+    }
+  }
+
   // ── Town Square fountain (three-tier stone fountain) ────────
   const fountain = buildFountain(scene, particleSystem, { particles: PERF.fountain });
   colliders.push(fountain.collider);
@@ -1833,6 +1899,7 @@ function initTownWorld() {
 
     // Camera
     followCam.update(cart);
+    updateOcclusion(delta);
 
     // Labels
     labelSys.update(canvas.clientWidth, canvas.clientHeight);
@@ -1893,16 +1960,8 @@ function initTownWorld() {
     postFx.render();
   }
 
-  // ── Entry fly-in ────────────────────────────────────────────
-  if (gsap) {
-    camera.position.set(0, 15, 70);
-    gsap.to(camera.position, {
-      x: 0, y: 8, z: 42,
-      duration: 2.5,
-      ease: 'power2.out',
-      onUpdate: () => camera.lookAt(0, 2, 0),
-    });
-  }
+  // Entry fly-in: FollowCamera starts high on the isometric diagonal and
+  // glides down to the cart on its first frames (see cart.js).
 
   animate();
 }
