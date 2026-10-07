@@ -24,7 +24,7 @@
 - [x] Scroll-wheel zoom (lerp between min/max distance)
 - [x] Speed-based dynamic zoom (camera pulls back when fast)
 - [x] Collision shake effect
-- [x] Isometric toggle (`Q` key)
+- [x] Isometric camera — the only view on desktop and mobile (fixed SE diagonal, follows the cart; scroll / pinch zoom 0.6–1.5×; backs off on portrait screens). `Q` toggle and chase cam removed. Buildings between the camera and the cart fade to 25% so the cart is never hidden
 - [ ] **Spherical coordinates** — Replace hardcoded `behind` offset with `phi`/`theta`/`radius` system (Bruno Simon's `View.js` pattern)
 - [ ] **Mouse orbit** — Temporary orbit around cart on mouse-drag, snap back on release
 - [ ] **Cinematic transitions** — Smooth lerp to preset camera positions when entering buildings
@@ -72,7 +72,7 @@
 - [x] Scroll-wheel zoom
 - [x] Speed-based dynamic zoom
 - [x] Collision shake
-- [x] Isometric view toggle
+- [x] Isometric view (permanent; see Phase 1)
 - [ ] Spherical coordinates (see §1.3)
 - [ ] Mouse orbit (see §1.3)
 - [ ] Cinematic transitions (see §1.3)
