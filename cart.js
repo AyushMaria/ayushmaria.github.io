@@ -409,52 +409,60 @@ export class Cart {
 
 export class FollowCamera {
   constructor(camera) {
-    this.camera     = camera;
-    
-    // Zoom limits and base settings
-    this.minDistance = 8;
-    this.maxDistance = 25;
-    this.baseDistance = 14;     // Target distance controlled by scroll wheel
-    this.currentDistance = 14;  // Lerped dynamic distance
-    
-    this.height     = 7;
-    this.lookHeight = 1.8;
-    this.smoothness = 0.05;
-    this.speedBoost = 12;       // How much the camera zooms out at speed
-    
-    // Phase 2.4 Features
-    this.isIsometric = false;
+    this.camera = camera;
+
+    // Isometric is the only view. The camera sits on a fixed diagonal
+    // (south-east, looking north-west) at a fixed elevation and follows
+    // the cart without rotating with it.
+    this.isoDir     = new THREE.Vector3(15, 20, 15).normalize();  // ~43° elevation
+    this.isoDist    = 27;        // base distance along isoDir
+    this.zoom       = 1;         // user zoom (wheel / pinch), 0.6 – 1.5
+    this.minZoom    = 0.6;
+    this.maxZoom    = 1.5;
+    this.speedBoost = 1.6;       // pull back a little at speed
+    this.smoothness = 0.08;
+    this._dist      = this.isoDist;
+
+    this.isIsometric    = true;  // kept for anything that reads it
     this.shakeIntensity = 0;
-    this.reducedMotion = false;   // set by town-world from prefers-reduced-motion
-    
+    this.reducedMotion  = false; // set by town-world from prefers-reduced-motion
+
     this._pos    = new THREE.Vector3();
     this._lookAt = new THREE.Vector3();
     this._ready  = false;
+    this._tmp    = new THREE.Vector3();
 
     this.setupEvents();
   }
 
-  setupEvents() {
-    // Scroll-wheel zoom
-    window.addEventListener('wheel', (e) => {
-      if (this.isIsometric) return; // Disallow manual zoom in iso mode
-      // Don't zoom the camera while scrolling inside a modal / HUD panel
-      if (e.target && e.target.closest && e.target.closest('.modal-overlay, .zone-hud')) return;
-      this.baseDistance += e.deltaY * 0.01;
-      this.baseDistance = THREE.MathUtils.clamp(this.baseDistance, this.minDistance, this.maxDistance);
-    });
+  // Portrait screens see much less horizontally, so back the camera off.
+  _aspectFactor() {
+    const a = this.camera.aspect || 1;
+    return a < 1 ? Math.min(1.45, 1 / Math.sqrt(a)) : 1;
+  }
 
-    // Keyboard toggle for Isometric 'Q'
-    window.addEventListener('keydown', (e) => {
-      // Prevent triggering if typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      
-      if (e.key.toLowerCase() === 'q') {
-        this.isIsometric = !this.isIsometric;
-        // Snap out of ready state to force a smooth pan to new perspective
-        if (this.isIsometric) this.smoothness = 0.03; // Even smoother transition
+  setupEvents() {
+    const blocked = (t) => t && t.closest && t.closest('.modal-overlay, .zone-hud, #town-map, .controls-overlay');
+
+    // Scroll-wheel zoom (desktop)
+    window.addEventListener('wheel', (e) => {
+      if (blocked(e.target)) return;
+      this.zoom = THREE.MathUtils.clamp(this.zoom * (1 + e.deltaY * 0.001), this.minZoom, this.maxZoom);
+    }, { passive: true });
+
+    // Two-finger pinch zoom (phone / tablet). One-finger touches are left
+    // alone so the joystick and buttons work as before.
+    let pinch0 = 0, zoom0 = 1;
+    const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    window.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2 && !blocked(e.target)) { pinch0 = span(e.touches); zoom0 = this.zoom; }
+    }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinch0 > 0) {
+        this.zoom = THREE.MathUtils.clamp(zoom0 * pinch0 / span(e.touches), this.minZoom, this.maxZoom);
       }
-    });
+    }, { passive: true });
+    window.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch0 = 0; }, { passive: true });
   }
 
   // Called when cart hits a wall
@@ -464,57 +472,29 @@ export class FollowCamera {
   }
 
   update(cart) {
-    const cartPos = cart.getPosition();
-    const cartRot = cart.getRotation();
+    const cartPos   = cart.getPosition();
     const cartSpeed = cart.getSpeed();
 
-    // Trigger shake on collision
-    if (cart.justCollided) {
-      this.addShake();
-    }
+    if (cart.justCollided) this.addShake();
 
-    // Dynamic zoom based on speed (camera pulls back when fast)
-    this.currentDistance = THREE.MathUtils.lerp(
-      this.currentDistance, 
-      this.baseDistance + cartSpeed * this.speedBoost, 
-      0.03
-    );
-    
-    let desiredPos, desiredLook;
+    // Distance: base × zoom × portrait factor, eased out a touch at speed
+    const target = this.isoDist * this.zoom * this._aspectFactor() + cartSpeed * this.speedBoost * 10;
+    this._dist = THREE.MathUtils.lerp(this._dist, target, 0.05);
 
-    if (this.isIsometric) {
-      // Fixed angle, fixed distance (Classic ARPG view)
-      const isoOffset = new THREE.Vector3(15, 20, 15);
-      desiredPos = cartPos.clone().add(isoOffset);
-      desiredLook = cartPos.clone();
-    } else {
-      // Standard Follow Camera
-      const behind = new THREE.Vector3(
-        -Math.sin(cartRot) * this.currentDistance,
-        this.height + cartSpeed * 2, // Slight height boost based on speed
-        -Math.cos(cartRot) * this.currentDistance
-      );
-      desiredPos  = cartPos.clone().add(behind);
-      desiredLook = cartPos.clone().add(new THREE.Vector3(0, this.lookHeight, 0));
-    }
-
-    // Cinematic teleport or snap smoothing
-    if (cart.teleporting) {
-      this.smoothness = 0.15; // Faster snap while teleporting so camera keeps up
-    } else {
-      // Normal smoothness but slowly recover if we changed modes
-      this.smoothness = THREE.MathUtils.lerp(this.smoothness, 0.05, 0.01);
-    }
+    const desiredLook = this._tmp.copy(cartPos);
+    desiredLook.y += 1.2;
+    const desiredPos = desiredLook.clone().addScaledVector(this.isoDir, this._dist);
 
     if (!this._ready) {
-      this._pos.copy(desiredPos);
+      // Entry: start high and far on the same diagonal, then glide in
+      this._pos.copy(desiredLook).addScaledVector(this.isoDir, this._dist * 2.4);
       this._lookAt.copy(desiredLook);
       this._ready = true;
     }
 
-    this._pos.lerp(desiredPos, this.smoothness);
-    this._lookAt.lerp(desiredLook, this.smoothness);
-    this._pos.y = Math.max(this._pos.y, 2.5);
+    const k = cart.teleporting ? 0.15 : this.smoothness;
+    this._pos.lerp(desiredPos, k);
+    this._lookAt.lerp(desiredLook, k);
 
     this.camera.position.copy(this._pos);
     this.camera.lookAt(this._lookAt);
