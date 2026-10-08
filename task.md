@@ -146,6 +146,18 @@
 - [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
 - [ ] Grass "see-through" fade around the cart when it drives through tall patches
 
+## 2.11 Driving Feel (from the folio-2025 comparison, no Rapier)
+- [x] **Point-to-drive touch** — the stick is read in screen space and turned into a world heading through the camera; steering = angle to that heading (full lock at 45°), throttle = push depth (eased), pointing behind the cart (>135°, 20° hysteresis) reverses. Ground ring + arrow shows the requested heading while the stick is held
+- [x] Opposite input brakes first, then reverses (keyboard and stick)
+- [x] Speed-sensitive steering lock (100 % → 55 % at top speed)
+- [x] Time-based smoothing for the stick, steering, wall slide and camera (same feel at 30/60/144 fps)
+- [x] Fake suspension: cart body pitches on accel/brake and leans out in turns (spring-damper), subtle cobble bob; off under reduced motion
+- [x] Front wheels steer visibly; wheel spin matches ground speed (distance / radius)
+- [x] Tail lights flare when braking, white reversing lamp; brake audio follows the real brake state
+- [ ] Surface-normal sliding, impact thud, camera roll kick (§4 of the comparison)
+- [ ] R respawn + stuck detection, Shift boost, honk
+- [ ] Camera: narrower FOV, look-ahead, drag-to-pan, frame building on modal open
+
 ## 2.10 Map Button Fix
 - [x] Removed a duplicate `#town-map` block (no click handler) that sat on top of the real map button and swallowed every click
 - [x] Map button is context-aware: section links on the landing page, **Fast Travel** list (mirrors the zone HUD, highlights the current quarter, Esc / outside click closes) inside the town
