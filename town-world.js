@@ -810,15 +810,20 @@ class LabelSystem {
     this.container.appendChild(div);
     this.labels.push({ div, position: position.clone() });
   }
-  update(w, h) {
+  // focus: the ground point the camera is centred on; camDist: camera distance.
+  // Labels fade by how far they are from what you're looking at (not from the
+  // camera, which now sits ~50 units away with a narrow lens) and scale with zoom.
+  update(w, h, focus = null, camDist = 50) {
+    const s = Math.max(0.5, Math.min(1.2, 0.7 * 50 / camDist));
     this.labels.forEach(l => {
       const p = l.position.clone().project(this.camera);
       if (p.z > 1) { l.div.style.display = 'none'; return; }
       const x = (p.x * 0.5 + 0.5) * w;
       const y = (-(p.y * 0.5) + 0.5) * h;
-      const dist = l.position.distanceTo(this.camera.position);
-      const scale = Math.max(0.5, Math.min(1.3, 18 / dist));
-      const opacity = dist > 55 ? 0 : dist > 35 ? (55 - dist) / 20 : 1;
+      const dist = focus ? Math.hypot(l.position.x - focus.x, l.position.z - focus.z)
+                         : l.position.distanceTo(this.camera.position) - 25;
+      const scale = s;
+      const opacity = dist > 48 ? 0 : dist > 32 ? (48 - dist) / 16 : 1;
       l.div.style.display = opacity > 0.01 ? 'block' : 'none';
       l.div.style.transform =
         `translate(-50%,-50%) translate(${x}px,${y}px) scale(${scale})`;
@@ -1630,7 +1635,8 @@ function initTownWorld() {
   cart.reducedMotion = REDUCED_MOTION;
 
   // ── Follow Camera ───────────────────────────────────────────
-  const followCam = new FollowCamera(camera);
+  const followCam = new FollowCamera(camera, { domElement: canvas });
+  window._followCam = followCam;
   followCam.reducedMotion = REDUCED_MOTION;
 
   // ── Mobile Joystick ─────────────────────────────────────────
@@ -1662,11 +1668,13 @@ function initTownWorld() {
   document.addEventListener('settlement:modal', e => {
     modalOpen = !!(e.detail && e.detail.open);
     cart.inputLocked = modalOpen;
+    if (!modalOpen) followCam.frame(null);
     if (modalOpen && e.detail.projectId) achievements.onProjectOpened(e.detail.projectId);
   });
 
   function openProject(data) {
     if (!data || !data.project || modalOpen || typeof window.openModal !== 'function') return;
+    followCam.frame(new THREE.Vector3(data.x, 0, data.z));   // ease toward the building while its card is open
     const zone = ZONES[data.zone];
     window.openModal(data.project, { zone: zone ? zone.name : '', zoneKey: data.zone, building: data.label });
   }
@@ -1776,6 +1784,7 @@ function initTownWorld() {
   buildingMeta.forEach(bm => { if (bm.data.project) metaByProject[bm.data.project] = bm.data; });
 
   canvas.addEventListener('click', e => {
+    if (followCam.consumeDrag()) return;          // that was a drag-to-look, not a click
     mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
@@ -1945,7 +1954,7 @@ function initTownWorld() {
     updateOcclusion(delta);
 
     // Labels
-    labelSys.update(canvas.clientWidth, canvas.clientHeight);
+    labelSys.update(canvas.clientWidth, canvas.clientHeight, followCam._focus, followCam._dist);
 
     // Interaction
     updateInteraction();

@@ -694,20 +694,43 @@ export class Cart {
 // ════════════════════════════════════════════════════════════════
 
 export class FollowCamera {
-  constructor(camera) {
+  constructor(camera, { domElement = null } = {}) {
     this.camera = camera;
+    this.domElement = domElement;   // canvas: mouse drag-to-look starts here
 
     // Isometric is the only view. The camera sits on a fixed diagonal
     // (south-east, looking north-west) at a fixed elevation and follows
-    // the cart without rotating with it.
+    // the cart without rotating with it. A narrow lens (FOV ~32°) from
+    // further away gives the flat "diorama" look of folio-2025 with much
+    // less edge distortion than the old 60° lens at 27 units.
+    this.fov        = 32;
     this.isoDir     = new THREE.Vector3(15, 20, 15).normalize();  // ~43° elevation
-    this.isoDist    = 27;        // base distance along isoDir
+    this.isoDist    = 50;        // base distance along isoDir (same ground in view as 60° @ 27)
     this.zoom       = 1;         // user zoom (wheel / pinch), 0.6 – 1.5
     this.minZoom    = 0.6;
     this.maxZoom    = 1.5;
-    this.speedBoost = 1.6;       // pull back a little at speed
+    this.speedBoost = 3.0;       // pull back a little at speed
     this.smoothness = 0.08;
     this._dist      = this.isoDist;
+    // The camera now sits 20–75 units from anything it looks at, so a near
+    // plane of 4 (was 0.5) buys ~8× depth precision — no z-fighting stripes
+    // between the ground, roads and plaza at this distance.
+    camera.fov = this.fov;
+    camera.near = 4;
+    camera.updateProjectionMatrix();
+
+    // Look-ahead: frame a little ahead of the cart in its direction of travel
+    this.lookAheadDist = 6;      // world units at top speed
+    this._ahead = new THREE.Vector3();
+
+    // Drag-to-look (mouse drag / two-finger pan). Springs back when you drive.
+    this.pan = new THREE.Vector3();
+    this.panMax = 26;
+    this._lastPanTime = -1e9;
+    this._dragMoved = false;
+
+    // Framing a building while its project card is open
+    this._frame = { target: null, mix: 0, point: new THREE.Vector3() };
 
     this.isIsometric    = true;  // kept for anything that reads it
     this.shakeIntensity = 0;
@@ -717,6 +740,7 @@ export class FollowCamera {
 
     this._pos    = new THREE.Vector3();
     this._lookAt = new THREE.Vector3();
+    this._focus  = new THREE.Vector3();   // what the camera is centred on (cart + look-ahead + pan)
     this._ready  = false;
     this._tmp    = new THREE.Vector3();
 
@@ -729,8 +753,31 @@ export class FollowCamera {
     return a < 1 ? Math.min(1.45, 1 / Math.sqrt(a)) : 1;
   }
 
+  // Screen-space pixels → world pan on the ground plane
+  _panBy(dxPx, dyPx) {
+    const cf = this.camera.getWorldDirection(this._tmp.set(0, 0, 0));
+    cf.y = 0; cf.normalize();
+    const rx = -cf.z, rz = cf.x;                       // screen-right on the ground
+    const h = this.camera.position.distanceTo(this._lookAt) || this.isoDist;
+    const worldPerPx = 2 * h * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) / (innerHeight || 1);
+    const elev = Math.asin(this.isoDir.y);             // screen-up covers more ground (foreshortening)
+    const sx = dxPx * worldPerPx, sy = dyPx * worldPerPx / Math.sin(elev);
+    // Drag right → the world follows the finger → the view moves left
+    this.pan.x -= rx * sx - cf.x * sy;
+    this.pan.z -= rz * sx - cf.z * sy;
+    const len = Math.hypot(this.pan.x, this.pan.z);
+    if (len > this.panMax) { this.pan.x *= this.panMax / len; this.pan.z *= this.panMax / len; }
+    this._lastPanTime = performance.now();
+  }
+
+  /** True once if the last mouse press turned into a drag (so the canvas click handler can ignore it). */
+  consumeDrag() { const d = this._dragMoved; this._dragMoved = false; return d; }
+
+  /** Gently frame a building (THREE.Vector3) while its project is open; null to release. */
+  frame(target) { this._frame.target = target ? target.clone() : null; }
+
   setupEvents() {
-    const blocked = (t) => t && t.closest && t.closest('.modal-overlay, .zone-hud, #town-map, .controls-overlay');
+    const blocked = (t) => t && t.closest && t.closest('.modal-overlay, .zone-hud, #town-map, .controls-overlay, #mobile-joystick, button');
 
     // Scroll-wheel zoom (desktop)
     window.addEventListener('wheel', (e) => {
@@ -738,19 +785,58 @@ export class FollowCamera {
       this.zoom = THREE.MathUtils.clamp(this.zoom * (1 + e.deltaY * 0.001), this.minZoom, this.maxZoom);
     }, { passive: true });
 
-    // Two-finger pinch zoom (phone / tablet). One-finger touches are left
-    // alone so the joystick and buttons work as before.
-    let pinch0 = 0, zoom0 = 1;
-    const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-    window.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2 && !blocked(e.target)) { pinch0 = span(e.touches); zoom0 = this.zoom; }
-    }, { passive: true });
-    window.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2 && pinch0 > 0) {
-        this.zoom = THREE.MathUtils.clamp(zoom0 * pinch0 / span(e.touches), this.minZoom, this.maxZoom);
+    // Mouse drag on the canvas: look around (springs back when you drive)
+    let drag = null;
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      if (!this.domElement || e.target !== this.domElement) return;
+      drag = { x: e.clientX, y: e.clientY, moved: 0 };
+      this._dragMoved = false;
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerType !== 'mouse') return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+      if (drag.moved > 6) {
+        this._dragMoved = true;
+        if (this.domElement) this.domElement.style.cursor = 'grabbing';
+        this._panBy(dx, dy);
       }
+    });
+    const endDrag = () => { if (drag && this.domElement) this.domElement.style.cursor = ''; drag = null; };
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+
+    // Two fingers on the scene: pinch = zoom, move together = pan.
+    // Only touches that land on the scene count — a thumb on the joystick or
+    // a button never starts a pinch (that used to zoom while you drove).
+    let two = null;
+    const sceneTouches = (list) => [...list].filter(t => !blocked(t.target));
+    const span = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const mid  = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+    const start = (e) => {
+      const ts = sceneTouches(e.touches);
+      if (ts.length >= 2) {
+        two = { ids: [ts[0].identifier, ts[1].identifier], span: span(ts[0], ts[1]), zoom: this.zoom, mid: mid(ts[0], ts[1]) };
+      }
+    };
+    window.addEventListener('touchstart', start, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (!two) return;
+      const a = [...e.touches].find(t => t.identifier === two.ids[0]);
+      const b = [...e.touches].find(t => t.identifier === two.ids[1]);
+      if (!a || !b) return;
+      this.zoom = THREE.MathUtils.clamp(two.zoom * two.span / Math.max(1, span(a, b)), this.minZoom, this.maxZoom);
+      const m = mid(a, b);
+      this._panBy(m.x - two.mid.x, m.y - two.mid.y);
+      two.mid = m;
     }, { passive: true });
-    window.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch0 = 0; }, { passive: true });
+    window.addEventListener('touchend', (e) => {
+      if (!two) return;
+      const still = [...e.touches].filter(t => two.ids.includes(t.identifier));
+      if (still.length < 2) two = null;
+    }, { passive: true });
   }
 
   // Called when the cart hits something: a damped camera roll "kick"
@@ -766,18 +852,47 @@ export class FollowCamera {
     const cartPos   = cart.getPosition();
     const cartSpeed = cart.getSpeed();
     const dt = Math.min(delta, 0.1) * 60;       // frames at 60 fps
+    const ease = (perFrame) => 1 - Math.pow(1 - perFrame, dt);
 
     if (cart.justCollided) this.kick(cart.impact / 0.12);   // ~1 at a full-speed head-on hit
 
     // Boost pulls the camera back a little (eased in, eased out)
-    this._boostZoom += ((cart.boosting ? 4.5 : 0) - this._boostZoom) * (1 - Math.pow(cart.boosting ? 0.97 : 0.95, dt));
+    this._boostZoom += ((cart.boosting ? 7 : 0) - this._boostZoom) * (1 - Math.pow(cart.boosting ? 0.97 : 0.95, dt));
 
-    // Distance: base × zoom × portrait factor, eased out a touch at speed
-    const target = this.isoDist * this.zoom * this._aspectFactor() + Math.min(cartSpeed, 0.2) * this.speedBoost * 10 + this._boostZoom;
-    this._dist = THREE.MathUtils.lerp(this._dist, target, 1 - Math.pow(1 - 0.05, dt));
+    // ── Look-ahead: lead the frame in the direction of travel ──
+    // (matters most when driving toward the camera, i.e. south-east)
+    const v = cart.velocity || 0;
+    const lead = THREE.MathUtils.clamp(v / 0.2, -0.5, 1.6) * this.lookAheadDist;
+    const fwd = cart.getForward();
+    this._ahead.x += (fwd.x * lead - this._ahead.x) * ease(0.035);
+    this._ahead.z += (fwd.z * lead - this._ahead.z) * ease(0.035);
 
-    const desiredLook = this._tmp.copy(cartPos);
-    desiredLook.y += 1.2;
+    // ── Pan spring: snaps back while you drive, drifts back when idle ──
+    const driving = Math.abs(v) > 0.02 || cart.joystick?.active ||
+      (cart.keys && (cart.keys.forward || cart.keys.backward || cart.keys.left || cart.keys.right));
+    const sincePan = (performance.now() - this._lastPanTime) / 1000;
+    const back = driving ? ease(0.12) : (sincePan > 2.5 ? ease(0.02) : 0);
+    this.pan.multiplyScalar(1 - back);
+    if (this.pan.lengthSq() < 1e-4) this.pan.set(0, 0, 0);
+
+    // ── Framing a building while its card is open ──
+    const fr = this._frame;
+    fr.mix += ((fr.target ? 1 : 0) - fr.mix) * ease(fr.target ? 0.06 : 0.08);
+    if (fr.target) fr.point.copy(fr.target);
+
+    // Focus = cart + look-ahead + pan, blended toward the cart↔building midpoint
+    const f = this._focus.set(cartPos.x + this._ahead.x + this.pan.x, 0, cartPos.z + this._ahead.z + this.pan.z);
+    if (fr.mix > 0.001) {
+      const mx = (cartPos.x + fr.point.x) / 2, mz = (cartPos.z + fr.point.z) / 2;
+      f.x += (mx - f.x) * fr.mix; f.z += (mz - f.z) * fr.mix;
+    }
+
+    // Distance: base × zoom × portrait factor, eased out a touch at speed; closer when framing
+    const target = (this.isoDist * this.zoom * this._aspectFactor() + Math.min(cartSpeed, 0.2) * this.speedBoost * 10 + this._boostZoom)
+      * THREE.MathUtils.lerp(1, 0.72, fr.mix);
+    this._dist = THREE.MathUtils.lerp(this._dist, target, ease(0.05));
+
+    const desiredLook = this._tmp.set(f.x, cartPos.y + 1.2, f.z);
     const desiredPos = desiredLook.clone().addScaledVector(this.isoDir, this._dist);
 
     if (!this._ready) {
@@ -787,7 +902,8 @@ export class FollowCamera {
       this._ready = true;
     }
 
-    const k = 1 - Math.pow(1 - (cart.teleporting ? 0.15 : this.smoothness), dt);   // time-based
+    // Pans follow the finger tightly; everything else is smoothed
+    const k = ease(cart.teleporting ? 0.15 : (sincePan < 0.15 ? 0.35 : this.smoothness));
     this._pos.lerp(desiredPos, k);
     this._lookAt.lerp(desiredLook, k);
 

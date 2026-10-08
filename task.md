@@ -74,8 +74,8 @@
 - [x] Collision shake
 - [x] Isometric view (permanent; see Phase 1)
 - [ ] Spherical coordinates (see §1.3)
-- [ ] Mouse orbit (see §1.3)
-- [ ] Cinematic transitions (see §1.3)
+- [x] Mouse orbit → drag-to-look pan (§2.11)
+- [x] Cinematic transitions → building framing on project open (§2.11)
 - [ ] **Speed lines / FOV kick** — Visual effect when cart is moving fast
 
 ## 2.5 Building Details
@@ -160,7 +160,11 @@
 - [x] **Shift boost** — 1.6× top speed and pull, rising whoosh, louder rumble, double dust, camera eases back; touch has a hold-to-boost 💨 button
 - [x] **H** rings the cart bell
 - [ ] Knockable props (barrels, crates, tavern chairs) — simple push + friction
-- [ ] Camera: narrower FOV, look-ahead, drag-to-pan, frame building on modal open
+- [x] **Camera lens** — FOV 60° → 32° from 50 units (same ground in view, flat "diorama" look, far less edge distortion); near plane 0.5 → 4 for depth precision (removes ground z-fighting stripes at the new distance)
+- [x] **Look-ahead** — frame leads the cart in its direction of travel (up to 6 units at top speed, eased), most useful when driving toward the camera
+- [x] **Drag to look around** — mouse drag on the scene / two-finger pan on touch (two fingers also pinch-zoom); springs back while driving, drifts back after 2.5 s idle; a drag no longer counts as a building click; touches on the joystick/buttons never start a pinch
+- [x] **Frame the building** — opening a project eases the camera to the cart↔building midpoint and 28 % closer; eases back on close
+- [x] Building labels fade by distance from what you're looking at (not from the camera) and scale with zoom
 
 ## 2.12 Mobile Project Card Fit
 - [x] Phone project card fills the overlay (height 100 %) instead of 100vh, which on phones is the height *without* the URL bar and pushed the card's top ("Return to Town") and bottom (GitHub / Demo buttons) off-screen — rules live at the end of `town-styles.css`
