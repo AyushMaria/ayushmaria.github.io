@@ -344,7 +344,7 @@ export class AudioSystem {
     this.rollFilter.frequency.setTargetAtTime(220 + ratio * 500, this.listener.context.currentTime, 0.2);
 
     // Brake hush
-    const braking = cart.keys && cart.keys.brake && ratio > 0.15;
+    const braking = (cart.braking || (cart.keys && cart.keys.brake)) && ratio > 0.15;
     this._setVol(this.brake, braking ? 0.04 + ratio * 0.04 : 0, 0.08);
 
     // Campfire crackles
