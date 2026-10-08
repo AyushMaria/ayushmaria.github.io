@@ -42,6 +42,16 @@ export class Cart {
     this.maxSteerAngle = Math.PI / 6;
     this.steerReturn   = 0.04;
     this.wheelBase     = 4.2;
+    this.boostSpeed    = 1.6;     // × maxSpeed while boosting
+    this.boostAccel    = 1.6;     // × accel while boosting
+
+    // Collision feedback (read by town-world for audio + camera)
+    this.impact = 0;              // normal impact speed this frame (world units / frame), 0 if none
+    this.boosting = false;
+
+    // Stuck detection: throttle held but the cart has barely moved
+    this.stuck = false;
+    this._stuckLog = [];          // [distance, seconds] samples while throttling
 
     // Footprint used for collision: 4 rotated corners + centre of the
     // cart's real 2.0 × 3.4 body (was an axis-aligned 2.4 × 3.8 box that
@@ -56,7 +66,7 @@ export class Cart {
     this.lanternLight = null;
 
     // ── Input ─────────────────────────────────────────────────
-    this.keys = { forward: false, backward: false, left: false, right: false, brake: false };
+    this.keys = { forward: false, backward: false, left: false, right: false, brake: false, boost: false };
     // Raw stick from the touch handler and a low-passed copy used by physics
     // (a thumb jitters; the cart shouldn't).
     this.joystick = { x: 0, y: 0, active: false, sx: 0, sy: 0 };
@@ -261,6 +271,7 @@ export class Cart {
       KeyA: 'left', ArrowLeft: 'left',
       KeyD: 'right', ArrowRight: 'right',
       Space: 'brake',
+      ShiftLeft: 'boost', ShiftRight: 'boost',
     };
     window.addEventListener('keydown', e => {
       const k = keyMap[e.code];
@@ -295,6 +306,9 @@ export class Cart {
     gsap.delayedCall(duration, () => { this.teleporting = false; });
   }
 
+  // Called after a respawn/fast-travel so stuck state starts fresh
+  resetStuck() { this._stuckLog.length = 0; this.stuck = false; }
+
   // ── Cinematic Focus ───────────────────────────────────────────
   setFocusTarget(targetPos) {
     this.focusTarget = targetPos;
@@ -302,6 +316,7 @@ export class Cart {
 
   // ── Physics update (called every frame) ───────────────────
   update(delta, colliders) {
+    const realDelta = Math.min(delta || 1 / 60, 0.25);   // wall-clock (stuck timer)
     delta = Math.min(delta || 1 / 60, 0.05);
     const dt = delta * 60;          // normalise to ~60 fps
 
@@ -385,11 +400,14 @@ export class Cart {
     // ── Acceleration (approach a target speed) ───────────────
     // Partial throttle means partial speed rather than partial thrust, so a
     // half-pushed stick never stalls against rolling friction.
+    // Boost (Shift): higher target speed + stronger pull, forward only
+    this.boosting = !!(this.keys.boost && inFwd > 0 && !this.inputLocked && !opposing);
     if (!opposing) {
       if (inFwd > 0) {
-        const target = this.maxSpeed * inFwd;
+        const target = this.maxSpeed * inFwd * (this.boosting ? this.boostSpeed : 1);
+        const acc = this.accel * (this.boosting ? this.boostAccel : 1);
         this.velocity = this.velocity < target
-          ? Math.min(this.velocity + this.accel * dt, target)
+          ? Math.min(this.velocity + acc * dt, target)
           : Math.max(this.velocity - this.friction * dt, target);
       } else if (inFwd < 0) {
         const target = -this.reverseMax * -inFwd;
@@ -443,25 +461,68 @@ export class Cart {
     newPos.x = THREE.MathUtils.clamp(newPos.x, -70, 70);
     newPos.z = THREE.MathUtils.clamp(newPos.z, -70, 70);
 
-    // ── Collision (rotated footprint, slide along walls) ─────
+    // ── Collision: slide along the surface that was hit ──────
+    // Find the contact normal (circle → radial, wall ring → inward, box →
+    // nearest face), remove the part of the motion going into it and keep
+    // the sideways part. Two passes handle corners (box + wall, etc.).
     this.justCollided = false;
-    if (!colliders || !this._blocked(newPos, colliders)) {
+    this.impact = 0;
+    if (!colliders) {
       this.position.copy(newPos);
     } else {
-      // Try each axis on its own so the cart slides along a wall
-      // instead of stopping dead.
-      const slideX = this.position.clone(); slideX.x = newPos.x;
-      const slideZ = this.position.clone(); slideZ.z = newPos.z;
-      if (!this._blocked(slideX, colliders)) {
-        this.position.copy(slideX);
-        this.velocity *= Math.pow(0.9, dt);
-      } else if (!this._blocked(slideZ, colliders)) {
-        this.position.copy(slideZ);
-        this.velocity *= Math.pow(0.9, dt);
+      let mx = newPos.x - this.position.x, mz = newPos.z - this.position.z;
+      const moveLen = Math.hypot(mx, mz);
+      let hit = this._hit(newPos, colliders);
+      let pass = 0;
+      while (hit && pass < 2 && moveLen > 1e-6) {
+        const into = mx * hit.nx + mz * hit.nz;          // < 0 when moving into the surface
+        if (into < 0) {
+          if (pass === 0) this.impact = -into / Math.max(dt, 1e-3);
+          mx -= into * hit.nx; mz -= into * hit.nz;
+        } else {
+          // Already overlapping but moving along/out of it: allow the move
+          hit = null;
+          break;
+        }
+        newPos.set(this.position.x + mx, 0, this.position.z + mz);
+        hit = this._hit(newPos, colliders);
+        pass++;
+      }
+      if (!hit) {
+        this.position.copy(newPos);
+        if (this.impact > 0 && moveLen > 1e-6) {
+          // Keep the speed that survived the slide (glancing blows keep most of it)
+          const kept = Math.hypot(mx, mz) / moveLen;
+          this.velocity *= Math.pow(THREE.MathUtils.lerp(0.55, 1, kept), dt);
+          // Glancing hit: swing the nose round to run along the surface
+          // (what a real body does), so you scrape along instead of grinding.
+          if (kept > 0.35) {
+            const along = Math.atan2(mx, mz) + (this.velocity < 0 ? Math.PI : 0);
+            const prevRot = this.rotation;
+            this.rotation += wrapAngle(along - this.rotation) * (1 - Math.pow(0.9, dt));
+            if (this._hit(this.position, colliders)) this.rotation = prevRot;   // don't swing a corner into it
+          }
+        }
       } else {
-        // Head-on: soft bounce and flag for camera shake
-        if (Math.abs(this.velocity) > 0.06) this.justCollided = true;
+        // Wedged (head-on or a tight corner): soft bounce
+        this.impact = Math.max(this.impact, Math.abs(this.velocity));
         this.velocity *= -0.2;
+      }
+      if (this.impact > 0.05) this.justCollided = true;
+    }
+
+    // ── Stuck detection (3 s of throttle, < 0.5 units travelled) ──
+    {
+      const moved = Math.hypot(this.position.x - this.group.position.x, this.position.z - this.group.position.z);
+      if (Math.abs(inFwd) > 0.5 && !this.inputLocked) {
+        this._stuckLog.unshift([moved, realDelta]);
+        let dist = 0, time = 0, i = 0;
+        for (; i < this._stuckLog.length && time < 3; i++) { dist += this._stuckLog[i][0]; time += this._stuckLog[i][1]; }
+        this._stuckLog.length = i;
+        this.stuck = time >= 3 && dist < 0.5;
+      } else if (Math.abs(this.velocity) > 0.02) {
+        this._stuckLog.length = 0;
+        this.stuck = false;
       }
     }
 
@@ -578,6 +639,46 @@ export class Cart {
     return false;
   }
 
+  /**
+   * First footprint probe at `pos` that is inside a collider, with the
+   * surface normal pointing OUT of the obstacle (into free space).
+   * Returns null when the footprint is clear.
+   */
+  _hit(pos, colliders) {
+    const s = Math.sin(this.rotation), c = Math.cos(this.rotation);
+    for (const [fx, fz] of this._footprint) {
+      const px = pos.x + fx * c + fz * s;
+      const pz = pos.z - fx * s + fz * c;
+      for (const col of colliders) {
+        if (col.isBox3) {
+          if (px >= col.min.x && px <= col.max.x && pz >= col.min.z && pz <= col.max.z) {
+            // nearest face
+            const dl = px - col.min.x, dr = col.max.x - px, dn = pz - col.min.z, df = col.max.z - pz;
+            const m = Math.min(dl, dr, dn, df);
+            if (m === dl) return { nx: -1, nz: 0 };
+            if (m === dr) return { nx: 1, nz: 0 };
+            if (m === dn) return { nx: 0, nz: -1 };
+            return { nx: 0, nz: 1 };
+          }
+        } else if (col.circle) {
+          const dx = px - col.x, dz = pz - col.z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < col.r * col.r) {
+            const d = Math.sqrt(d2) || 1;
+            return { nx: dx / d, nz: dz / d };
+          }
+        } else if (col.ring) {
+          const d2 = px * px + pz * pz;
+          if (d2 > col.r * col.r) {
+            const d = Math.sqrt(d2);
+            return { nx: -px / d, nz: -pz / d };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   // ── Getters ────────────────────────────────────────────────
   getPosition() { return this.position.clone(); }
   getRotation() { return this.rotation; }
@@ -610,6 +711,8 @@ export class FollowCamera {
 
     this.isIsometric    = true;  // kept for anything that reads it
     this.shakeIntensity = 0;
+    this.roll = { value: 0, speed: 0, pull: 100, damping: 4 };
+    this._boostZoom = 0;         // extra distance while boosting (eased)
     this.reducedMotion  = false; // set by town-world from prefers-reduced-motion
 
     this._pos    = new THREE.Vector3();
@@ -650,21 +753,27 @@ export class FollowCamera {
     window.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch0 = 0; }, { passive: true });
   }
 
-  // Called when cart hits a wall
-  addShake() {
+  // Called when the cart hits something: a damped camera roll "kick"
+  // (Bruno Simon's View.roll) instead of random position shake — calmer,
+  // reads as an impact, and is skipped entirely for reduced motion.
+  kick(strength = 1) {
     if (this.reducedMotion) return;
-    this.shakeIntensity = 0.4;
+    this.roll.speed += THREE.MathUtils.clamp(strength, 0, 1.5) * 0.9 * (Math.random() < 0.5 ? -1 : 1);
   }
+  addShake() { this.kick(0.6); }   // backwards-compatible name
 
   update(cart, delta = 1 / 60) {
     const cartPos   = cart.getPosition();
     const cartSpeed = cart.getSpeed();
     const dt = Math.min(delta, 0.1) * 60;       // frames at 60 fps
 
-    if (cart.justCollided) this.addShake();
+    if (cart.justCollided) this.kick(cart.impact / 0.12);   // ~1 at a full-speed head-on hit
+
+    // Boost pulls the camera back a little (eased in, eased out)
+    this._boostZoom += ((cart.boosting ? 4.5 : 0) - this._boostZoom) * (1 - Math.pow(cart.boosting ? 0.97 : 0.95, dt));
 
     // Distance: base × zoom × portrait factor, eased out a touch at speed
-    const target = this.isoDist * this.zoom * this._aspectFactor() + cartSpeed * this.speedBoost * 10;
+    const target = this.isoDist * this.zoom * this._aspectFactor() + Math.min(cartSpeed, 0.2) * this.speedBoost * 10 + this._boostZoom;
     this._dist = THREE.MathUtils.lerp(this._dist, target, 1 - Math.pow(1 - 0.05, dt));
 
     const desiredLook = this._tmp.copy(cartPos);
@@ -685,17 +794,12 @@ export class FollowCamera {
     this.camera.position.copy(this._pos);
     this.camera.lookAt(this._lookAt);
 
-    // Apply Shake Effect
-    if (this.shakeIntensity > 0) {
-      this.camera.position.x += (Math.random() - 0.5) * this.shakeIntensity;
-      this.camera.position.y += (Math.random() - 0.5) * this.shakeIntensity;
-      this.camera.position.z += (Math.random() - 0.5) * this.shakeIntensity;
-      
-      // Roll shake
-      this.camera.rotation.z += (Math.random() - 0.5) * this.shakeIntensity * 0.1;
-      
-      this.shakeIntensity -= 0.02 * dt; // decay (time-based)
-      if (this.shakeIntensity < 0) this.shakeIntensity = 0;
-    }
+    // Roll kick: spring pulled back to 0, damped (time-based)
+    const r = this.roll, h = Math.min(delta, 0.1);
+    r.speed += -r.value * r.pull * h;
+    r.value += r.speed * h;
+    r.speed *= Math.max(0, 1 - r.damping * h);
+    if (Math.abs(r.value) < 1e-4 && Math.abs(r.speed) < 1e-3) { r.value = 0; r.speed = 0; }
+    this.camera.rotateZ(r.value * 0.5);              // roll about the view axis (≈2–3° on a hard hit)
   }
 }

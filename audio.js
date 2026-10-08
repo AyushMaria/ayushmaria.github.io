@@ -149,6 +149,7 @@ export class AudioSystem {
     const ctx = this.listener.context;
     const pink = this._pinkBuffer(ctx, 4);
     const brown = this._brownBuffer(ctx, 3);
+    this._pink = pink; this._brown = brown;   // reused by one-shots (thud, whoosh)
 
     // 1. Wind — pink noise, low-passed, breathing slowly.
     this.wind = this._loop(pink, 0.0, this._filter(ctx, 'lowpass', 300, 0.3));
@@ -303,6 +304,77 @@ export class AudioSystem {
     });
   }
 
+  // ── Driving one-shots ─────────────────────────────────────────
+  // Wooden thud when the cart hits something; strength 0..1 (from impact speed).
+  playThud(strength = 0.5) {
+    if (!this.initialized || !this._brown) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    if (this._lastThud && now - this._lastThud < 0.12) return;   // no machine-gunning along a wall
+    this._lastThud = now;
+    const v = Math.min(1, Math.max(0.08, strength));
+    const out = this.listener.getInput();
+
+    // Body: low sine knock with a quick pitch drop
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(110 + 40 * v, now);
+    o.frequency.exponentialRampToValueAtTime(48, now + 0.18);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0, now);
+    og.gain.linearRampToValueAtTime(0.32 * v, now + 0.006);
+    og.gain.exponentialRampToValueAtTime(0.0005, now + 0.28);
+    o.connect(og); og.connect(out); o.start(now); o.stop(now + 0.3);
+
+    // Wood: short band-passed noise burst
+    const n = ctx.createBufferSource(); n.buffer = this._brown;
+    const bp = this._filter(ctx, 'bandpass', 520 + 300 * v, 1.4);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0, now);
+    ng.gain.linearRampToValueAtTime(0.5 * v, now + 0.004);
+    ng.gain.exponentialRampToValueAtTime(0.0005, now + 0.12);
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    n.start(now, Math.random() * 2); n.stop(now + 0.14);
+  }
+
+  // Cart bell (H): two struck-bell notes with inharmonic partials
+  playBell() {
+    if (!this.initialized) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    if (this._lastBell && now - this._lastBell < 0.25) return;
+    this._lastBell = now;
+    const out = this.listener.getInput();
+    [[1318.5, 0], [1046.5, 0.16]].forEach(([f, dt]) => {
+      [[1, 0.09], [2.76, 0.03], [5.4, 0.012]].forEach(([mult, amp]) => {
+        const o = ctx.createOscillator(); o.type = 'sine';
+        o.frequency.value = f * mult;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, now + dt);
+        g.gain.linearRampToValueAtTime(amp, now + dt + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0004, now + dt + (mult === 1 ? 1.1 : 0.45));
+        o.connect(g); g.connect(out);
+        o.start(now + dt); o.stop(now + dt + 1.2);
+      });
+    });
+  }
+
+  // Boost start: a short rising whoosh
+  playWhoosh() {
+    if (!this.initialized || !this._pink) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    const n = ctx.createBufferSource(); n.buffer = this._pink;
+    const bp = this._filter(ctx, 'bandpass', 400, 1.2);
+    bp.frequency.setValueAtTime(400, now);
+    bp.frequency.exponentialRampToValueAtTime(1800, now + 0.45);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.22, now + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0005, now + 0.6);
+    n.connect(bp); bp.connect(g); g.connect(this.listener.getInput());
+    n.start(now, Math.random() * 3); n.stop(now + 0.65);
+  }
+
   // Soft crackle pop for the campfire
   _crackle() {
     const ctx = this.listener.context;
@@ -340,7 +412,7 @@ export class AudioSystem {
     // Cart rolling — speed is in world units per frame (max ≈ 0.20)
     const speed = Math.abs(cart.getSpeed() || 0);
     const ratio = Math.min(speed / 0.2, 1);
-    this._setVol(this.roll, ratio * 0.18, 0.15);
+    this._setVol(this.roll, ratio * (cart.boosting ? 0.26 : 0.18), 0.15);
     this.rollFilter.frequency.setTargetAtTime(220 + ratio * 500, this.listener.context.currentTime, 0.2);
 
     // Brake hush

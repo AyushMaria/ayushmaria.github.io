@@ -1689,6 +1689,43 @@ function initTownWorld() {
     });
   }
 
+  // ── Recovery & extras (R respawn, H bell, Unstuck, boost) ─────
+  // R or the Unstuck button glides the cart to the nearest quarter spawn.
+  function respawnNearest() {
+    if (cart.teleporting || modalOpen) return;
+    const p = cart.getPosition();
+    let best = null, bestD = Infinity;
+    for (const z of Object.values(ZONES)) {
+      const d = Math.hypot(z.spawn.x - p.x, z.spawn.z - p.z);
+      if (d < bestD) { bestD = d; best = z; }
+    }
+    if (!best) return;
+    cart.teleportTo(best.spawn.x, best.spawn.z, best.spawn.rot, REDUCED_MOTION ? 0.3 : 0.9);
+    cart.resetStuck();
+    if (unstuckBtn) unstuckBtn.hidden = true;
+  }
+  window.addEventListener('keydown', e => {
+    if (modalOpen || e.repeat) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (e.code === 'KeyR') respawnNearest();
+    if (e.code === 'KeyH') audioSys.playBell();
+  });
+  const unstuckBtn = document.getElementById('unstuck-btn');
+  if (unstuckBtn) unstuckBtn.addEventListener('click', respawnNearest);
+
+  // Touch boost: hold the 💨 button (mirrors Shift on keyboards)
+  const boostBtn = document.getElementById('mobile-boost-btn');
+  if (boostBtn && isTouch) {
+    boostBtn.style.display = 'flex';
+    const on  = e => { e.preventDefault(); cart.keys.boost = true;  boostBtn.classList.add('is-active'); };
+    const off = e => { e.preventDefault(); cart.keys.boost = false; boostBtn.classList.remove('is-active'); };
+    boostBtn.addEventListener('touchstart', on, { passive: false });
+    boostBtn.addEventListener('touchend', off, { passive: false });
+    boostBtn.addEventListener('touchcancel', off, { passive: false });
+  }
+  let wasBoosting = false;
+
   // ── Interaction System ──────────────────────────────────────
   const interactPrompt = document.getElementById('interact-prompt');
   const interactName   = document.getElementById('interact-name');
@@ -1888,6 +1925,10 @@ function initTownWorld() {
 
     // Cart
     cart.update(delta, colliders);
+    if (cart.justCollided) audioSys.playThud(cart.impact / 0.12);
+    if (cart.boosting && !wasBoosting) audioSys.playWhoosh();
+    wasBoosting = cart.boosting;
+    if (unstuckBtn && unstuckBtn.hidden === cart.stuck) unstuckBtn.hidden = !cart.stuck;
 
     // Wind field (shared by leaves, blooms, bushes, grass, flowers)
     WIND.update(delta);
@@ -1896,7 +1937,7 @@ function initTownWorld() {
     // Particles
     particleSystem.update(delta, elapsed);
     if (cartDust && cartDust.sys) {
-      cartDust.sys.spawnDust(cart.getPosition(), cart.getSpeed(), elapsed);
+      cartDust.sys.spawnDust(cart.getPosition(), cart.getSpeed(), elapsed, cart.boosting);
     }
 
     // Camera

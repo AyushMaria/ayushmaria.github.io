@@ -15,8 +15,8 @@
 - [x] Lantern sway animation & point light pulse
 - [x] Wheel spin animation tied to velocity
 - [x] Fast-travel teleport via GSAP
-- [ ] **Boost mechanic** — Shift key for speed boost with visual/audio feedback
-- [ ] **Auto-unstuck** — Detect if cart is jammed for 3+ seconds, auto-nudge free
+- [x] **Boost mechanic** — Shift key for speed boost with visual/audio feedback (§2.11)
+- [x] **Auto-unstuck** — Detect if cart is jammed for 3+ seconds → Unstuck button / R respawn (§2.11)
 - [x] **Stats tracking** — Persist `distanceDriven` and `timePlayed` to localStorage (lives in `achievements.js`, see §3.4)
 - [ ] **Input abstraction** — Named actions (`forward`, `backward`, `boost`) mapped to keyboard + gamepad + touch (currently raw key checks)
 
@@ -154,9 +154,18 @@
 - [x] Fake suspension: cart body pitches on accel/brake and leans out in turns (spring-damper), subtle cobble bob; off under reduced motion
 - [x] Front wheels steer visibly; wheel spin matches ground speed (distance / radius)
 - [x] Tail lights flare when braking, white reversing lamp; brake audio follows the real brake state
-- [ ] Surface-normal sliding, impact thud, camera roll kick (§4 of the comparison)
-- [ ] R respawn + stuck detection, Shift boost, honk
+- [x] **Surface-normal sliding** — contact normal per collider (circle → radial, wall ring → inward, box → nearest face), the motion into the surface is removed and the sideways part kept (two passes for corners); glancing hits swing the nose along the surface; speed kept in proportion to the slide
+- [x] Impact strength (`cart.impact`) → wooden thud scaled by speed (rate-limited) and a damped camera **roll kick** instead of random shake (off under reduced motion)
+- [x] **R** respawns at the nearest quarter spawn; **stuck detection** (3 s of throttle, < 0.5 units moved) shows an "⟲ Unstuck" button that does the same
+- [x] **Shift boost** — 1.6× top speed and pull, rising whoosh, louder rumble, double dust, camera eases back; touch has a hold-to-boost 💨 button
+- [x] **H** rings the cart bell
+- [ ] Knockable props (barrels, crates, tavern chairs) — simple push + friction
 - [ ] Camera: narrower FOV, look-ahead, drag-to-pan, frame building on modal open
+
+## 2.12 Mobile Project Card Fit
+- [x] Phone project card fills the overlay (height 100 %) instead of 100vh, which on phones is the height *without* the URL bar and pushed the card's top ("Return to Town") and bottom (GitHub / Demo buttons) off-screen — rules live at the end of `town-styles.css`
+- [x] Safe-area padding (`viewport-fit=cover` + `env(safe-area-inset-*)`) so notches and the home indicator don't cover content; no horizontal overflow; decorative corners/outline dropped on the full-screen sheet
+- [x] Landscape phones / tablets: card capped at `min(88vh, 100%)` of the overlay
 
 ## 2.10 Map Button Fix
 - [x] Removed a duplicate `#town-map` block (no click handler) that sat on top of the real map button and swallowed every click
@@ -231,4 +240,4 @@
 - [x] **Fallback HUD navigation** — `#zone-hud` (4 buttons, icon-only on touch/≤640px) teleports the cart; also keyboard/screen-reader reachable
 - [x] **Responsive controls overlay** — touch card (joystick/tap/quarters) swapped in at boot, smaller type ≤640px, minimap moved out from under the joystick, portrait vignette widened
 - [x] **Performance scaling** — `detectPerfTier()` → `PERF_PRESETS` (pixel ratio, shadow map 1024, PCF instead of PCFSoft, particle counts, half-res bloom). Force with `?lowperf` / `?highperf`
-- [ ] **Touch nipple controls** — Full virtual joystick with analog sensitivity (Bruno Simon's touch input pattern)
+- [x] **Touch nipple controls** — superseded by the point-to-drive stick (§2.11)

@@ -539,3 +539,52 @@
     padding-right: calc(var(--space-sm) + env(safe-area-inset-right, 0px));
   }
 }
+
+/* ── Boost + Unstuck buttons ─────────────────────────────────── */
+.mobile-boost-btn {
+  position: absolute;
+  right: 44px;
+  bottom: 212px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 209, 102, 0.55);
+  background: rgba(20, 12, 40, 0.6);
+  color: #fff;
+  font-size: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  z-index: 660;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  backdrop-filter: blur(4px);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.mobile-boost-btn.is-active {
+  transform: scale(0.92);
+  background: rgba(255, 209, 102, 0.85);
+}
+
+.unstuck-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 670;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 209, 102, 0.6);
+  background: rgba(20, 12, 40, 0.82);
+  color: #ffd166;
+  font: 700 0.95rem var(--font-body, system-ui), system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: unstuck-in 0.25s ease-out;
+}
+.unstuck-btn[hidden] { display: none; }
+.unstuck-btn:hover, .unstuck-btn:focus-visible { background: rgba(255, 209, 102, 0.95); color: #1a1026; }
+#town-world.is-touch .unstuck-btn { bottom: 250px; }
+@keyframes unstuck-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .unstuck-btn { animation: none; } }

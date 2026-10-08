@@ -147,6 +147,9 @@
           <div class="control-row"><kbd>A</kbd><kbd>←</kbd><span>Left</span></div>
           <div class="control-row"><kbd>D</kbd><kbd>→</kbd><span>Right</span></div>
           <div class="control-row"><kbd>Space</kbd><span>Handbrake</span></div>
+          <div class="control-row"><kbd>Shift</kbd><span>Boost</span></div>
+          <div class="control-row"><kbd>H</kbd><span>Ring the bell</span></div>
+          <div class="control-row"><kbd>R</kbd><span>Back to the nearest quarter</span></div>
           <div class="control-row"><kbd>E</kbd><span>Interact</span></div>
           <div class="control-row"><kbd>Scroll</kbd><span>Zoom</span></div>
         </div>
@@ -154,6 +157,7 @@
           <div class="control-row"><kbd>🕹️</kbd><span>Push the stick where you want to go</span></div>
           <div class="control-row"><kbd>⚡</kbd><span>Tap Enter near a building</span></div>
           <div class="control-row"><kbd>🏘️</kbd><span>Top buttons jump between quarters</span></div>
+          <div class="control-row"><kbd>💨</kbd><span>Hold to boost</span></div>
           <div class="control-row"><kbd>🤏</kbd><span>Pinch to zoom</span></div>
         </div>
         <p class="controls-hint">Drive to buildings to explore projects</p>
@@ -190,6 +194,10 @@
 
     <!-- Mobile interact button (touch devices only) -->
     <button id="mobile-interact-btn" class="mobile-interact-btn" style="display:none;">⚡ Enter</button>
+    <!-- Touch boost (hold) — keyboard uses Shift -->
+    <button id="mobile-boost-btn" class="mobile-boost-btn" type="button" aria-label="Hold to boost" style="display:none;">💨</button>
+    <!-- Shown when the cart has been wedged for 3 s while throttling (R on keyboards) -->
+    <button id="unstuck-btn" class="unstuck-btn" type="button" hidden>⟲ Unstuck</button>
   </div>
 
   <!-- Town Map Mini-map -->

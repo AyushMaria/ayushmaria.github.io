@@ -389,12 +389,12 @@ export class ParticleSystem {
           mat.uniforms.uTime.value = time;
       },
       // Triggered by cart update
-      spawnDust: (origin, speed, time) => {
+      spawnDust: (origin, speed, time, boost = false) => {
         if (speed < 0.02) return;
         
-        if (time - lastSpawn > spawnRate) {
-           // Spawn 2 particles
-           for(let k=0; k<2; k++) {
+        if (time - lastSpawn > (boost ? spawnRate * 0.4 : spawnRate)) {
+           // Spawn 2 particles (4 while boosting)
+           for(let k=0; k<(boost ? 4 : 2); k++) {
              // Offset randomly
              const rx = (Math.random() - 0.5) * 1.5;
              const rz = (Math.random() - 0.5) * 1.5;
