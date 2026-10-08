@@ -1612,6 +1612,18 @@ function initTownWorld() {
     ? buildGrass(scene, { count: PERF.grass, radius: 61, isOpen: isOpenGround })
     : null;
 
+  // Cobbled surfaces (roundabout, ring road, spokes, plaza) — for wheel audio
+  // and to keep wheel-track points for the grass only.
+  function isCobble(x, z) {
+    const r = Math.hypot(x, z);
+    if (r < ROUNDABOUT_R) return true;
+    if (Math.abs(r - RING_R) < RING_W / 2) return true;
+    if (Math.abs(x) < ROAD_HALF && z > -54 && z < 62) return true;
+    if (Math.abs(z) < ROAD_HALF && Math.abs(x) < 62) return true;
+    if (x > -17 && x < 13 && z > 17 && z < 37) return true;
+    return false;
+  }
+
   // ── Wind: calmer for reduced-motion users, never fully still ──
   if (REDUCED_MOTION) WIND.uniforms.uWindStrength.value = 0.08;
   window._wind = WIND;
@@ -1740,30 +1752,64 @@ function initTownWorld() {
   const mobileBtn      = document.getElementById('mobile-interact-btn');
   let currentInteractable = null;
 
-  function updateInteraction() {
+  // Range is measured to the building's FOOTPRINT (not its centre), so the
+  // prompt appears when you're parked beside a wall whatever the building's
+  // size. Rechecked only after the cart moves 0.2 units (or state changes).
+  const INTERACT_RANGE = 5;      // units from the wall
+  const VISIT_RANGE    = 7;      // "approached" for exploration achievements
+  const edgeDist = (p, d) => Math.hypot(
+    Math.max(Math.abs(p.x - d.x) - d.w / 2, 0),
+    Math.max(Math.abs(p.z - d.z) - d.d / 2, 0));
+  let lastCheckPos = null, lastModalState = null;
+  interactPrompt.style.display = 'flex';          // visibility via .is-visible (fades)
+  function updateInteraction(force = false) {
     const cPos = cart.getPosition();
-    let nearest = null, nearDist = Infinity;
+    if (!force && lastCheckPos && lastModalState === modalOpen &&
+        Math.hypot(cPos.x - lastCheckPos.x, cPos.z - lastCheckPos.z) < 0.2) return;
+    lastCheckPos = cPos; lastModalState = modalOpen;
 
+    let nearest = null, nearDist = Infinity;
     buildingMeta.forEach(bm => {
-      const d = cPos.distanceTo(bm.position);
+      const d = edgeDist(cPos, bm.data);
       // Every building counts as "approached" for exploration tracking,
       // even the decorative ones without a project modal.
-      if (d < 10) achievements.visit(bm.data.label);
+      if (d < VISIT_RANGE) achievements.visit(bm.data.label);
       if (!bm.data.project) return;
-      if (d < 10 && d < nearDist) { nearDist = d; nearest = bm.data; }
+      if (d < INTERACT_RANGE && d < nearDist) { nearDist = d; nearest = bm.data; }
     });
 
     if (nearest && !modalOpen) {
-      interactPrompt.style.display = 'flex';
       interactName.textContent = nearest.label;
+      interactPrompt.classList.add('is-visible');
       currentInteractable = nearest;
-      if (isTouch && mobileBtn) mobileBtn.style.display = 'block';
+      if (mobileBtn) mobileBtn.style.display = inputMode === 'touch' ? 'block' : 'none';
     } else {
-      interactPrompt.style.display = 'none';
+      interactPrompt.classList.remove('is-visible');
       currentInteractable = null;
       if (mobileBtn) mobileBtn.style.display = 'none';
     }
   }
+
+  // ── Input mode (keyboard / touch / gamepad) → prompt icon ───
+  let inputMode = isTouch ? 'touch' : 'keyboard';
+  let padStyle = 'xbox';
+  const interactKey = interactPrompt.querySelector('.interact-key');
+  function renderInputMode() {
+    townRoot.dataset.input = inputMode;
+    if (interactKey) {
+      interactKey.textContent = inputMode === 'gamepad' ? (padStyle === 'ps' ? '✕' : 'A')
+                              : inputMode === 'touch'   ? '👆' : 'E';
+      interactKey.dataset.mode = inputMode;
+    }
+    const tt = interactPrompt.querySelector('.interact-text');
+    if (tt && tt.firstChild && tt.firstChild.nodeType === 3) tt.firstChild.textContent = inputMode === 'touch' ? 'Tap Enter · ' : 'Enter ';
+    updateInteraction(true);
+  }
+  function setInputMode(m) { if (m !== inputMode) { inputMode = m; renderInputMode(); } }
+  window.addEventListener('keydown', () => setInputMode('keyboard'), true);
+  window.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') setInputMode('keyboard'); }, true);
+  window.addEventListener('touchstart', () => setInputMode('touch'), { capture: true, passive: true });
+  renderInputMode();
 
   // Keyboard interact
   window.addEventListener('keydown', e => {
@@ -1924,6 +1970,121 @@ function initTownWorld() {
   // final full-screen quad, so reset manually at the top of each frame.
   if (debugPerf) renderer.info.autoReset = false;
 
+  // ── Gamepad (standard mapping) ──────────────────────────────
+  // Left stick: point-to-drive (same as the touch stick). Triggers: RT
+  // throttle / LT brake-reverse with left-stick X steering (racing style).
+  // A/✕ enter · B/○ handbrake (closes a project card) · X/□ bell ·
+  // Y/△ back to nearest quarter · LB/RB boost.
+  const pad = { prev: [], stickOn: false };
+  function pollGamepad() {
+    const list = navigator.getGamepads ? navigator.getGamepads() : [];
+    let gp = null;
+    for (const p of list) if (p && p.connected) { gp = p; break; }
+    if (!gp) { if (pad.stickOn) { cart.setJoystickInput(0, 0); pad.stickOn = false; } cart.pad.active = false; return; }
+    padStyle = /054c|playstation|dualshock|dualsense/i.test(gp.id) ? 'ps' : 'xbox';
+    const btn = (i) => gp.buttons[i] ? gp.buttons[i].value : 0;
+    const pressed = (i) => btn(i) > 0.5;
+    const edge = (i) => pressed(i) && !pad.prev[i];
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    const stickMag = Math.hypot(ax, ay);
+    const rt = btn(7), lt = btn(6);
+    const anyInput = stickMag > 0.25 || rt > 0.1 || lt > 0.1 || gp.buttons.some(b => b.pressed);
+    if (anyInput) setInputMode('gamepad');
+
+    if (modalOpen) {
+      if (edge(1) && typeof window.closeModal === 'function') window.closeModal();
+      cart.pad.active = false;
+    } else {
+      // Racing input when a trigger is held
+      const dz = (v) => Math.abs(v) < 0.15 ? 0 : (v - Math.sign(v) * 0.15) / 0.85;
+      if (rt > 0.05 || lt > 0.05) {
+        cart.pad.active = true;
+        cart.pad.throttle = rt - lt;
+        cart.pad.steer = -dz(ax);
+        if (pad.stickOn) { cart.setJoystickInput(0, 0); pad.stickOn = false; }
+      } else {
+        cart.pad.active = false;
+        if (stickMag > 0.2) { cart.setJoystickInput(ax, ay); pad.stickOn = true; }
+        else if (pad.stickOn) { cart.setJoystickInput(0, 0); pad.stickOn = false; }
+      }
+      cart.pad.brake = pressed(1);
+      cart.pad.boost = pressed(4) || pressed(5);
+      if (edge(0) && currentInteractable) openProject(currentInteractable);
+      if (edge(2)) audioSys.playBell();
+      if (edge(3)) respawnNearest();
+    }
+    pad.prev = gp.buttons.map(b => b.value > 0.5);
+  }
+  window.addEventListener('gamepadconnected', () => setInputMode('gamepad'));
+
+  // ── Wheel tracks in the grass + surface for wheel audio ─────
+  // Bruno-style tracks without a render target: a 512² canvas covering the
+  // town (132 × 132 units, ~0.26 u/px). Rear wheels paint soft earthy dots
+  // on it while on grass; it slowly fades. It's drawn as a decal just under
+  // the roads (so marks only show on grass) and the grass shader samples the
+  // same texture to lay blades flat in the tracks.
+  const TRACK_EXT = 132, TRACK_RES = 512;
+  const trackCanvas = document.createElement('canvas');
+  trackCanvas.width = trackCanvas.height = TRACK_RES;
+  const tctx = trackCanvas.getContext('2d');
+  const trackTex = new THREE.CanvasTexture(trackCanvas);
+  trackTex.minFilter = THREE.LinearFilter;
+  trackTex.generateMipmaps = false;
+  const trackDecal = new THREE.Mesh(
+    new THREE.PlaneGeometry(TRACK_EXT, TRACK_EXT),
+    new THREE.MeshBasicMaterial({ map: trackTex, transparent: true, opacity: 0.8, depthWrite: false, color: 0x6a4b26,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
+  );
+  trackDecal.rotation.x = -Math.PI / 2;
+  trackDecal.position.y = 0.02;           // above the grass ground, below roads (0.04–0.07)
+  trackDecal.renderOrder = 1;
+  scene.add(trackDecal);
+  if (grass && grass.setTrackMap) grass.setTrackMap(trackTex, TRACK_EXT);
+  window._tracks = { canvas: trackCanvas, texture: trackTex, extent: TRACK_EXT };
+
+  const trackLast = [null, null];
+  let trackDirty = false, lastFade = 0, lastUpload = 0;
+  const toPx = (v) => (v / TRACK_EXT + 0.5) * TRACK_RES;
+  function updateTracks(elapsed) {
+    const p = cart.position;
+    cart.onCobble = isCobble(p.x, p.z);
+    if (cart.getSpeed() > 0.01) {
+      const s = Math.sin(cart.rotation), c = Math.cos(cart.rotation);
+      for (let i = 0; i < 2; i++) {
+        const fx = i ? 1.0 : -1.0, fz = -1.1;              // rear wheels
+        const x = p.x + fx * c + fz * s, z = p.z - fx * s + fz * c;
+        const last = trackLast[i];
+        if (last && Math.hypot(x - last.x, z - last.z) < 0.3) continue;
+        if (!isCobble(x, z)) {
+          // stroke from the last point so fast driving leaves a continuous line
+          tctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          tctx.lineWidth = 0.55 / TRACK_EXT * TRACK_RES * 2;   // ≈ 0.55 units wide
+          tctx.lineCap = 'round';
+          tctx.beginPath();
+          if (last && Math.hypot(x - last.x, z - last.z) < 2) tctx.moveTo(toPx(last.x), toPx(last.z));
+          else tctx.moveTo(toPx(x), toPx(z));
+          tctx.lineTo(toPx(x) + 0.01, toPx(z));
+          tctx.stroke();
+          trackDirty = true;
+        }
+        trackLast[i] = { x, z };
+      }
+    }
+    // Slow fade (~20 s to vanish)
+    if (elapsed - lastFade > 0.4) {
+      lastFade = elapsed;
+      tctx.globalCompositeOperation = 'destination-out';
+      tctx.fillStyle = 'rgba(0,0,0,0.05)';
+      tctx.fillRect(0, 0, TRACK_RES, TRACK_RES);
+      tctx.globalCompositeOperation = 'source-over';
+      trackDirty = true;
+    }
+    if (trackDirty && elapsed - lastUpload > 0.1) {
+      trackTex.needsUpdate = true;
+      trackDirty = false; lastUpload = elapsed;
+    }
+  }
+
   // ── Animate Loop ────────────────────────────────────────────
   const clock = new THREE.Clock();
 
@@ -1933,7 +2094,9 @@ function initTownWorld() {
     const elapsed = clock.getElapsedTime();
 
     // Cart
+    pollGamepad();
     cart.update(delta, colliders);
+    updateTracks(elapsed);
     if (cart.justCollided) audioSys.playThud(cart.impact / 0.12);
     if (cart.boosting && !wasBoosting) audioSys.playWhoosh();
     wasBoosting = cart.boosting;

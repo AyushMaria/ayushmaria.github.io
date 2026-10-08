@@ -67,6 +67,9 @@ export class Cart {
 
     // ── Input ─────────────────────────────────────────────────
     this.keys = { forward: false, backward: false, left: false, right: false, brake: false, boost: false };
+    // Gamepad "racing" input (triggers + left stick X), set by town-world's
+    // poller. The left stick alone drives point-to-drive via setJoystickInput.
+    this.pad = { active: false, throttle: 0, steer: 0, brake: false, boost: false };
     // Raw stick from the touch handler and a low-passed copy used by physics
     // (a thumb jitters; the cart shouldn't).
     this.joystick = { x: 0, y: 0, active: false, sx: 0, sy: 0 };
@@ -335,7 +338,7 @@ export class Cart {
     const speedRatio = Math.min(1, Math.abs(this.velocity) / this.maxSpeed);
 
     // ── Resolve input ────────────────────────────────────────
-    let inFwd = 0, inSteer = 0, inBrake = this.keys.brake;
+    let inFwd = 0, inSteer = 0, inBrake = this.keys.brake || this.pad.brake;
     // Smooth the stick (time-based, so it feels the same at 30 or 144 fps)
     const js = this.joystick;
     const ks = 1 - Math.pow(1 - this.joystickSmoothing, dt);
@@ -390,6 +393,11 @@ export class Cart {
       if (this.keys.left)  inSteer =  1;
       if (this.keys.right) inSteer = -1;
     }
+    if (this.pad.active) {           // gamepad triggers: RT − LT, left stick X steers
+      inFwd = THREE.MathUtils.clamp(this.pad.throttle, -1, 1);
+      inSteer = THREE.MathUtils.clamp(this.pad.steer, -1, 1);
+      stickActive = false;
+    }
     if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; stickActive = false; }
 
     // ── Opposite input brakes first, then reverses (Bruno's reverseBrake) ──
@@ -401,7 +409,7 @@ export class Cart {
     // Partial throttle means partial speed rather than partial thrust, so a
     // half-pushed stick never stalls against rolling friction.
     // Boost (Shift): higher target speed + stronger pull, forward only
-    this.boosting = !!(this.keys.boost && inFwd > 0 && !this.inputLocked && !opposing);
+    this.boosting = !!((this.keys.boost || this.pad.boost) && inFwd > 0 && !this.inputLocked && !opposing);
     if (!opposing) {
       if (inFwd > 0) {
         const target = this.maxSpeed * inFwd * (this.boosting ? this.boostSpeed : 1);

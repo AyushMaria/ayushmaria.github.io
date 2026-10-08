@@ -144,6 +144,7 @@
 - [x] Reduced-motion wind floor (0.08) and `window._wind` tweakables; `?debug` log shows grass count and wind strength
 - [x] **Placement tooling** — `tools/make-town-map.py` generates `docs/town-map.svg` + `docs/town-map-editor.html` (drag objects, road/overlap warnings, export snippets); the audit found and fixed flowers/rocks on the ring road, a bed on the south road and the Tavern touching the road
 - [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
+- [x] Grass flattens in the cart's wheel tracks (§2.11) — a full see-through fade is still open
 - [ ] Grass "see-through" fade around the cart when it drives through tall patches
 
 ## 2.11 Driving Feel (from the folio-2025 comparison, no Rapier)
@@ -160,6 +161,11 @@
 - [x] **Shift boost** — 1.6× top speed and pull, rising whoosh, louder rumble, double dust, camera eases back; touch has a hold-to-boost 💨 button
 - [x] **H** rings the cart bell
 - [ ] Knockable props (barrels, crates, tavern chairs) — simple push + friction
+- [x] **Interaction range** measured to the building's footprint (5 units from the wall, 7 for "visited"), rechecked only after moving 0.2 units
+- [x] **Prompt** fades in/out and shows the right control: E (keyboard), A / ✕ (Xbox / PlayStation pad), "Tap Enter" on touch (the ⚡ button is the action)
+- [x] **Gamepad** (standard mapping): left stick = point-to-drive; RT / LT = throttle / brake-reverse with left-stick steering; A/✕ enter, B/○ handbrake (closes a project card), X/□ bell, Y/△ respawn, LB/RB boost
+- [x] **Wheel audio**: soft cobble clicks every ~0.8 units (duller, sparser on grass); skid hiss when braking hard or scraping a wall
+- [x] **Wheel tracks in the grass**: 512² canvas mark map over the town; rear wheels paint dirt ruts on grass (fade over ~20 s), drawn as a decal under the roads, and the grass shader lays blades flat in the ruts (one texture fetch per blade vertex)
 - [x] **Camera lens** — FOV 60° → 32° from 50 units (same ground in view, flat "diorama" look, far less edge distortion); near plane 0.5 → 4 for depth precision (removes ground z-fighting stripes at the new distance)
 - [x] **Look-ahead** — frame leads the cart in its direction of travel (up to 6 units at top speed, eased), most useful when driving toward the camera
 - [x] **Drag to look around** — mouse drag on the scene / two-finger pan on touch (two fingers also pinch-zoom); springs back while driving, drifts back after 2.5 s idle; a drag no longer counts as a building click; touches on the joystick/buttons never start a pinch
@@ -192,8 +198,8 @@
 - [x] Mobile interact button
 - [x] Click-on-building via raycaster
 - [x] Floating octahedron markers above interactive buildings (rotating + bobbing)
-- [ ] **Input-aware icons** — Show "E" for keyboard, "A" for gamepad, tap icon for touch (Bruno Simon's `InteractivePoints.js` pattern)
-- [ ] **Smooth distance fade-in/out** — Interaction prompt should opacity-fade, not hard show/hide
+- [x] **Input-aware icons** — E / A (✕ on PlayStation) / Tap, switches with the last-used device (§2.11)
+- [x] **Smooth distance fade-in/out** — Interaction prompt opacity-fades (§2.11)
 - [ ] **Cart "park" animation** — Cart turns slightly toward building, lantern brightens on approach
 
 ## 3.2 Project Modals Overhaul

@@ -375,6 +375,20 @@ export class AudioSystem {
     n.start(now, Math.random() * 3); n.stop(now + 0.65);
   }
 
+  // One cobble "tick" under a wheel (very short wooden/stone click)
+  _wheelClick(level) {
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    const n = ctx.createBufferSource(); n.buffer = this._brown;
+    const bp = this._filter(ctx, 'bandpass', 900 + Math.random() * 900, 2.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(level, now + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0004, now + 0.03 + Math.random() * 0.02);
+    n.connect(bp); bp.connect(g); g.connect(this.listener.getInput());
+    n.start(now, Math.random() * 2.5); n.stop(now + 0.06);
+  }
+
   // Soft crackle pop for the campfire
   _crackle() {
     const ctx = this.listener.context;
@@ -415,9 +429,23 @@ export class AudioSystem {
     this._setVol(this.roll, ratio * (cart.boosting ? 0.26 : 0.18), 0.15);
     this.rollFilter.frequency.setTargetAtTime(220 + ratio * 500, this.listener.context.currentTime, 0.2);
 
-    // Brake hush
+    // Wheels on cobbles: a soft click every ~0.8 units travelled (with
+    // jitter), quieter and duller on grass. Gives the rumble a rhythm.
+    if (this._brown) {
+      this._wheelDist = (this._wheelDist || 0) + speed * Math.min(delta, 0.1) * 60;
+      const step = cart.onCobble === false ? 1.4 : 0.8;
+      if (this._wheelDist > step * (0.85 + Math.random() * 0.3)) {
+        this._wheelDist = 0;
+        const lvl = (cart.onCobble === false ? 0.02 : 0.05) * Math.sqrt(ratio);
+        if (lvl > 0.006) this._wheelClick(lvl);
+      }
+    }
+
+    // Skid: braking hard at speed, or scraping along a wall
     const braking = (cart.braking || (cart.keys && cart.keys.brake)) && ratio > 0.15;
-    this._setVol(this.brake, braking ? 0.04 + ratio * 0.04 : 0, 0.08);
+    const scrape = Math.min(1, (cart.impact || 0) / 0.03);
+    const skid = Math.max(braking ? 0.03 + ratio * 0.11 : 0, scrape * 0.08 * Math.max(ratio, 0.3));
+    this._setVol(this.brake, skid, braking || scrape > 0 ? 0.04 : 0.1);
 
     // Campfire crackles
     if (this.fire && elapsed > this._nextCrackle) {

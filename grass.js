@@ -22,6 +22,12 @@ import { WIND, WIND_GLSL } from './wind.js';
  * @param {Function} opts.isOpen     (x, z) => true when grass may grow there
  * @param {number}   [opts.seed]
  */
+let _blank = null;
+function blankTrackMap() {
+  if (!_blank) { _blank = new THREE.DataTexture(new Uint8Array(4), 1, 1); _blank.needsUpdate = true; }
+  return _blank;
+}
+
 export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => true, seed = 5,
                                     bladeWidth = 0.1, bladeHeight = 0.6, baseColor = 0x3f7f33, tipColor = 0x9bcf5a } = {}) {
   let s = seed >>> 0;
@@ -64,6 +70,10 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
       uBase:     { value: new THREE.Color(baseColor) },
       uTip:      { value: new THREE.Color(tipColor) },
       uSunDir:   { value: new THREE.Vector3(0, 1, 0) },
+      // Wheel tracks: a top-down mark texture over the town (alpha = how
+      // freshly trodden). Blades there lie flat and darken. Set by town-world.
+      uTrackMap:    { value: blankTrackMap() },
+      uTrackExtent: { value: 132 },
     }, WIND.uniforms, THREE.UniformsUtils.clone(THREE.UniformsLib.fog)),
     vertexShader: /* glsl */`
       ${WIND_GLSL}
@@ -71,14 +81,22 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
       attribute float aSide;
       attribute float aRand;
       uniform float uBladeW, uBladeH;
+      uniform sampler2D uTrackMap;
+      uniform float uTrackExtent;
       varying float vTip;
       varying float vShade;
+      varying float vFlat;
       #include <fog_pars_vertex>
       void main() {
         vec3 base = position;
         // patchy height from the same noise the wind uses (Bruno: heightVariation)
         float patchy = texture2D(uWindNoise, base.xz * 0.0321).r + 0.5;
         float h = uBladeH * mix(0.4, 1.0, aRand) * patchy;
+        // wheel tracks: flatten blades where the track map is marked
+        vec2 tuv = vec2(base.x / uTrackExtent + 0.5, 0.5 - base.z / uTrackExtent);
+        float trod = texture2D(uTrackMap, tuv).a;
+        h *= mix(1.0, 0.18, trod);
+        vFlat = trod;
         // blade shape: tip straight up, base spread ±width
         vec3 v = base + vec3(aSide * uBladeW, aTip * h, 0.0);
         // face the camera (rotate about the blade base around Y)
@@ -98,9 +116,10 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
       uniform vec3 uBase, uTip;
       varying float vTip;
       varying float vShade;
+      varying float vFlat;
       #include <fog_pars_fragment>
       void main() {
-        vec3 c = mix(uBase, uTip, vTip) * vShade;
+        vec3 c = mix(uBase, uTip, vTip) * vShade * mix(1.0, 0.72, vFlat);
         gl_FragColor = vec4(c, 1.0);
         #include <fog_fragment>
       }`,
@@ -113,5 +132,9 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
   mesh.receiveShadow = false;
   mesh.position.y = 0.01;
   scene.add(mesh);
-  return { mesh, material: mat, count: n };
+  const setTrackMap = (tex, extent) => {
+    mat.uniforms.uTrackMap.value = tex;
+    if (extent) mat.uniforms.uTrackExtent.value = extent;
+  };
+  return { mesh, material: mat, count: n, setTrackMap };
 }

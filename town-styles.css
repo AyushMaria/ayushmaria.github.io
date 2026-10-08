@@ -588,3 +588,30 @@
 #town-world.is-touch .unstuck-btn { bottom: 250px; }
 @keyframes unstuck-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .unstuck-btn { animation: none; } }
+
+/* ── Interaction prompt: fade in/out, icon per input device ─────
+   (display is set to flex by town-world; .is-visible toggles it) */
+.interact-prompt {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+  pointer-events: none;
+}
+.interact-prompt.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.25s ease, visibility 0s;
+}
+.interact-key[data-mode="gamepad"] {
+  border-radius: 50%;
+  background: #3ddc84;
+}
+.interact-key[data-mode="touch"] {
+  font-size: 1.2rem;
+  background: rgba(255, 209, 102, 0.95);
+}
+/* On touch the ⚡ Enter button is the action; the prompt just names the place */
+#town-world[data-input="touch"] .interact-key { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .interact-prompt, .interact-prompt.is-visible { transition: none; }
+}
