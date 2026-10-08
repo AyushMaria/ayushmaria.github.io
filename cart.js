@@ -10,6 +10,9 @@
 
 import * as THREE from 'three';
 
+// Wrap an angle to (-π, π]
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
 // ════════════════════════════════════════════════════════════════
 // CART CLASS
 // ════════════════════════════════════════════════════════════════
@@ -64,7 +67,24 @@ export class Cart {
     // nothing is "stuck" when the modal closes).
     this.inputLocked = false;
 
+    // Touch: the stick is read in SCREEN space and turned into a world
+    // heading through this camera (set by town-world), so "push up" always
+    // means "drive up the screen" whatever way the cart faces — Bruno
+    // Simon's point-to-drive idea, kept on our on-screen stick.
+    this.viewCamera = null;
+    this.stickReverse = false;     // hysteresis for the forward/reverse switch
+    this.stickTarget = null;       // world heading the stick asks for (radians)
+
+    // Feel: body pitch/roll springs (visual only), brake state for lights + audio
+    this.braking = false;
+    this.reversing = false;
+    this._spring = { pitch: 0, pitchV: 0, roll: 0, rollV: 0 };
+    this._lastVel = 0;
+    this._lastRot = this.rotation;
+    this._bobT = 0;
+
     this._buildModel();
+    this._buildSteerMarker();
     this._setupKeyboard();
 
     this.group.position.copy(this.position);
@@ -83,19 +103,27 @@ export class Cart {
       hay:      new THREE.MeshStandardMaterial({ color: 0xD4A843, roughness: 1 }),
     };
 
+    // Everything except the wheels lives in `body`, which pitches and rolls
+    // on fake suspension springs while the wheels stay planted.
+    const body = new THREE.Group();
+    body.name = 'cart-body';
+    this.group.add(body);
+    this.body = body;
+    const addBody = (m) => { body.add(m); return m; };
+
     // Base plank
     const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 3.2), MAT.wood);
     base.position.y = 0.55;
     base.castShadow = true;
     base.receiveShadow = true;
-    this.group.add(base);
+    addBody(base);
 
     // Side rails
     [-0.85, 0.85].forEach(x => {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 3.0), MAT.darkWood);
       rail.position.set(x, 0.85, 0);
       rail.castShadow = true;
-      this.group.add(rail);
+      addBody(rail);
     });
 
     // Front & back panels
@@ -103,14 +131,14 @@ export class Cart {
       const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.08), MAT.darkWood);
       panel.position.set(0, 0.85, z);
       panel.castShadow = true;
-      this.group.add(panel);
+      addBody(panel);
     });
 
     // Hay bale (cargo)
     const hay = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.0), MAT.hay);
     hay.position.set(0, 0.82, -0.8);
     hay.rotation.y = 0.15;
-    this.group.add(hay);
+    addBody(hay);
 
     // Wheels (4 corners)
     [
@@ -139,9 +167,24 @@ export class Cart {
       wg.add(hub);
 
       wg.position.set(pos.x, 0.32, pos.z);
+      wg.rotation.order = 'YXZ';          // steer (Y) first, then spin (X)
+      wg.userData.front = pos.z > 0;      // +Z is the cart's nose
       this.group.add(wg);
       this.wheels.push(wg);
     });
+
+    // Rear lamps: dim red tail lights that flare when braking; a white
+    // reversing lamp between them.
+    this.tailMat = new THREE.MeshStandardMaterial({ color: 0x5a0d0d, emissive: 0xff2a1a, emissiveIntensity: 0.25 });
+    this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0xfff1d6, emissiveIntensity: 0 });
+    [-0.62, 0.62].forEach(x => {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.05), this.tailMat);
+      lamp.position.set(x, 0.92, -1.56);
+      addBody(lamp);
+    });
+    const rev = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.05), this.reverseMat);
+    rev.position.set(0, 0.92, -1.56);
+    addBody(rev);
 
     // Canopy posts
     [
@@ -151,19 +194,19 @@ export class Cart {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 6), MAT.darkWood);
       post.position.set(pos.x, 1.82, pos.z);
       post.castShadow = true;
-      this.group.add(post);
+      addBody(post);
     });
 
     // Red canvas canopy
     const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 2.8), MAT.canopy);
     canopy.position.y = 2.52;
     canopy.castShadow = true;
-    this.group.add(canopy);
+    addBody(canopy);
 
     // Front lantern post
     const lPost = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), MAT.darkWood);
     lPost.position.set(0, 1.0, 1.65);
-    this.group.add(lPost);
+    addBody(lPost);
 
     // Lantern body
     const lanternG = new THREE.Group();
@@ -173,13 +216,41 @@ export class Cart {
     lTop.rotation.y = Math.PI / 4;
     lanternG.add(lTop);
     lanternG.position.set(0, 1.45, 1.65);
-    this.group.add(lanternG);
+    addBody(lanternG);
     this.lantern = lanternG;
 
     // Lantern point light
     this.lanternLight = new THREE.PointLight(0xFFD166, 1.2, 8);
     this.lanternLight.position.set(0, 1.5, 1.65);
-    this.group.add(this.lanternLight);
+    addBody(this.lanternLight);
+  }
+
+  // ── Touch steering marker ───────────────────────────────────
+  // A faint ring on the ground around the cart with an arrow pointing where
+  // the stick is asking to go (green = forward, amber = reversing). Only
+  // shown while the stick is held.
+  _buildSteerMarker() {
+    const g = new THREE.Group();
+    g.visible = false;
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x7dffcf, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.18, 48), mat);
+    ring.rotation.x = -Math.PI / 2;
+    g.add(ring);
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.75); arrowShape.lineTo(0.55, -0.15); arrowShape.lineTo(0.18, -0.05);
+    arrowShape.lineTo(0, -0.35); arrowShape.lineTo(-0.18, -0.05); arrowShape.lineTo(-0.55, -0.15);
+    arrowShape.closePath();
+    const arrow = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), mat);
+    arrow.rotation.x = -Math.PI / 2;           // lie flat; shape +Y → world -Z
+    const pivot = new THREE.Group();
+    arrow.position.z = -3.6;                    // out past the ring, pointing outward
+    pivot.add(arrow);
+    g.add(pivot);
+    g.renderOrder = 2;
+    this.scene.add(g);
+    this.steerMarker = { group: g, pivot, mat, opacity: 0 };
   }
 
   // ── Keyboard ──────────────────────────────────────────────
@@ -231,64 +302,105 @@ export class Cart {
 
   // ── Physics update (called every frame) ───────────────────
   update(delta, colliders) {
+    delta = Math.min(delta || 1 / 60, 0.05);
+    const dt = delta * 60;          // normalise to ~60 fps
+
     // Teleport: just sync transform, skip physics
     if (this.teleporting) {
       this.group.position.copy(this.position);
       this.group.rotation.y = this.rotation;
+      this._lastRot = this.rotation; this._lastVel = 0;
+      this._updateLamps(false, false);
+      this._updateSteerMarker(delta, false);
       if (this.lantern) this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.04;
       if (this.lanternLight) this.lanternLight.intensity = 1.0 + Math.sin(Date.now() * 0.004) * 0.3;
       return;
     }
 
-    delta = Math.min(delta, 0.05);
-    const dt = delta * 60;          // normalise to ~60 fps
+    const speedRatio = Math.min(1, Math.abs(this.velocity) / this.maxSpeed);
 
     // ── Resolve input ────────────────────────────────────────
     let inFwd = 0, inSteer = 0, inBrake = this.keys.brake;
-    // Smooth the stick every frame (also eases it back to centre on release)
+    // Smooth the stick (time-based, so it feels the same at 30 or 144 fps)
     const js = this.joystick;
-    js.sx += (js.x - js.sx) * this.joystickSmoothing;
-    js.sy += (js.y - js.sy) * this.joystickSmoothing;
+    const ks = 1 - Math.pow(1 - this.joystickSmoothing, dt);
+    js.sx += (js.x - js.sx) * ks;
+    js.sy += (js.y - js.sy) * ks;
     const stickMag = Math.hypot(js.sx, js.sy);
-    if (stickMag > this.joystickDeadzone) {
-      // Throttle: any push past the deadzone counts, full throttle from ~60 %
-      // of travel — so a diagonal push (≈0.7 up) drives at full speed and a
-      // gentle push creeps. Reverse needs a clear pull down.
-      const fwd = -js.sy;
-      const t = THREE.MathUtils.clamp((Math.abs(fwd) - 0.08) / 0.55, 0, 1);
-      inFwd = fwd > 0.08 ? t : (fwd < -0.25 ? -t : 0);
-      // A purely sideways push still needs some motion to turn (it's a cart,
-      // not a tank): creep forward gently.
-      if (inFwd === 0 && Math.abs(js.sx) > 0.5) inFwd = 0.35;
-      // Steer: proportional to sideways deflection, softened so a diagonal
-      // push is a lean, not full lock (full lock needs the stick fully sideways)
-      const side = -js.sx;
-      inSteer = Math.sign(side) * Math.pow(Math.min(1, Math.abs(side)), 1.6) * 0.85;
+    let stickActive = false;
+
+    if (stickMag > this.joystickDeadzone && this.viewCamera) {
+      // ── Point-to-drive: screen direction → world heading ──
+      stickActive = true;
+      const cf = this.viewCamera.getWorldDirection(this._probe);
+      cf.y = 0; cf.normalize();                          // screen-up on the ground
+      const rx = -cf.z, rz = cf.x;                       // screen-right on the ground
+      const wx = rx * js.sx + cf.x * -js.sy;
+      const wz = rz * js.sx + cf.z * -js.sy;
+      const want = Math.atan2(wx, wz);                   // same convention as getForward()
+      this.stickTarget = want;
+
+      // Forward unless the stick points clearly behind the cart (beyond
+      // ±135°, with 20° of hysteresis so it doesn't flicker at the edge).
+      const diffF = wrapAngle(want - this.rotation);
+      const lim = this.stickReverse ? (Math.PI * 0.75 - 0.35) : (Math.PI * 0.75 + 0.35);
+      this.stickReverse = Math.abs(diffF) > lim;
+
+      // Throttle from how far the stick is pushed (eased: small push = creep)
+      const push = THREE.MathUtils.clamp((stickMag - this.joystickDeadzone) / (0.85 - this.joystickDeadzone), 0, 1);
+      const throttle = Math.pow(push, 1.5);
+      const FULL_LOCK_AT = Math.PI / 4;                  // full lock once 45° off target
+      if (!this.stickReverse) {
+        inSteer = THREE.MathUtils.clamp(diffF / FULL_LOCK_AT, -1, 1);
+        // Ease off when asking for a hard turn so the cart swings round
+        // instead of drawing a wide arc at full speed
+        inFwd = throttle * THREE.MathUtils.lerp(1, 0.55, Math.min(1, Math.abs(diffF) / (Math.PI / 2)));
+        inFwd = Math.max(inFwd, 0.25);                   // always enough to turn
+      } else {
+        const diffR = wrapAngle(want - (this.rotation + Math.PI));
+        inSteer = -THREE.MathUtils.clamp(diffR / FULL_LOCK_AT, -1, 1);
+        inFwd = -Math.max(throttle, 0.4);
+      }
     } else {
+      this.stickTarget = null;
+      if (stickMag <= this.joystickDeadzone) this.stickReverse = false;
+      if (stickMag > this.joystickDeadzone) {
+        // No camera yet (shouldn't happen): fall back to cart-relative stick
+        const fwd = -js.sy;
+        inFwd = fwd > 0.08 ? Math.min(1, (fwd - 0.08) / 0.55) : (fwd < -0.25 ? -Math.min(1, (-fwd - 0.25) / 0.55) : 0);
+        inSteer = THREE.MathUtils.clamp(-js.sx, -1, 1);
+      }
       if (this.keys.forward)  inFwd =  1;
       if (this.keys.backward) inFwd = -1;
       if (this.keys.left)  inSteer =  1;
       if (this.keys.right) inSteer = -1;
     }
-    if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; }
+    if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; stickActive = false; }
+
+    // ── Opposite input brakes first, then reverses (Bruno's reverseBrake) ──
+    const opposing = (inFwd < 0 && this.velocity > 0.01) || (inFwd > 0 && this.velocity < -0.01);
+    let braking = inBrake;
+    if (opposing) { braking = true; }
 
     // ── Acceleration (approach a target speed) ───────────────
     // Partial throttle means partial speed rather than partial thrust, so a
     // half-pushed stick never stalls against rolling friction.
-    if (inFwd > 0) {
-      const target = this.maxSpeed * inFwd;
-      this.velocity = this.velocity < target
-        ? Math.min(this.velocity + this.accel * dt, target)
-        : Math.max(this.velocity - this.friction * dt, target);
-    } else if (inFwd < 0) {
-      const target = -this.reverseMax * -inFwd;
-      this.velocity = this.velocity > target
-        ? Math.max(this.velocity - this.accel * dt, target)
-        : Math.min(this.velocity + this.friction * dt, target);
+    if (!opposing) {
+      if (inFwd > 0) {
+        const target = this.maxSpeed * inFwd;
+        this.velocity = this.velocity < target
+          ? Math.min(this.velocity + this.accel * dt, target)
+          : Math.max(this.velocity - this.friction * dt, target);
+      } else if (inFwd < 0) {
+        const target = -this.reverseMax * -inFwd;
+        this.velocity = this.velocity > target
+          ? Math.max(this.velocity - this.accel * dt, target)
+          : Math.min(this.velocity + this.friction * dt, target);
+      }
     }
 
     // ── Brake ────────────────────────────────────────────────
-    if (inBrake) {
+    if (braking) {
       if (this.velocity > 0) this.velocity = Math.max(0, this.velocity - this.brakeForce * dt);
       else                   this.velocity = Math.min(0, this.velocity + this.brakeForce * dt);
     }
@@ -301,15 +413,16 @@ export class Cart {
         this.velocity = 0;
     }
 
-    // ── Steering (ease toward the input's target angle) ──────
-    // Analog: half a stick = half the lock. Keyboard still reaches full lock,
-    // but through the same easing so it doesn't snap.
+    // ── Steering ─────────────────────────────────────────────
+    // Speed-sensitive lock: full lock when crawling, ~55 % at top speed so
+    // a held key doesn't spin the cart. Eased toward the target (time-based).
     {
-      const target = THREE.MathUtils.clamp(inSteer, -1, 1) * this.maxSteerAngle;
-      const rate = (inSteer !== 0 ? this.steerSpeed : this.steerReturn) * dt;
+      const lock = this.maxSteerAngle * THREE.MathUtils.lerp(1, 0.55, speedRatio);
+      const target = THREE.MathUtils.clamp(inSteer, -1, 1) * lock;
       const diff = target - this.steerAngle;
-      // proportional ease (10 %/frame) with a small floor so it always settles
-      const step = Math.min(Math.abs(diff), Math.max(rate * 0.2, Math.abs(diff) * 0.1 * dt));
+      const k = 1 - Math.pow(inSteer !== 0 ? 0.86 : 0.88, dt);   // ~9 %/frame in, ~12 %/frame back
+      const floor = (inSteer !== 0 ? this.steerSpeed : this.steerReturn) * 0.2 * dt;
+      const step = Math.min(Math.abs(diff), Math.max(floor, Math.abs(diff) * k));
       this.steerAngle += Math.sign(diff) * step;
       if (inSteer === 0 && Math.abs(this.steerAngle) < 0.005) this.steerAngle = 0;
     }
@@ -341,10 +454,10 @@ export class Cart {
       const slideZ = this.position.clone(); slideZ.z = newPos.z;
       if (!this._blocked(slideX, colliders)) {
         this.position.copy(slideX);
-        this.velocity *= 0.9;
+        this.velocity *= Math.pow(0.9, dt);
       } else if (!this._blocked(slideZ, colliders)) {
         this.position.copy(slideZ);
-        this.velocity *= 0.9;
+        this.velocity *= Math.pow(0.9, dt);
       } else {
         // Head-on: soft bounce and flag for camera shake
         if (Math.abs(this.velocity) > 0.06) this.justCollided = true;
@@ -356,15 +469,87 @@ export class Cart {
     this.group.position.copy(this.position);
     this.group.rotation.y = this.rotation;
 
-    // ── Wheel spin ───────────────────────────────────────────
-    this.wheelAngle += this.velocity * dt * 2.5;
-    this.wheels.forEach(w => { w.rotation.x = this.wheelAngle; });
+    // ── Wheels: roll at the true rate (distance / radius), front ones steer
+    this.wheelAngle += (this.velocity * dt) / 0.32;
+    this.wheels.forEach(w => {
+      w.rotation.x = this.wheelAngle;
+      w.rotation.y = w.userData.front ? this.steerAngle : 0;
+    });
+
+    // ── Body: fake suspension (pitch on accel/brake, roll in turns, cobble bob)
+    this._updateBody(delta, dt);
+
+    // ── Lamps + state for audio ──────────────────────────────
+    this.braking = braking && Math.abs(this.velocity) > 0.005;
+    this.reversing = this.velocity < -0.005 && inFwd < 0;
+    this._updateLamps(this.braking || (this.inputLocked && Math.abs(this.velocity) > 0.005), this.reversing);
+    this._updateSteerMarker(delta, stickActive);
 
     // ── Lantern sway & pulse ─────────────────────────────────
     if (this.lantern)
-      this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.05 + this.steerAngle * 0.3;
+      this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.05 + this.steerAngle * 0.3 - this._spring.roll * 1.5;
     if (this.lanternLight)
       this.lanternLight.intensity = 1.0 + Math.sin(Date.now() * 0.004) * 0.3;
+  }
+
+  // Spring-damper body motion (visual only; physics footprint unchanged)
+  _updateBody(delta, dt) {
+    if (!this.body) return;
+    const sp = this._spring;
+    const accel = (this.velocity - this._lastVel) / Math.max(dt, 1e-3);   // units/frame²
+    const yaw   = wrapAngle(this.rotation - this._lastRot) / Math.max(dt, 1e-3);
+    this._lastVel = this.velocity;
+    this._lastRot = this.rotation;
+
+    // Targets: braking (accel<0 going forward) dips the nose; cornering
+    // leans the body to the outside of the turn. Clamped to a few degrees.
+    const pitchT = THREE.MathUtils.clamp(-accel * 9, -0.06, 0.06);
+    const rollT  = THREE.MathUtils.clamp(this.velocity * yaw * 22, -0.075, 0.075);
+    if (this.reducedMotion) { sp.pitch = sp.roll = sp.pitchV = sp.rollV = 0; this.body.rotation.set(0, 0, 0); this.body.position.y = 0; return; }
+
+    // Semi-implicit Euler in small steps (stable at any frame rate)
+    const K = 140, C = 11;                 // stiffness, damping (slightly under-damped)
+    let t = delta;
+    while (t > 0) {
+      const h = Math.min(t, 1 / 120);
+      sp.pitchV += (-K * (sp.pitch - pitchT) - C * sp.pitchV) * h;
+      sp.pitch  += sp.pitchV * h;
+      sp.rollV  += (-K * (sp.roll - rollT) - C * sp.rollV) * h;
+      sp.roll   += sp.rollV * h;
+      t -= h;
+    }
+    // Cobble bob: tiny, speed-scaled, tied to wheel rotation so it reads as road texture
+    this._bobT += Math.abs(this.velocity) * dt;
+    const s = Math.min(1, Math.abs(this.velocity) / this.maxSpeed);
+    const bob = (Math.sin(this._bobT * 9.0) * 0.6 + Math.sin(this._bobT * 23.0) * 0.4) * 0.018 * s;
+
+    this.body.rotation.x = sp.pitch;
+    this.body.rotation.z = sp.roll;
+    this.body.position.y = bob;
+  }
+
+  _updateLamps(braking, reversing) {
+    if (!this.tailMat) return;
+    const tailT = braking ? 2.4 : 0.25;
+    const revT  = reversing ? 1.6 : 0;
+    this.tailMat.emissiveIntensity += (tailT - this.tailMat.emissiveIntensity) * 0.35;
+    this.reverseMat.emissiveIntensity += (revT - this.reverseMat.emissiveIntensity) * 0.35;
+  }
+
+  _updateSteerMarker(delta, active) {
+    const m = this.steerMarker;
+    if (!m) return;
+    const target = active ? 0.42 : 0;
+    m.opacity += (target - m.opacity) * (1 - Math.pow(0.001, delta));   // ~0.15 s fade
+    m.mat.opacity = m.opacity;
+    m.group.visible = m.opacity > 0.01;
+    if (!m.group.visible) return;
+    m.group.position.set(this.position.x, 0.12, this.position.z);
+    if (this.stickTarget !== null) {
+      // pivot's local -Z points along the arrow; heading convention: forward = (sin a, cos a)
+      m.pivot.rotation.y = this.stickTarget + Math.PI;
+    }
+    m.mat.color.setHex(this.stickReverse ? 0xffc46b : 0x7dffcf);
   }
 
   /**
@@ -471,15 +656,16 @@ export class FollowCamera {
     this.shakeIntensity = 0.4;
   }
 
-  update(cart) {
+  update(cart, delta = 1 / 60) {
     const cartPos   = cart.getPosition();
     const cartSpeed = cart.getSpeed();
+    const dt = Math.min(delta, 0.1) * 60;       // frames at 60 fps
 
     if (cart.justCollided) this.addShake();
 
     // Distance: base × zoom × portrait factor, eased out a touch at speed
     const target = this.isoDist * this.zoom * this._aspectFactor() + cartSpeed * this.speedBoost * 10;
-    this._dist = THREE.MathUtils.lerp(this._dist, target, 0.05);
+    this._dist = THREE.MathUtils.lerp(this._dist, target, 1 - Math.pow(1 - 0.05, dt));
 
     const desiredLook = this._tmp.copy(cartPos);
     desiredLook.y += 1.2;
@@ -492,7 +678,7 @@ export class FollowCamera {
       this._ready = true;
     }
 
-    const k = cart.teleporting ? 0.15 : this.smoothness;
+    const k = 1 - Math.pow(1 - (cart.teleporting ? 0.15 : this.smoothness), dt);   // time-based
     this._pos.lerp(desiredPos, k);
     this._lookAt.lerp(desiredLook, k);
 
@@ -508,7 +694,7 @@ export class FollowCamera {
       // Roll shake
       this.camera.rotation.z += (Math.random() - 0.5) * this.shakeIntensity * 0.1;
       
-      this.shakeIntensity -= 0.02; // Decay over frames
+      this.shakeIntensity -= 0.02 * dt; // decay (time-based)
       if (this.shakeIntensity < 0) this.shakeIntensity = 0;
     }
   }
