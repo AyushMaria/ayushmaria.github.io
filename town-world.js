@@ -1626,6 +1626,8 @@ function initTownWorld() {
   const cart = new Cart(scene, { x: 0, z: 30 });
   const cartDust = particleSystem.createCartDust(PERF.dust);
   window._cart = cart;
+  cart.viewCamera = camera;          // touch stick reads in screen space (point-to-drive)
+  cart.reducedMotion = REDUCED_MOTION;
 
   // ── Follow Camera ───────────────────────────────────────────
   const followCam = new FollowCamera(camera);
@@ -1898,7 +1900,7 @@ function initTownWorld() {
     }
 
     // Camera
-    followCam.update(cart);
+    followCam.update(cart, delta);
     updateOcclusion(delta);
 
     // Labels
