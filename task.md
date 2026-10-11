@@ -172,6 +172,16 @@
 - [x] **Frame the building** — opening a project eases the camera to the cart↔building midpoint and 28 % closer; eases back on close
 - [x] Building labels fade by distance from what you're looking at (not from the camera) and scale with zoom
 
+## 2.13 Night Temple Landing & City Hall
+- [x] `temple.js` — procedural two-tier temple hall (stone plinth + steps, vermilion posts, bracket clusters, glowing lattice screens, veranda rail, hanging lanterns) with curved hip roofs (sagging slopes, lifted corners, ridge end tiles) and a three-tier pagoda; meshes merged per material (~10 draw calls)
+- [x] `landing-temple.js` replaces the torii / CSS-cloud / firefly hero: moonlit sky dome + twinkling stars, layered mountain ridgelines and drifting mist, a 20-step stone stairway with stone lanterns from a vermilion torii up to the temple terrace, pagoda, cedars and maples, light rain, falling maple leaves, fireflies and pointer-following spirit wisps; bloom + cool night grade
+- [x] **Enter Town** flies through the torii, up the stairs and into the glowing temple doors (warm flash), then boots the town and disposes the landing's GPU resources; hero copy and button kept over the scene
+- [x] Pointer parallax with idle sway; pauses when the tab is hidden or the hero is scrolled away; `prefers-reduced-motion` renders a still frame and skips the fly-in; low-power tier (touch / ≤4 cores / small screens) halves rain, trees, bloom resolution and drops shadows/MSAA; wider FOV on portrait screens
+- [x] Day/night toggle and the old CSS sky layers hidden on the landing (the scene has its own night sky)
+- [x] **City Hall** at the head of Main Street (0, −39.5), facing the fountain in front of the clock tower — the same temple hall at 0.78 scale with a CITY HALL plaque, lighter daytime tiles, screens/lanterns on the town's glow cycle
+- [x] City Hall opens an **About** card: draft bio, Skills & Trades, Notable Quests list (replaces the stat bars), and a links row (GitHub now; LinkedIn / Email / Résumé render once filled in `PROJECTS.about.links`)
+- [ ] Replace the draft bio / highlights with your own words; fill in LinkedIn, email and résumé links
+
 ## 2.12 Mobile Project Card Fit
 - [x] Phone project card fills the overlay (height 100 %) instead of 100vh, which on phones is the height *without* the URL bar and pushed the card's top ("Return to Town") and bottom (GitHub / Demo buttons) off-screen — rules live at the end of `town-styles.css`
 - [x] Safe-area padding (`viewport-fit=cover` + `env(safe-area-inset-*)`) so notches and the home indicator don't cover content; no horizontal overflow; decorative corners/outline dropped on the full-screen sheet

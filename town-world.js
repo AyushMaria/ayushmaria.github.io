@@ -19,6 +19,7 @@ import {
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
+import { buildTempleHall } from './temple.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -91,6 +92,12 @@ const BUILDINGS = [
     chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'east' },
   { x: -10.5, z: -36, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,
     label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },
+
+  // City Hall closes Main Street in front of the clock tower, facing the
+  // fountain. Same procedural temple as the landing page (temple.js);
+  // w/d are its scaled footprint incl. the front steps. Opens the About card.
+  { x: 0, z: -39.5, w: 13.1, h: 5, d: 11.4, temple: true, templeScale: 0.78,
+    label: 'City Hall', project: 'about', zone: 'north' },
 
   // East Arm (Research Quarter)
   { x: 37.5, z: -11, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
@@ -219,7 +226,46 @@ const npcs    = [];          // { sprite, idle, wave, phase }
 // HELPER: Build a building mesh group
 // ════════════════════════════════════════════════════════════════
 
+function makeTempleBuilding(o) {
+  const g = new THREE.Group();
+  const S = o.templeScale || 0.62;
+  const hall = buildTempleHall({ plaque: 'CITY HALL', lanterns: true, paperGlow: 0.6 });
+  hall.group.scale.setScalar(S);
+  // the hall's footprint runs from z −6.4 (back plinth) to +8.2 (front step);
+  // shift it so the building's centre is the middle of that footprint
+  hall.group.position.z = -0.9 * S;
+  hall.group.traverse(m => { if (m.isMesh) m.userData = { project: o.project, label: o.label }; });
+  g.add(hall.group);
+  // daylight town: lighter, non-metallic tiles read better than the night palette
+  hall.materials.tile.color.setHex(0x8b95a4); hall.materials.tile.metalness = 0;
+  hall.materials.ridge.color.setHex(0x4d5560);
+  // screens + lanterns follow the town's day/night glow like other windows
+  windowMats.push(hall.materials.paper, hall.materials.lantern);
+
+  const roofTop = hall.height * S;
+  g.position.set(o.x, 0, o.z);
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+    animatedProps.push({
+      update: (t) => {
+        marker.rotation.y = t * 1.5;
+        marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+      }
+    });
+  }
+  g.userData.body = hall.group.children[0];
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
+  if (o.temple) return makeTempleBuilding(o);
   const g = new THREE.Group();
   const tudor = isTudorBuilding(o);
   const M = propMaterials();

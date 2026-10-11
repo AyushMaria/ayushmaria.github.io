@@ -615,3 +615,62 @@
 @media (prefers-reduced-motion: reduce) {
   .interact-prompt, .interact-prompt.is-visible { transition: none; }
 }
+
+/* ================================================================
+   Landing — night mountain temple (landing-temple.js)
+   ================================================================ */
+#hero.hero--temple {
+  min-height: 100vh;
+  min-height: 100svh;
+  background:
+    radial-gradient(ellipse at 72% 18%, rgba(170, 190, 255, 0.18) 0%, transparent 40%),
+    linear-gradient(180deg, #060a18 0%, #121b34 55%, #1c2640 100%);
+}
+#hero.hero--temple #three-canvas { opacity: 0; transition: opacity 900ms ease; }
+#hero.hero--temple.is-ready #three-canvas { opacity: 1; }
+.hero--temple .hero-veil {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: linear-gradient(0deg, rgba(4, 6, 16, 0.78) 0%, rgba(4, 6, 16, 0.35) 22%, transparent 42%);
+}
+.hero--temple .hero-content {
+  position: relative; z-index: 10;
+  justify-content: flex-end;
+  min-height: 100vh; min-height: 100svh;
+  padding-bottom: clamp(56px, 11vh, 120px);
+  pointer-events: none;
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+.hero--temple .hero-content > * { pointer-events: auto; }
+.hero--temple .hero-subtitle {
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(1.15rem, 2.6vw, 1.9rem);
+  color: #f6e7c6;
+  letter-spacing: 0.06em;
+  margin-bottom: 1.25rem;
+  text-shadow: 0 0 18px rgba(255, 170, 80, 0.35), 0 2px 10px rgba(0, 0, 0, 0.75);
+}
+.hero--temple .hero-cta {
+  background: linear-gradient(180deg, #d9573a 0%, #a3311f 100%);
+  color: #fff4e2;
+  border: 1px solid rgba(255, 214, 150, 0.55);
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 22px rgba(255, 130, 60, 0.45), inset 0 1px 0 rgba(255, 220, 170, 0.35);
+}
+.hero--temple .hero-cta:hover {
+  background: linear-gradient(180deg, #e8694a 0%, #b33a25 100%);
+  box-shadow: 0 0 32px rgba(255, 150, 70, 0.65), inset 0 1px 0 rgba(255, 220, 170, 0.45);
+}
+.hero--temple .hero-cta:focus-visible { outline: 2px solid #ffd27a; outline-offset: 3px; }
+.hero--temple .hero-cta:disabled { opacity: 0.85; cursor: progress; transform: none; }
+.hero--temple.is-entering .hero-content { opacity: 0; transform: translateY(14px); }
+.hero--temple.is-entering .hero-veil { opacity: 0; transition: opacity 600ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  #hero.hero--temple #three-canvas, .hero--temple .hero-content { transition: none; }
+}
+
+/* City Hall "about" card: highlights list in place of stat bars */
+.modal-stats--list { gap: 0.55rem; }
+.modal-quest { display: flex; align-items: flex-start; gap: 0.6rem; line-height: 1.45; font-size: var(--fs-sm, 0.92rem); color: var(--modal-ink); }
+.modal-quest-icon { flex: 0 0 1.4em; text-align: center; }
+.modal-quest-text strong { font-family: var(--font-display); }
