@@ -18,23 +18,23 @@
 - [x] **Boost mechanic** — Shift key for speed boost with visual/audio feedback (§2.11)
 - [x] **Auto-unstuck** — Detect if cart is jammed for 3+ seconds → Unstuck button / R respawn (§2.11)
 - [x] **Stats tracking** — Persist `distanceDriven` and `timePlayed` to localStorage (lives in `achievements.js`, see §3.4)
-- [ ] **Input abstraction** — Named actions (`forward`, `backward`, `boost`) mapped to keyboard + gamepad + touch (currently raw key checks)
+- [ ] **Input abstraction** — Named actions (`forward`, `backward`, `boost`) mapped to keyboard + gamepad + touch. Keyboard, gamepad and touch all work already (§2.11); what's left is routing them through one named-action layer instead of per-device checks
 
 ## 1.3 Follow Camera
 - [x] Scroll-wheel zoom (lerp between min/max distance)
 - [x] Speed-based dynamic zoom (camera pulls back when fast)
 - [x] Collision shake effect
 - [x] Isometric camera — the only view on desktop and mobile (fixed SE diagonal, follows the cart; scroll / pinch zoom 0.6–1.5×; backs off on portrait screens). `Q` toggle and chase cam removed. Buildings between the camera and the cart fade to 25% so the cart is never hidden
-- [ ] **Spherical coordinates** — Replace hardcoded `behind` offset with `phi`/`theta`/`radius` system (Bruno Simon's `View.js` pattern)
-- [ ] **Mouse orbit** — Temporary orbit around cart on mouse-drag, snap back on release
-- [ ] **Cinematic transitions** — Smooth lerp to preset camera positions when entering buildings
+- [ ] **Spherical coordinates** *(reserved for later)* — `phi`/`theta`/`radius` system (Bruno Simon's `View.js` pattern) is written but **commented out** in `FollowCamera` (`cart.js`): `this.spherical` (θ 45°, φ ≈ 46.7°, r = `isoDist` — reproduces today's iso view exactly), `_applySpherical()` and a hook at the top of `update()`. Isometric stays the only view until this is switched on
+- [x] **Mouse orbit** → replaced by drag / two-finger look-around pan that springs back when you drive (§2.11). An `_orbitBy()` helper is reserved (commented out) alongside the spherical system
+- [x] **Cinematic transitions** → camera eases in to frame the building while its project card is open (`FollowCamera.frame()`, §2.11)
 - [ ] **Extract to `camera.js`** — Currently lives inside `cart.js`, should be its own module
 
 ## 1.4 Module Architecture (`index.html`)
 - [x] ES module imports for `cart.js`, `particles.js`, `post-processing.js`, `audio.js`
 - [x] Removed inline `initTownWorld()` script block from `index.html`
 - [x] Controls hint overlay (fades out after 5s)
-- [ ] **Three.js r160+ upgrade** — Post-processing still imports from `three@0.150.0`
+- [ ] **Three.js r160+ upgrade** — tracked in §4.2
 - [ ] **Zone fast-travel** — HUD buttons should auto-drive cart along road spline (`#zone-hud` is now wired to `Cart.teleportTo()` — GSAP glide, not a road-spline drive yet)
 - [x] **Bugfix: `initMiniMap()` threw at boot** — `#town-map` / `#town-map-toggle` were missing from the markup, which killed the rest of the inline script (ambient sound toggle never enabled). Markup restored.
 
@@ -73,7 +73,7 @@
 - [x] Speed-based dynamic zoom
 - [x] Collision shake
 - [x] Isometric view (permanent; see Phase 1)
-- [ ] Spherical coordinates (see §1.3)
+- [ ] Spherical coordinates — reserved, commented out (see §1.3)
 - [x] Mouse orbit → drag-to-look pan (§2.11)
 - [x] Cinematic transitions → building framing on project open (§2.11)
 - [ ] **Speed lines / FOV kick** — Visual effect when cart is moving fast
@@ -238,7 +238,7 @@
 # Phase 4: Performance & Polish
 
 ## 4.1 Performance Optimization
-- [ ] **Shared materials registry** — Replace per-building `new MeshStandardMaterial()` with centralized `Map` (see §1.5)
+- [ ] **Shared materials registry** — same task as §1.5 (`materials.js`); do it once, tick both
 - [ ] **Instanced meshes** — Use `InstancedMesh` for trees, rocks, flowers, barrels (same geometry + material)
 - [ ] **LOD** — Reduce geometry detail for distant buildings
 - [ ] **Frustum culling audit** — Ensure all meshes have proper bounding spheres

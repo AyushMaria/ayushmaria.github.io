@@ -714,6 +714,23 @@ export class FollowCamera {
     this.fov        = 32;
     this.isoDir     = new THREE.Vector3(15, 20, 15).normalize();  // ~43° elevation
     this.isoDist    = 50;        // base distance along isoDir (same ground in view as 60° @ 27)
+
+    // ── Reserved: spherical camera (phi / theta / radius) ─────────────
+    // Not used while isometric is the only view. Kept for a future orbit /
+    // cinematic camera (Bruno Simon's View.js pattern). Uncommenting this
+    // block (plus _applySpherical / _orbitBy below and the hook at the top
+    // of update()) reproduces today's view exactly:
+    //   theta 45°  — azimuth from +Z toward +X (camera south-east of the cart)
+    //   phi ≈ 46.7° — polar angle from straight up (≈ 43.3° elevation)
+    //   radius     — isoDist (zoom / boost / framing still scale it in update())
+    //
+    // this.spherical = new THREE.Spherical(
+    //   this.isoDist,                                // radius
+    //   Math.acos(this.isoDir.y),                    // phi
+    //   Math.atan2(this.isoDir.x, this.isoDir.z)     // theta
+    // );
+    // this.sphericalLimits = { minPhi: 0.35, maxPhi: 1.25, minRadius: 25, maxRadius: 80 };
+    // this.orbitSpeed = 0.005;                       // radians per dragged pixel
     this.zoom       = 1;         // user zoom (wheel / pinch), 0.6 – 1.5
     this.minZoom    = 0.6;
     this.maxZoom    = 1.5;
@@ -777,6 +794,26 @@ export class FollowCamera {
     if (len > this.panMax) { this.pan.x *= this.panMax / len; this.pan.z *= this.panMax / len; }
     this._lastPanTime = performance.now();
   }
+
+  // ── Reserved: spherical camera helpers (see `this.spherical`) ──────
+  // Rebuild isoDir / isoDist from phi / theta / radius so update() keeps
+  // working unchanged (it only ever uses `isoDir * distance`).
+  //
+  // _applySpherical() {
+  //   const s = this.spherical, L = this.sphericalLimits;
+  //   s.phi    = THREE.MathUtils.clamp(s.phi, L.minPhi, L.maxPhi);
+  //   s.radius = THREE.MathUtils.clamp(s.radius, L.minRadius, L.maxRadius);
+  //   this.isoDir.setFromSphericalCoords(1, s.phi, s.theta);
+  //   this.isoDist = s.radius;
+  // }
+  //
+  // Orbit around the cart by dragging — would replace `this._panBy(dx, dy)`
+  // in the mouse-drag handler (and the two-finger pan) if orbiting returns.
+  // _orbitBy(dxPx, dyPx) {
+  //   this.spherical.theta -= dxPx * this.orbitSpeed;
+  //   this.spherical.phi   -= dyPx * this.orbitSpeed;
+  //   this._applySpherical();
+  // }
 
   /** True once if the last mouse press turned into a drag (so the canvas click handler can ignore it). */
   consumeDrag() { const d = this._dragMoved; this._dragMoved = false; return d; }
@@ -861,6 +898,9 @@ export class FollowCamera {
     const cartSpeed = cart.getSpeed();
     const dt = Math.min(delta, 0.1) * 60;       // frames at 60 fps
     const ease = (perFrame) => 1 - Math.pow(1 - perFrame, dt);
+
+    // Reserved: spherical camera hook (see `this.spherical`)
+    // if (this.spherical) this._applySpherical();
 
     if (cart.justCollided) this.kick(cart.impact / 0.12);   // ~1 at a full-speed head-on hit
 
