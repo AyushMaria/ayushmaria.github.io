@@ -116,7 +116,7 @@
 - [x] **Chibi cursor follower removed** (Step 25 JS + CSS) — it read as an annoying stickman on the pointer
 - [ ] **Gate doors that open** — animate the doors + extend the drivable area outside the wall (currently drawn shut)
 - [ ] **Dormer windows / balconies** on the taller Tudor buildings (reference has them)
-- [ ] **Hanging lanterns** on facades (reference: bracketed lamps beside doors)
+- [x] **Hanging lanterns** — `buildWallLanterns()` in `town-props.js`: a bracketed iron lantern (wall plate, arm, brace, cage with glowing glass) above every building door (12; City Hall keeps its own temple lanterns). Three `InstancedMesh`es for the whole town = 3 draw calls; no PointLights (emissive glass + bloom). Lanterns hang from the bracket tip and swing gently with the shared wind (still under reduced motion)
 
 ## 2.6 Audio System (`audio.js`)
 - [x] Shaped noise sources — pink (wind, fountain, brake, crickets) and brown (wheels, fire bed) instead of raw white noise; seamless loop points; smoothed (`setTargetAtTime`) volume changes, no zipper clicks

@@ -15,7 +15,7 @@ import { cobbleTexture, plasterTexture, stoneTexture, windowTexture, grassTextur
 import {
   propMaterials, gableRoofGeometry, buildCityWall, buildClockTower,
   buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
-  buildClouds, buildMountains, buildStall, buildFountain,
+  buildClouds, buildMountains, buildStall, buildFountain, buildWallLanterns,
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
@@ -456,6 +456,8 @@ function makeBuilding(o) {
 
   // ── Door (arched) ────────────────────────────────────────────
   const doorH = Math.min(2.2, storeyH * 0.7), doorW = 1.1;
+  // Bracketed lantern above the door (instanced town-wide, see buildWallLanterns)
+  wallLanternSlots.push({ x: o.x, y: doorH + 1.05, z: o.z + frontZ });
   const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.12), SHARED.door);
   door.position.set(0, doorH / 2, frontZ + 0.04);
   g.add(door);
@@ -826,6 +828,7 @@ function createRock(x, z, s) {
 const lampRefs = [];      // { headMat, source, x, z }
 const windowMats = [];    // MeshStandardMaterial refs
 let lampPoolMat = null;   // additive ground-glow decals under the lamps
+const wallLanternSlots = [];   // filled by makeBuilding, built once all buildings exist
 
 // ── Light pool (task.md §4.1 — point-light budget) ──────────────────
 // three.js compiles every lit material for the number of lights in the
@@ -1350,6 +1353,10 @@ function initTownWorld() {
     ));
   });
   buildShutters(scene);
+  const wallLanterns = buildWallLanterns(scene, wallLanternSlots, {
+    reducedMotion: REDUCED_MOTION,
+    windStrength: () => WIND.uniforms.uWindStrength.value,
+  });
   windowMats.push(SHARED.windowPane);
 
   // ── Isometric occlusion fade ────────────────────────────────
@@ -2307,6 +2314,7 @@ function initTownWorld() {
 
     // Clouds drift
     clouds.tick(delta);
+    wallLanterns.update(elapsed);
 
     // NPCs wave at the cart
     if (npcs.length) updateNpcs(cart.getPosition(), elapsed);

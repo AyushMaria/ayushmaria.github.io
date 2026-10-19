@@ -700,3 +700,80 @@ export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles =
   scene.add(g);
   return { group: g, water, collider: { circle: true, x, z, r: POOL_R + 0.3 } };
 }
+
+// ── Wall lanterns (task.md §2.7) ─────────────────────────────────
+/**
+ * A bracketed iron lantern above each building door, as in the reference
+ * art. Three InstancedMeshes for the whole town (bracket, cage, glowing
+ * glass), so a dozen lanterns cost 3 draw calls. No PointLights: the glass
+ * is emissive and blooms (see the point-light budget in task.md §4.1).
+ * The lanterns hang from the bracket tip and swing gently with the wind.
+ *
+ * @param {THREE.Scene} scene
+ * @param {{x:number, y:number, z:number}[]} slots  world position of the
+ *        wall plate (front wall, above the door); lanterns hang out along +Z
+ * @param {{ reducedMotion?: boolean, windStrength?: () => number }} [opts]
+ * @returns {{ update(t:number):void, glass: THREE.Material }}
+ */
+export function buildWallLanterns(scene, slots, { reducedMotion = false, windStrength = () => 0.35, scale = 1.4 } = {}) {
+  if (!slots.length) return { update() {}, glass: null };
+  const ARM = 0.55;                       // how far the hook sits from the wall
+  const part = (geo, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz);
+    g.translate(x, y, z);
+    return g;
+  };
+  // Bracket (static): wall plate, arm, diagonal brace, little curl at the tip
+  const bracketGeo = mergeBufferGeometries([
+    part(new THREE.BoxGeometry(0.2, 0.34, 0.04), 0, -0.12, 0.02),
+    part(new THREE.BoxGeometry(0.05, 0.05, ARM + 0.06), 0, 0, ARM / 2),
+    part(new THREE.BoxGeometry(0.035, 0.035, Math.hypot(0.32, 0.4)), 0, -0.16, 0.2, -Math.atan2(0.32, 0.4)),
+    part(new THREE.TorusGeometry(0.05, 0.012, 4, 10, Math.PI * 1.5), 0, 0.04, ARM + 0.02, 0, Math.PI / 2),
+  ], false);
+  // Lantern cage (swings), modelled hanging from the hook at the origin
+  const cageGeo = mergeBufferGeometries([
+    part(new THREE.CylinderGeometry(0.008, 0.008, 0.1, 4), 0, -0.05, 0),               // hanger
+    part(new THREE.ConeGeometry(0.16, 0.13, 4), 0, -0.165, 0, 0, Math.PI / 4),          // cap
+    part(new THREE.BoxGeometry(0.24, 0.035, 0.24), 0, -0.245, 0),                        // top rim
+    part(new THREE.BoxGeometry(0.22, 0.04, 0.22), 0, -0.6, 0),                           // base
+    part(new THREE.SphereGeometry(0.025, 6, 4), 0, -0.64, 0),                            // finial
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) =>
+      part(new THREE.BoxGeometry(0.025, 0.34, 0.025), sx * 0.1, -0.42, sz * 0.1)),       // corner posts
+  ], false);
+  const glassGeo = part(new THREE.BoxGeometry(0.17, 0.3, 0.17), 0, -0.42, 0);
+
+  const iron = new THREE.MeshStandardMaterial({ color: 0x2b2622, roughness: 0.55, metalness: 0.6 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xffc878, emissive: 0xff9a30, emissiveIntensity: 1.25, roughness: 0.4 });
+  const n = slots.length;
+  const brackets = new THREE.InstancedMesh(bracketGeo, iron, n);
+  const cages = new THREE.InstancedMesh(cageGeo, iron, n);
+  const panes = new THREE.InstancedMesh(glassGeo, glass, n);
+  brackets.castShadow = cages.castShadow = true;
+  cages.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  panes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (const m of [brackets, cages, panes]) { m.frustumCulled = false; m.name = 'wall-lanterns'; scene.add(m); }
+
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), one = new THREE.Vector3(scale, scale, scale);
+  const phase = slots.map((s, i) => (s.x * 0.37 + s.z * 0.61 + i) % (Math.PI * 2));
+  slots.forEach((s, i) => { m4.compose(p.set(s.x, s.y, s.z), q.identity(), one); brackets.setMatrixAt(i, m4); });
+  brackets.instanceMatrix.needsUpdate = true;
+
+  function pose(t) {
+    const amp = reducedMotion ? 0 : 0.035 + windStrength() * 0.12;
+    slots.forEach((s, i) => {
+      const ph = phase[i];
+      // swing mostly out from / back to the wall, a little side to side
+      e.set(Math.sin(t * 1.7 + ph) * amp, 0, Math.sin(t * 1.13 + ph * 1.7) * amp * 0.5);
+      q.setFromEuler(e);
+      p.set(s.x, s.y, s.z + ARM * scale);
+      m4.compose(p, q, one);
+      cages.setMatrixAt(i, m4);
+      panes.setMatrixAt(i, m4);
+    });
+    cages.instanceMatrix.needsUpdate = true;
+    panes.instanceMatrix.needsUpdate = true;
+  }
+  pose(0);
+  return { update: reducedMotion ? () => {} : pose, glass };
+}
