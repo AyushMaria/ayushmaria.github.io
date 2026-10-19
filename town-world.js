@@ -27,10 +27,7 @@ import { standardMat, sharedMaterialCount, OCCLUSION_CUT } from './materials.js'
 import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, FAN_SQUARE, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
 import { buildTerrain, buildWater, buildBridge } from './terrain.js';
 import { buildStadium } from './stadium.js';
-<<<<<<< ours
 import { buildFanSquare } from './fan-square.js';
-=======
->>>>>>> theirs
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';

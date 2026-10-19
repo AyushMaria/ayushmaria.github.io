@@ -147,7 +147,6 @@ export const BUILDINGS = [
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
   { x: 46.3, z: 4.6, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose' },
-<<<<<<< ours
   // The sports quarter by the river (§2.14): the stadium and the pickleball
   // court share one heading, turned to follow the river's bend, and one
   // paved forecourt (ARENA_YARD) at the end of Arena Lane.
@@ -159,17 +158,6 @@ export const BUILDINGS = [
   // on the forecourt in line with the stadium's
   { x: 51.3, z: 36.4, w: 6.8, h: 1.2, d: 12.8, court: true,
     label: 'The Pickleball Court', project: 'volley', heading: SPORTS_HEADING },
-=======
-  // A small fenced pickleball court on the riverbank, long side along the
-  // water, gate at the end the court path comes in from.
-  { x: 60, z: 38, w: 6.8, h: 1.2, d: 12.8, court: true,
-    label: 'The Pickleball Court', project: 'volley', heading: Math.atan2(-0.365, 0.931) },
-  // An oval football stadium (stadium.js) at 1.35× its base size: stands,
-  // floodlights, a scoreboard and an xG shot map. Gate faces Arena Lane.
-  // w / d = stadiumFootprint(1.35).
-  { x: 36, z: 40.6, w: 18.5, h: 3, d: 14.4, stadium: true, stadiumScale: 1.35,
-    label: 'Prediction Colosseum', project: 'xg', heading: 0 },
->>>>>>> theirs
 
   // Hillside (inside the walls)
   { x: 0, z: -13.8, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
