@@ -21,6 +21,7 @@ import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
 import { buildTempleHall } from './temple.js';
 import { mergeStaticChildren } from './merge-static.js';
+import { KnockableProps } from './props-physics.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -1729,14 +1730,35 @@ function initTownWorld() {
     scene.add(mug);
   });
   
-  const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 12);
-  const barrelMat = new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 });
-  [[-17.8, 29.5], [-17.8, 30.6], [-16.9, 30.1]].forEach(([x,z]) => {
-    const barrel = new THREE.Mesh(barrelGeo, barrelMat);
-    barrel.position.set(x, 0.5, z);
-    scene.add(barrel);
+  // ── Knockable props (§2.11): barrels, crates, terrace chairs ──
+  // Not colliders: the cart shoves them (and loses a little speed), they
+  // slide, spin, wobble and bounce off buildings / trees / each other.
+  // One InstancedMesh per kind (see props-physics.js).
+  const knockables = new KnockableProps(scene, {
+    colliders,
+    reducedMotion: REDUCED_MOTION,
+    materials: {
+      barrel: new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 }),
+      crate:  propMaterials().woodDoor,
+      chair:  new THREE.MeshStandardMaterial({ color: 0x7a4e2d, roughness: 0.85 }),
+    },
+    onHit: (strength) => audioSys.playThud(strength * 0.6),
   });
-  colliders.push({ circle: true, x: -17.5, z: 30, r: 1.1 });
+  // Barrels by the tavern's west wall
+  [[-17.9, 29.4], [-17.9, 30.5], [-17.1, 31.2]].forEach(([x, z]) => knockables.add('barrel', x, z, Math.random() * 6));
+  // Crates beside two of the market stalls
+  [[-12.7, 19.1], [-13.5, 19.9], [-12.5, 20.0], [12.4, 32.9], [12.8, 31.9]].forEach(([x, z]) =>
+    knockables.add('crate', x, z, (Math.random() - 0.5) * 0.6));
+  // Two chairs at each terrace table, facing it
+  TABLES.forEach(([tx, tz], i) => {
+    const seats = i === 2 ? [[0, 1.45], [1.45, 0]] : [[-1.45, 0], [1.45, 0]];
+    seats.forEach(([ox, oz]) => {
+      const x = tx + ox, z = tz + oz;
+      knockables.add('chair', x, z, Math.atan2(tx - x, tz - z));
+    });
+  });
+  knockables.build();
+  window._knockables = knockables;
 
   // ── Grass on open ground (after every collider exists) ───────
   // Roads, plaza, roundabout, ring road and anything solid are excluded.
@@ -2247,6 +2269,7 @@ function initTownWorld() {
     // Cart
     pollGamepad();
     cart.update(delta, colliders);
+    knockables.update(delta, cart);
     updateTracks(elapsed);
     if (cart.justCollided) audioSys.playThud(cart.impact / 0.12);
     if (cart.boosting && !wasBoosting) audioSys.playWhoosh();

@@ -160,7 +160,7 @@
 - [x] **R** respawns at the nearest quarter spawn; **stuck detection** (3 s of throttle, < 0.5 units moved) shows an "⟲ Unstuck" button that does the same
 - [x] **Shift boost** — 1.6× top speed and pull, rising whoosh, louder rumble, double dust, camera eases back; touch has a hold-to-boost 💨 button
 - [x] **H** rings the cart bell
-- [ ] Knockable props (barrels, crates, tavern chairs) — simple push + friction
+- [x] **Knockable props** — `props-physics.js` (`KnockableProps`): 3 barrels by the tavern, 5 crates beside the market stalls and 6 terrace chairs. Ground-plane physics without an engine: the cart (oriented rectangle) shoves props with a mass-weighted impulse and loses matching speed; props slide with friction, spin, wobble upright on a spring, knock into each other and bounce off buildings, trees, lamps and the wall. Wooden thud on hard hits; no wobble under reduced motion. One `InstancedMesh` per kind (3 draw calls); sleeping props cost nothing
 - [x] **Interaction range** measured to the building's footprint (5 units from the wall, 7 for "visited"), rechecked only after moving 0.2 units
 - [x] **Prompt** fades in/out and shows the right control: E (keyboard), A / ✕ (Xbox / PlayStation pad), "Tap Enter" on touch (the ⚡ button is the action)
 - [x] **Gamepad** (standard mapping): left stick = point-to-drive; RT / LT = throttle / brake-reverse with left-stick steering; A/✕ enter, B/○ handbrake (closes a project card), X/□ bell, Y/△ respawn, LB/RB boost
