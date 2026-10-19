@@ -1311,12 +1311,66 @@ function initTownWorld() {
   sun.shadow.mapSize.set(PERF.shadowMap, PERF.shadowMap);
   sun.shadow.bias = -0.0008;      // tame acne stripes on the flat roads
   sun.shadow.normalBias = 0.05;
-  sun.shadow.camera.far   = 250;
-  sun.shadow.camera.left  = -80;
+  sun.shadow.camera.near  = 1;
+  sun.shadow.camera.far   = 320;
+  sun.shadow.camera.left  = -80;    // replaced every frame by fitShadowToView()
   sun.shadow.camera.right =  80;
   sun.shadow.camera.top   =  80;
   sun.shadow.camera.bottom = -80;
-  scene.add(sun);
+  scene.add(sun, sun.target);
+
+  // ── Shadow camera follows the view (task.md §2.2) ──────────
+  // The shadow map used to cover the whole 160×160 town, so most of its
+  // texels were spent on ground nobody was looking at. Now the light's
+  // orthographic box is fitted every frame to the patch of ground the
+  // camera actually sees (its four corner rays hit y = 0), in light space,
+  // plus a margin. A caster outside that patch whose shadow lands inside it
+  // shares the patch's light-space x/y, so it's still inside the box.
+  // The box size is quantised (no resizing every frame) and its centre is
+  // snapped to whole shadow-map texels so shadows don't shimmer as you drive.
+  const SUN_FROM = new THREE.Vector3(...EVENING.sun.position).normalize();   // toward the sun
+  const SUN_DIST = 160;
+  const lsZ = SUN_FROM.clone();                                               // light camera basis (as lookAt builds it)
+  const lsX = new THREE.Vector3(0, 1, 0).cross(lsZ).normalize();
+  const lsY = lsZ.clone().cross(lsX).normalize();
+  const _ray = new THREE.Vector3(), _hit = new THREE.Vector3(), _ctr = new THREE.Vector3();
+  const _ndc = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  let shadowHalf = { x: 0, y: 0 };
+  function fitShadowToView(focus) {
+    const cam = camera.position;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const take = (p) => {
+      const x = p.dot(lsX), y = p.dot(lsY);
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    };
+    for (const [nx, ny] of _ndc) {
+      _ray.set(nx, ny, 0.5).unproject(camera).sub(cam).normalize();
+      const t = _ray.y < -0.02 ? Math.min(-cam.y / _ray.y, 220) : 220;     // ground hit (or far, above the horizon)
+      take(_hit.copy(cam).addScaledVector(_ray, t));
+      take(_hit.y > 0 ? _hit.setY(0) : _hit);
+    }
+    take(_ctr.set(focus.x, 0, focus.z));
+    const MARGIN = 6, STEP = 4;
+    const hx = Math.ceil(((maxX - minX) / 2 + MARGIN) / STEP) * STEP;
+    const hy = Math.ceil(((maxY - minY) / 2 + MARGIN) / STEP) * STEP;
+    const sc = sun.shadow.camera;
+    if (hx !== shadowHalf.x || hy !== shadowHalf.y) {
+      shadowHalf = { x: hx, y: hy };
+      sc.left = -hx; sc.right = hx; sc.bottom = -hy; sc.top = hy;
+      sc.updateProjectionMatrix();
+    }
+    // centre of the patch in light space, snapped to shadow-map texels
+    const texX = (2 * hx) / sun.shadow.mapSize.x, texY = (2 * hy) / sun.shadow.mapSize.y;
+    const cx = Math.round(((minX + maxX) / 2) / texX) * texX;
+    const cy = Math.round(((minY + maxY) / 2) / texY) * texY;
+    // a world point with that light-space x/y, on the ground plane's depth line through the focus
+    const fz = _ctr.set(focus.x, 0, focus.z).dot(lsZ);
+    sun.target.position.set(0, 0, 0).addScaledVector(lsX, cx).addScaledVector(lsY, cy).addScaledVector(lsZ, fz);
+    sun.position.copy(sun.target.position).addScaledVector(SUN_FROM, SUN_DIST);
+    sun.target.updateMatrixWorld();
+  }
+  window._fitShadow = () => ({ half: { ...shadowHalf }, texelsPerUnit: sun.shadow.mapSize.x / (2 * shadowHalf.x) });
 
   // The 2D page's 🌙 theme toggle has no meaning inside the town now that
   // the light is fixed, so hide it while the town is up (sound toggle stays).
@@ -2302,6 +2356,7 @@ function initTownWorld() {
     followCam.update(cart, delta);
     updateOcclusion(delta);
     lightPool.update(followCam._focus);   // move the pooled lights to the sources nearest the view
+    fitShadowToView(followCam._focus);    // spend the shadow map on what's on screen
 
     // Labels
     labelSys.update(canvas.clientWidth, canvas.clientHeight, followCam._focus, followCam._dist);

@@ -59,7 +59,7 @@
 - [x] Sky dome gradient shader (dusk blue → peach horizon → pale gold)
 - [x] Lamps, window panes, tavern cone lights and clock faces lit at ~70 %
 - [x] Fireflies and crickets always on (evening ambience)
-- [ ] **Shadow map optimization** — Shadow camera should follow player viewport, not cover entire scene
+- [x] **Shadow map optimization** — `fitShadowToView()` in `town-world.js`: every frame the sun's orthographic shadow box is fitted (in light space) to the patch of ground the camera sees + a 6-unit margin, instead of the fixed 160×160 town. Size quantised to 4-unit steps, centre snapped to shadow-map texels (no shimmer while driving); off-screen casters whose shadows land on screen are still covered. Shadow detail: desktop 12.8 → 23–43 texels/unit, phone 6.4 → 8.5–18 (same map sizes)
 
 ## 2.3 Post-Processing (`post-processing.js`)
 - [x] `UnrealBloomPass` — Glowing lanterns, emissives, fireflies (0.42 / 0.5 / 0.88 for the evening)
