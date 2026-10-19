@@ -172,8 +172,10 @@ export const BUILDINGS = [
   // and six identical worker towers on a platform, wrapped in cloud
   { x: 20, z: -12, w: 7, h: 1, d: 7, citadel: true,
     label: 'Cloud Citadel', project: 'aws' },
-  { x: -40, z: -15.5, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,
-    label: 'Tiny Tots Academy', project: 'tinytots' },
+  // Tiny Tots Academy (tiny-tots.js): a storybook schoolhouse (local
+  // x > 0) with a fenced playground beside it (local x < 0), one plot
+  { x: -38.61, z: -13.13, w: 12.5, h: 3.4, d: 5.4, schoolhouse: true,
+    label: 'Tiny Tots Academy', project: 'tinytots', heading: 2.10 },
 
   // The Crest
   { x: -6, z: -39.6, w: 13.1, h: 5, d: 11.4, temple: true, templeScale: 0.78,

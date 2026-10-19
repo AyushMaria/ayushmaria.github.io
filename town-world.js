@@ -34,6 +34,7 @@ import { buildCitadel } from './cloud-citadel.js';
 import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
 import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
 import { buildCountingHouse } from './counting-house.js';
+import { buildTinyTots } from './tiny-tots.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -518,8 +519,48 @@ function makeCountingHouseBuilding(o) {
   return g;
 }
 
+// Tiny Tots Academy: storybook schoolhouse + playground (tiny-tots.js)
+function makeSchoolBuilding(o) {
+  const g = new THREE.Group();
+  const tt = buildTinyTots(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(tt.group);
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.1, 2.8, o.d - 0.3), propMaterials().stoneDark);
+  skirt.position.y = -1.42;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = tt.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.set(2.75, roofTop + 1.5, 0);
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  const local = new THREE.Vector3();
+  animatedProps.push({ update: (t) => {
+    const cart = window._cart;
+    tt.update(t, cart ? g.worldToLocal(local.copy(cart.position)) : null);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  const h = o.heading || 0;
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = h;
+  g.updateMatrixWorld(true);
+  g.userData.body = tt.group.children[0];
+  const lp = tt.glow.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), h);
+  lightSources.push({ pos: new THREE.Vector3(o.x + lp.x, (o.y || 0) + lp.y, o.z + lp.z), color: new THREE.Color(0xffc27a), intensity: 0.8, distance: 10 });
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.schoolhouse) return makeSchoolBuilding(o);
   if (o.countingHouse) return makeCountingHouseBuilding(o);
   if (o.parlour) return makeParlourBuilding(o);
   if (o.forge) return makeForgeBuilding(o);
@@ -1863,7 +1904,9 @@ function initTownWorld() {
       npcAt('Concierge Parlour', 1.6, 1.6, 1),
       npcAt('Adventurer Stats', -1.4, 1.6, 0),
       npcAt('Ledger Sanctum', 1.8, 1.4, 2),
-      npcAt('Tiny Tots Academy', -1.7, 1.6, 2),
+      npcAt('Tiny Tots Academy', 1.4, 1.9, 2),                // by the school door
+      npcAt('Tiny Tots Academy', -3.0, -2.2, 2),              // kids in the playground
+      npcAt('Tiny Tots Academy', -4.6, -3.9, 2),
       npcAt('City Hall', -4.6, 1.4, 1),
       npcAt('City Hall', 4.8, 2.4, 0),
       npcAt('The Forge', 2.1, 1.6, 1),
