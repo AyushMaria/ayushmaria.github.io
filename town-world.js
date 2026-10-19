@@ -24,10 +24,11 @@ import { buildTempleHall } from './temple.js';
 import { mergeStaticChildren } from './merge-static.js';
 import { KnockableProps } from './props-physics.js';
 import { standardMat, sharedMaterialCount, OCCLUSION_CUT } from './materials.js';
-import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, FAN_SQUARE, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
+import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, FAN_SQUARE, NAV_LOOP, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
 import { buildTerrain, buildWater, buildBridge } from './terrain.js';
 import { buildStadium } from './stadium.js';
 import { buildFanSquare } from './fan-square.js';
+import { buildControlTower, buildDrone, buildWaypointFlag } from './control-tower.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -295,8 +296,48 @@ function makeStadiumBuilding(o) {
   return g;
 }
 
+// Navigator's Tower: an airfield control tower (control-tower.js)
+function makeControlTowerBuilding(o) {
+  const g = new THREE.Group();
+  const tw = buildControlTower(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(tw.group);
+  // stone footing for where the slope falls away
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.3, 2.6, 8), propMaterials().stoneDark);
+  skirt.rotation.y = Math.PI / 8;
+  skirt.position.y = -1.29;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = tw.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    tw.update(t);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = tw.group.children[1];
+  o._windsock = tw.windsock.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), o.heading || 0).add(new THREE.Vector3(o.x, 0, o.z));
+  // the cab's warm glow for the shared light pool
+  const lp = tw.cabLight.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), o.heading || 0);
+  lightSources.push({ pos: new THREE.Vector3(o.x + lp.x, (o.y || 0) + lp.y, o.z + lp.z), color: new THREE.Color(0xffb35c), intensity: 1.2, distance: 12 });
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.controlTower) return makeControlTowerBuilding(o);
   if (o.court) return makeCourtBuilding(o);
   if (o.stadium) return makeStadiumBuilding(o);
   const g = new THREE.Group();
@@ -1362,6 +1403,7 @@ function initTownWorld() {
     // the stadium is oval, so it gets an elliptical one
     colliders.push(o.stadium ? ellipse(o.x, o.z, o.w / 2, o.d / 2, o.heading)
                              : obb(o.x, o.z, o.w / 2 + 0.15, o.d / 2 + 0.15, o.heading));
+    if (o._windsock) colliders.push({ circle: true, x: o._windsock.x, z: o._windsock.z, r: 0.25 });
   });
   buildShutters(scene);
   const wallLanterns = buildWallLanterns(scene, wallLanternSlots, {
@@ -1664,6 +1706,28 @@ function initTownWorld() {
     });
     const fan = buildFanSquare(scene, FAN_SQUARE, groundAt);
     colliders.push(...fan.colliders);
+  }
+
+  // Navigator's Tower: waypoint flags on the slope and the drone flying the loop
+  {
+    for (const [x, z] of NAV_LOOP.flags) {
+      const f = buildWaypointFlag();
+      f.position.set(x, groundAt(x, z), z);
+      f.rotation.y = Math.atan2(x + 34, z + 31.4);           // pennants point away from the tower
+      mergeStaticChildren(f);
+      scene.add(f);
+      colliders.push({ circle: true, x, z, r: 0.25 });
+    }
+    // fly at a steady height above the ground under the loop (smoothed)
+    const raw = NAV_LOOP.pts.map(([x, z]) => groundAt(x, z) + NAV_LOOP.fly);
+    const pts = NAV_LOOP.pts.map(([x, z], i) => {
+      const n = raw.length, y = (raw[(i + n - 1) % n] + 2 * raw[i] + raw[(i + 1) % n]) / 4;
+      return [x, y, z];
+    });
+    const drone = buildDrone(pts, { reducedMotion: REDUCED_MOTION });
+    scene.add(drone.group);
+    animatedProps.push({ update: (t) => drone.update(t) });
+    window._drone = drone;
   }
 
   // Glowing Rune Circle & Floating Books round the Observatory

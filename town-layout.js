@@ -172,9 +172,23 @@ export const BUILDINGS = [
     label: 'City Hall', project: 'about', heading: 0 },
   { x: 16.5, z: -30, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
     roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', heading: 0 },
-  { x: -34, z: -31.4, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,
+  // An airfield-style control tower (control-tower.js) for a drone ground
+  // control station: glazed cab, radar, mast; a drone flies NAV_LOOP
+  { x: -34, z: -31.4, w: 4.2, h: 11.5, d: 4.2, controlTower: true,
     label: "Navigator's Tower", project: 'instillgcs', heading: 0 },
 ];
+
+/**
+ * Navigator's Tower: the waypoint loop its drone flies (closed, through
+ * these points, `fly` above the ground) and the orange waypoint flags on
+ * the slope below it. The loop swings out over the stream and back past
+ * the tower's south face.
+ */
+export const NAV_LOOP = {
+  pts: [[-38.6, -35.6], [-39.8, -39.6], [-33, -43.2], [-26, -40], [-26.8, -35.6], [-30.5, -33.4], [-34.5, -34.8]],
+  fly: 5.8,
+  flags: [[-39.2, -36.8], [-33, -43.2], [-26, -40]],
+};
 
 /** Townhouses placed by hand (the rest are generated along the streets). */
 export const EXTRA_HOUSES = [];
