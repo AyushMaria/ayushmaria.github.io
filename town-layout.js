@@ -124,8 +124,10 @@ export const BUILDINGS = [
   // water, gate at the end the court path comes in from.
   { x: 60, z: 38, w: 6.8, h: 1.2, d: 12.8, court: true,
     label: 'The Pickleball Court', project: 'volley', heading: Math.atan2(-0.365, 0.931) },
-  { x: 44.5, z: 43.5, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
-    roofSegs: 8, label: 'Prediction Colosseum', project: 'xg' },
+  // A small oval football stadium (stadium.js): stands, floodlights, a
+  // scoreboard and an xG shot map on the pitch. Gate faces Arena Lane.
+  { x: 44.5, z: 41.4, w: 13.4, h: 2.6, d: 10.4, stadium: true,
+    label: 'Prediction Colosseum', project: 'xg', heading: 0 },
 
   // Hillside (inside the walls)
   { x: 0, z: -13.8, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
@@ -142,6 +144,12 @@ export const BUILDINGS = [
     roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', heading: 0 },
   { x: -34, z: -31.4, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,
     label: "Navigator's Tower", project: 'instillgcs', heading: 0 },
+];
+
+/** Townhouses placed by hand (the rest are generated along the streets). */
+export const EXTRA_HOUSES = [
+  // north side of Arena Lane, filling the gap west of the two houses there
+  { x: 26.4, z: 43.5, w: 4.2, d: 4.2, heading: 0, storeys: 2, h: 5.8, ridgeAlong: 'front', tint: 2, roofTint: 1, chimney: true, chimneySide: 1 },
 ];
 
 /** Clock tower: on the crest behind City Hall, the town's skyline mark. */
@@ -511,6 +519,8 @@ export function buildLayout({ res = 1 } = {}) {
     return false;
   };
   L.houses = [];
+  // hand-placed houses first (they also skip the open-ground rules below)
+  for (const e of EXTRA_HOUSES) { const h = { ...e }; L.houses.push(h); footprints.push(h); }
   const HOUSE_ROADS = { street: 6.4, lowerLane: 6.8, arenaLane: 7, towerLane: 6.6 };
   for (const r of L.roads) {
     const spacing = HOUSE_ROADS[r.key];

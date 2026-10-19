@@ -26,6 +26,7 @@ import { KnockableProps } from './props-physics.js';
 import { standardMat, sharedMaterialCount, OCCLUSION_CUT } from './materials.js';
 import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
 import { buildTerrain, buildWater, buildBridge } from './terrain.js';
+import { buildStadium } from './stadium.js';
 import { obb, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -253,9 +254,50 @@ function makeCourtBuilding(o) {
   return g;
 }
 
+// The Prediction Colosseum: a small football stadium (stadium.js)
+function makeStadiumBuilding(o) {
+  const g = new THREE.Group();
+  const st = buildStadium(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(st.group);
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2.6, 40), propMaterials().stoneDark);
+  skirt.scale.set(o.w / 2 + 0.1, 1, o.d / 2 + 0.1);
+  skirt.position.y = -1.25;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = st.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  let last;
+  animatedProps.push({ update: (t) => {
+    const dt = last === undefined ? 0 : Math.min(0.1, t - last);
+    last = t;
+    st.update(t, dt);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = st.group.children[0];
+  // floodlights: one cool-white source for the shared light pool
+  const lp = st.light.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), o.heading || 0);
+  lightSources.push({ pos: new THREE.Vector3(o.x + lp.x, (o.y || 0) + lp.y, o.z + lp.z), color: new THREE.Color(0xe8eeff), intensity: 1.5, distance: 16 });
+  o.roofTop = roofTop;
+  o.roofH = 0;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
   if (o.court) return makeCourtBuilding(o);
+  if (o.stadium) return makeStadiumBuilding(o);
   const g = new THREE.Group();
   const tudor = isTudorBuilding(o);
   const M = propMaterials();
