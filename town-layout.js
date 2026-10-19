@@ -143,8 +143,10 @@ export const BUILDINGS = [
   // Lower Town (between the bridge and the walls)
   { x: 10, z: 29.6, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
     label: 'Adventurer Stats', project: null },
-  { x: -16, z: 56.5, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
-    roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
+  // Ace's Concierge Parlour (concierge-parlour.js): an emerald octagonal
+  // pavilion under a verdigris dome, a chat-bubble lantern on the cupola
+  { x: -16, z: 56.5, w: 6.2, h: 5, d: 6.2, parlour: true,
+    label: 'Concierge Parlour', project: 'ace' },
   // The Drone Forge (drone-forge.js): a Tudor forge with a flat-roofed
   // workshop wing, its doors open on a drone bench and a landing pad on top
   { x: 46.8, z: 4.4, w: 8.4, h: 5.6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,

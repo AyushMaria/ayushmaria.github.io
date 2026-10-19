@@ -32,6 +32,7 @@ import { buildControlTower, buildDrone, buildWaypointFlag } from './control-towe
 import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from './vortex-observatory.js';
 import { buildCitadel } from './cloud-citadel.js';
 import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
+import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -440,8 +441,48 @@ function makeForgeBuilding(o) {
   return parent;
 }
 
+// Ace's Concierge Parlour: octagonal pavilion, chat-bubble lantern (concierge-parlour.js)
+function makeParlourBuilding(o) {
+  const g = new THREE.Group();
+  const pl = buildParlour(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(pl.group);
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(3.05, 3.15, 2.6, 8), propMaterials().stoneDark);
+  skirt.rotation.y = Math.PI / 8;
+  skirt.position.y = -1.29;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = pl.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    pl.update(t);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  const h = o.heading || 0, hc = Math.cos(h), hs = Math.sin(h);
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = h;
+  g.userData.body = pl.group.children[0];
+  // the bubble lantern glows down the street
+  lightSources.push({ pos: new THREE.Vector3(o.x, (o.y || 0) + pl.lantern.y, o.z), color: new THREE.Color(0xc8ffd8), intensity: 0.9, distance: 12 });
+  // the booking board stands just outside the plot
+  o._extraColliders = [{ circle: true, x: o.x + PARLOUR_BOARD.x * hc + PARLOUR_BOARD.z * hs, z: o.z - PARLOUR_BOARD.x * hs + PARLOUR_BOARD.z * hc, r: 0.85 }];
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.parlour) return makeParlourBuilding(o);
   if (o.forge) return makeForgeBuilding(o);
   if (o.citadel) return makeCitadelBuilding(o);
   if (o.observatory) return makeObservatoryBuilding(o);
