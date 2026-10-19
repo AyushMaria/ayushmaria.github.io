@@ -14,7 +14,7 @@ import { Achievements } from './achievements.js';
 import { cobbleTexture, plasterTexture, stoneTexture, windowTexture } from './textures.js';
 import {
   propMaterials, gableRoofGeometry, buildPathWall, buildClockTower,
-  buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
+  buildTrees, buildLandingTrees, buildBushes, buildWildFlowers, foliageMaterials,
   buildClouds, buildMountains, buildStall, buildFountain, buildWallLanterns,
   buildTownhouses, buildMillWheel, buildPickleballCourt,
 } from './town-props.js';
@@ -64,8 +64,8 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  terrainRes: 1,   maskRes: 2048, lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, terrainRes: 1.4, maskRes: 1024, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  terrainRes: 1,   maskRes: 2048, lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true, forest: 1 },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, terrainRes: 1.4, maskRes: 1024, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false, forest: 0.6 },
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -1807,12 +1807,12 @@ function initTownWorld() {
   const lightPool = createLightPool(scene, PERF.lightPool);
   window._lightPool = lightPool;
 
-  // ── Trees (leaf-card crowns, one InstancedMesh per species) ──
-  // Scattered by town-layout.js: gardens inside the walls, orchards and
-  // copses on the slopes, birches to the east, willows-ish greens by the river.
+  // ── The forest (§2.15) ──────────────────────────────────────
+  // The landing page's tiered cedars and red maples, scattered densely by
+  // town-layout.js over every open space (clearings round roads, squares,
+  // buildings and houses), drawn tile by tile so off-screen tiles are culled.
   const SUN_DIR = new THREE.Vector3(...EVENING.sun.position).normalize();
-  const TREES = LAYOUT.trees.map(t => [t.x, t.z, t.s, t.species]);
-  const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards, heightAt: groundAt });
+  const trees = buildLandingTrees(scene, LAYOUT.trees, { heightAt: groundAt, keep: PERF.forest });
   colliders.push(...trees.colliders);
 
   // ── Rocks (round the pools, the spring, the falls and the river) ──

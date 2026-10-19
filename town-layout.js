@@ -823,24 +823,68 @@ export function buildLayout({ res = 1 } = {}) {
     return true;
   };
   L.freeGround = freeGround;
+  // ── The forest (§2.15): landing-page cedars and maples filling every
+  // open space, with clearings round roads, squares, buildings, houses and
+  // the drone's flight path. A jittered grid keeps it dense but even; a
+  // spatial hash answers "any tree near here?" for the later scatters.
   L.trees = [];
-  const treeOk = (x, z, r) => freeGround(x, z, r) && L.trees.every(t => Math.hypot(t.x - x, t.z - z) > 3.4);
-  for (let tries = 0; tries < 9000 && L.trees.length < 175; tries++) {
-    const x = (rng() * 2 - 1) * 112, z = (rng() * 2 - 1) * 112;
-    const inWall = insideWall(x, z, -2);
-    const far = Math.hypot(x - WORLD.playX, z - WORLD.playZ);
-    const keep = inWall ? 0.16 : far > WORLD.playR + 6 ? 0.55 : (z > 20 && z < 64 ? 0.35 : 0.8);
-    if (rng() > keep) continue;
-    if (!treeOk(x, z, 1.3)) continue;
-    const sp = inWall ? (rng() < 0.5 ? 'cherry' : 'green')
-      : z > 64 ? (rng() < 0.6 ? 'green' : 'oak')
-      : x > 30 ? (rng() < 0.6 ? 'birch' : 'green')
-      : z < -30 ? (rng() < 0.65 ? 'oak' : 'green')
-      : (rng() < 0.5 ? 'green' : rng() < 0.5 ? 'oak' : 'cherry');
-    L.trees.push({ x, z, s: 0.82 + rng() * 0.6, species: sp });
+  const TCELL = 4, treeHash = new Map();
+  const tkey = (x, z) => Math.floor(x / TCELL) + ',' + Math.floor(z / TCELL);
+  const treeNear = (x, z, d) => {
+    const cx = Math.floor(x / TCELL), cz = Math.floor(z / TCELL), k = Math.ceil(d / TCELL);
+    for (let i = -k; i <= k; i++) for (let j = -k; j <= k; j++) {
+      const list = treeHash.get((cx + i) + ',' + (cz + j));
+      if (list) for (const t of list) if (Math.hypot(t.x - x, t.z - z) < d) return true;
+    }
+    return false;
+  };
+  L.treeNear = treeNear;
+  {
+    const navLoop = { pts: NAV_LOOP.pts.map(([x, z]) => ({ x, z })) };
+    const nearLoop = (x, z, d) => {
+      const P = navLoop.pts;
+      for (let i = 0; i < P.length; i++) {
+        const a = P[i], b2 = P[(i + 1) % P.length];
+        const dx = b2.x - a.x, dz = b2.z - a.z, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
+        if (Math.hypot(a.x + dx * t - x, a.z + dz * t - z) < d) return true;
+      }
+      return false;
+    };
+    const forestOk = (x, z) => {
+      if (!freeGround(x, z, 0.9)) return false;
+      for (const r of [...L.roads, ...L.paths]) if (pathDist(r.path, x, z, r.hw + 3.2) < r.hw + 3.2) return false;
+      for (const b of L.buildings) if (rectDist(x, z, b) < 3.6) return false;
+      for (const h of L.houses) if (Math.abs(h.x - x) < 9 && Math.abs(h.z - z) < 9 && rectDist(x, z, h) < 1.9) return false;
+      for (const pl of L.plazas) if (pointInPoly(x, z, pl.pts) || polyEdgeDist(x, z, pl.pts) < 2.2) return false;
+      for (const g of L.wall.gaps) if (Math.hypot(x - g.x, z - g.z) < 7) return false;
+      if (nearLoop(x, z, 3.4)) return false;
+      for (const [fx, fz] of NAV_LOOP.flags) if (Math.hypot(fx - x, fz - z) < 1.6) return false;
+      return true;
+    };
+    const STEP = 2.75;
+    for (let gz = -112; gz <= 112; gz += STEP) {
+      for (let gx = -112; gx <= 112; gx += STEP) {
+        const x = gx + (rng() - 0.5) * STEP * 0.85, z = gz + (rng() - 0.5) * STEP * 0.85;
+        const roll = rng(), size = rng();
+        const farOut = Math.hypot(x - WORLD.playX, z - WORLD.playZ);
+        if (farOut > 118) continue;
+        if (farOut > WORLD.playR + 12 && roll > 0.62) continue;     // thinner beyond the play area: seen only from afar
+        if (!forestOk(x, z) || treeNear(x, z, 2.35)) continue;
+        const inWall = insideWall(x, z, -2);
+        const nearRoad = L.roadClear(x, z) < 7;
+        // smaller trees inside the walls and along the streets, big ones in the woods
+        const s = inWall || nearRoad ? 0.68 + size * 0.36 : 0.82 + size * 0.55;
+        const species = roll < (inWall ? 0.3 : 0.16) ? 'maple' : 'cedar';
+        const t = { x, z, s, species };
+        L.trees.push(t);
+        const k = tkey(x, z);
+        if (!treeHash.has(k)) treeHash.set(k, []);
+        treeHash.get(k).push(t);
+      }
+    }
   }
   L.bushes = [];
-  const bushOk = (x, z) => freeGround(x, z, 0.4) && L.trees.every(t => Math.hypot(t.x - x, t.z - z) > 2) && L.bushes.every(b => Math.hypot(b.x - x, b.z - z) > 1.4);
+  const bushOk = (x, z) => freeGround(x, z, 0.4) && !treeNear(x, z, 2) && L.bushes.every(b => Math.hypot(b.x - x, b.z - z) > 1.4);
   // beside the door of every portfolio building
   for (const b of L.buildings) {
     if (b.temple) continue;
@@ -885,7 +929,7 @@ export function buildLayout({ res = 1 } = {}) {
   for (let tries = 0; tries < 2000 && L.flowers.length < 34; tries++) {
     const x = WORLD.playX + (rng() * 2 - 1) * 70, z = WORLD.playZ + (rng() * 2 - 1) * 70;
     if (Math.hypot(x - WORLD.playX, z - WORLD.playZ) > WORLD.playR - 3) continue;
-    if (freeGround(x, z, 1.6) && L.trees.every(t => Math.hypot(t.x - x, t.z - z) > 2.6)) L.flowers.push({ x, z });
+    if (freeGround(x, z, 1.6) && !treeNear(x, z, 2.6)) L.flowers.push({ x, z });
   }
 
   // ── Spawns for fast travel / respawn ──────────────────────────

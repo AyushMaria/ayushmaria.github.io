@@ -438,6 +438,96 @@ export function buildTrees(scene, places, { sunDir, cards = 80, heightAt = () =>
 }
 
 /**
+ * The forest (§2.15): the landing page's trees — tiered cedars and red
+ * maples, flat-shaded low-poly — in the town's evening tones. Trees are
+ * bucketed into square tiles, each tile one InstancedMesh per part
+ * (cedar crowns, maple crowns, trunks) with its own bounds, so the camera
+ * and the shadow map only draw the tiles they can see. The crowns take
+ * part in the occlusion cut, so a tree between the camera and the cart
+ * dithers away instead of hiding it.
+ * @param trees [{ x, z, s, species: 'cedar' | 'maple' }]
+ * @returns {{ group, colliders }}
+ */
+export function buildLandingTrees(scene, trees, { heightAt = () => 0, tile = 64, keep = 1 } = {}) {
+  const rng = seededRng(42);
+  const vc = (geo, hex) => {
+    const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(a, 3));
+    return geo;
+  };
+  const prep = (g) => { const n = g.index ? g.toNonIndexed() : g; if (n.attributes.uv) n.deleteAttribute('uv'); return n; };
+  // the trunk is baked into each tree, so a tree is one mesh with one material
+  const trunk = (r0, r1, h) => { const t = prep(new THREE.CylinderGeometry(r0, r1, h, 6, 1, true)); t.translate(0, h / 2, 0); return vc(t, 0x4a3326); };
+  // cedar: four stacked 7-sided cones, alternating dark / light (as on the landing page)
+  const cedarParts = [trunk(0.18, 0.26, 2.3)];
+  for (let k = 0; k < 4; k++) {
+    const rad = 1.9 - k * 0.38, h = 2.6 - k * 0.3;
+    const c = prep(new THREE.ConeGeometry(rad, h, 7, 1, true));                 // open: the base is never seen
+    c.rotateY(rng() * Math.PI);
+    c.translate(0, 1.8 + k * 1.45 + h / 2, 0);
+    cedarParts.push(vc(c, k % 2 ? 0x3f7048 : 0x2f5c3b));
+  }
+  const cedarGeo = mergeBufferGeometries(cedarParts);
+  // maple: a cluster of five icosahedra in two reds on a slimmer trunk
+  const mapleParts = [trunk(0.14, 0.2, 2.6)];
+  for (let k = 0; k < 5; k++) {
+    const b = prep(new THREE.IcosahedronGeometry(0.9 + rng() * 0.6, 0));
+    b.translate((rng() - 0.5) * 2, 2.6 + rng() * 1.3, (rng() - 0.5) * 2);
+    mapleParts.push(vc(b, k % 2 ? 0xd2582a : 0xb43a26));
+  }
+  const mapleGeo = mergeBufferGeometries(mapleParts);
+  const mat = withOcclusionCut(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true }));
+
+  const group = new THREE.Group();
+  const colliders = [];
+  const tiles = new Map();
+  trees.forEach((t, i) => {
+    if (keep < 1 && ((i * 2654435761) >>> 0) % 1000 >= keep * 1000) return;   // thinner forest on low tier
+    const k = Math.floor(t.x / tile) + ',' + Math.floor(t.z / tile);
+    if (!tiles.has(k)) tiles.set(k, []);
+    tiles.get(k).push(t);
+    colliders.push({ circle: true, x: t.x, z: t.z, r: 0.42 * t.s });
+  });
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const col = new THREE.Color();
+  for (const list of tiles.values()) {
+    // a per-tile view of the shared geometry (same GPU buffers) that carries
+    // the tile's bounds — r150 culls instanced meshes by geometry bounds
+    const sphere = new THREE.Sphere(), bb = new THREE.Box3();
+    const view = (src) => {
+      const g = new THREE.BufferGeometry();
+      for (const [name, attr] of Object.entries(src.attributes)) g.setAttribute(name, attr);
+      g.boundingSphere = sphere;
+      return g;
+    };
+    for (const [species, geo] of [['cedar', cedarGeo], ['maple', mapleGeo]]) {
+      const l = list.filter(t => (t.species === 'maple') === (species === 'maple'));
+      if (!l.length) continue;
+      const im = new THREE.InstancedMesh(view(geo), mat, l.length);
+      im.castShadow = true; im.receiveShadow = true;
+      l.forEach((t, j) => {
+        const y = heightAt(t.x, t.z) - 0.12;
+        q.setFromAxisAngle(Y, (t.x * 12.9898 + t.z * 78.233) % 6.283);
+        const lean = 1 + ((((t.x * 7.1 + t.z * 3.3) % 1) + 1) % 1) * 0.12;          // a little height variety
+        m.compose(p.set(t.x, y, t.z), q, sc.set(t.s, t.s * lean, t.s));
+        im.setMatrixAt(j, m);
+        const h = (((t.x * 0.37 + t.z * 0.61) % 1) + 1) % 1;                         // per-tree tint
+        im.setColorAt(j, col.setRGB(0.88 + h * 0.2, 0.9 + h * 0.18, 0.88 + h * 0.16));
+        bb.expandByPoint(p.set(t.x - 2.6 * t.s, y, t.z - 2.6 * t.s));
+        bb.expandByPoint(p.set(t.x + 2.6 * t.s, y + 9.5 * t.s, t.z + 2.6 * t.s));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      group.add(im);
+    }
+    bb.getBoundingSphere(sphere);
+  }
+  scene.add(group);
+  return { group, colliders };
+}
+
+/**
  * Bushes: the same crown geometry/material with no trunk, sitting on the
  * ground. `places` = [[x, z, scale, species], ...]
  */
