@@ -31,6 +31,7 @@ import { buildFanSquare } from './fan-square.js';
 import { buildControlTower, buildDrone, buildWaypointFlag } from './control-tower.js';
 import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from './vortex-observatory.js';
 import { buildCitadel } from './cloud-citadel.js';
+import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -407,8 +408,41 @@ function makeCitadelBuilding(o) {
   return g;
 }
 
+// The Drone Forge: the usual Tudor hall (chimney and all) plus a workshop
+// wing with a landing pad, and a drone that takes off from it (drone-forge.js)
+function makeForgeBuilding(o) {
+  const parent = new THREE.Group();
+  const h = o.heading || 0, hc = Math.cos(h), hs = Math.sin(h), baseY = o.y || 0;
+  const toWorld = (v) => new THREE.Vector3(o.x + v.x * hc + v.z * hs, baseY + v.y, o.z - v.x * hs + v.z * hc);
+  // the gabled hall: a normal Tudor building on the left half of the plot
+  const hall = { ...o, forge: false, noSign: true, w: HALL.w, x: o.x + HALL.cx * hc, z: o.z - HALL.cx * hs };
+  const hallGroup = makeBuilding(hall);
+  parent.add(hallGroup);
+  // the workshop wing, in the whole building's frame
+  const wing = buildForgeWing(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  wing.group.position.set(o.x, baseY, o.z);
+  wing.group.rotation.y = h;
+  parent.add(wing.group);
+  // the pad drone
+  const drone = buildDrone(null, { path: forgeFlight(toWorld, h), scale: 1.3, reducedMotion: REDUCED_MOTION });
+  parent.add(drone.group);
+  animatedProps.push({ update: (t) => { wing.update(t); drone.update(t); } });
+  // warm glow from the open doors
+  lightSources.push({ pos: toWorld(wing.glow), color: new THREE.Color(0xff8a3a), intensity: 1.0, distance: 10 });
+  // easel and crates stand just outside the plot
+  o._extraColliders = [[5.1, 1.4, 0.55], [4.8, -0.95, 0.75]].map(([x, z, r]) => { const w = toWorld(new THREE.Vector3(x, 0, z)); return { circle: true, x: w.x, z: w.z, r }; });
+  parent.userData.marker = hallGroup.userData.marker;
+  parent.userData.body = hallGroup.userData.body;
+  o.roofTop = hall.roofTop;
+  o.roofH = hall.roofH;
+  o._chimneyTop = hall._chimneyTop;
+  window._forgeDrone = drone;
+  return parent;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.forge) return makeForgeBuilding(o);
   if (o.citadel) return makeCitadelBuilding(o);
   if (o.observatory) return makeObservatoryBuilding(o);
   if (o.controlTower) return makeControlTowerBuilding(o);
@@ -623,7 +657,7 @@ function makeBuilding(o) {
   }
 
   // ── Hanging animated sign (Phase 2.5) ────────────────────────
-  if (o.label === 'The Tavern' || o.label === 'The Forge') {
+  if ((o.label === 'The Tavern' || o.label === 'The Forge') && !o.noSign) {
     const isTavern = o.label === 'The Tavern';
     const sPivot = new THREE.Group();
     sPivot.position.set(o.w / 2 + 0.1, storeyH * 1.05, frontZ - 0.6);
@@ -1478,6 +1512,7 @@ function initTownWorld() {
     colliders.push(o.stadium ? ellipse(o.x, o.z, o.w / 2, o.d / 2, o.heading)
                              : obb(o.x, o.z, o.w / 2 + 0.15, o.d / 2 + 0.15, o.heading));
     if (o._windsock) colliders.push({ circle: true, x: o._windsock.x, z: o._windsock.z, r: 0.25 });
+    if (o._extraColliders) colliders.push(...o._extraColliders);
   });
   buildShutters(scene);
   const wallLanterns = buildWallLanterns(scene, wallLanternSlots, {

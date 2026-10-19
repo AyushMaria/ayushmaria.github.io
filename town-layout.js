@@ -145,8 +145,10 @@ export const BUILDINGS = [
     label: 'Adventurer Stats', project: null },
   { x: -16, z: 56.5, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
-  { x: 46.3, z: 4.6, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
-    chimney: true, label: 'The Forge', project: 'mavpose' },
+  // The Drone Forge (drone-forge.js): a Tudor forge with a flat-roofed
+  // workshop wing, its doors open on a drone bench and a landing pad on top
+  { x: 46.8, z: 4.4, w: 8.4, h: 5.6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
+    chimney: true, forge: true, label: 'The Forge', project: 'mavpose', heading: 0.34 },
   // The sports quarter by the river (§2.14): the stadium and the pickleball
   // court share one heading, turned to follow the river's bend, and one
   // paved forecourt (ARENA_YARD) at the end of Arena Lane.

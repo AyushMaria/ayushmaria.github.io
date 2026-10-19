@@ -256,9 +256,9 @@ export function buildWaypointFlag() {
  * banking into the turns, rotors spinning, nav lights blinking.
  * @returns {{ group: THREE.Group, update(t:number): void }}
  */
-export function buildDrone(pts, { period = 28, reducedMotion = false } = {}) {
+export function buildDrone(pts, { period = 28, reducedMotion = false, path = null, scale = 1.5 } = {}) {
   const g = new THREE.Group();
-  const S = 1.5;                                  // scale up so it reads from the iso camera
+  const S = scale;                                // scaled up so it reads from the iso camera
   const bodyMat = standardMat({ color: 0xd8462f, roughness: 0.5 }, 'droneBody');
   const dark = standardMat({ color: 0x2b2b30, roughness: 0.6 }, 'droneDark');
   const frame = [];
@@ -294,7 +294,7 @@ export function buildDrone(pts, { period = 28, reducedMotion = false } = {}) {
   }
   g.add(craft);
 
-  const curve = new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)), true, 'centripetal');
+  const curve = pts ? new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)), true, 'centripetal') : null;
   const p = new THREE.Vector3(), ahead = new THREE.Vector3(), behind = new THREE.Vector3();
   const place = (u) => {
     curve.getPointAt(u, p);
@@ -307,15 +307,24 @@ export function buildDrone(pts, { period = 28, reducedMotion = false } = {}) {
     let turn = yaw - yawB; turn = Math.atan2(Math.sin(turn), Math.cos(turn));
     craft.rotation.set(0.12, yaw, THREE.MathUtils.clamp(-turn * 4, -0.45, 0.45), 'YXZ');
   };
-  place(0);
+  // `path(t)` (optional) flies a scripted route instead of the loop:
+  // returns { pos: Vector3, yaw, pitch, bank, flying }
+  let flying = true;
+  const follow = (t) => {
+    const s = path(t);
+    g.position.copy(s.pos);
+    craft.rotation.set(s.pitch || 0, s.yaw || 0, s.bank || 0, 'YXZ');
+    flying = s.flying !== false;
+  };
+  if (path) follow(0); else place(0);
   return {
     group: g,
     position: g.position,
     update(t) {
       if (!reducedMotion) {
-        place((t / period) % 1);
-        craft.position.y = Math.sin(t * 2.1) * 0.06;
-        for (const r of rotors) r.rotation.y = t * 40;
+        if (path) follow(t); else place((t / period) % 1);
+        craft.position.y = flying ? Math.sin(t * 2.1) * 0.06 : 0;
+        if (flying) for (const r of rotors) r.rotation.y = t * 40;
       }
       const s = t % 1.2;
       strobe.emissiveIntensity = s < 0.08 ? 4 : 0.2;
