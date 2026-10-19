@@ -54,10 +54,12 @@ export const ROADS = [
     [6, -27], [12, -24.5], [16, -25.5] ] },
 ];
 
-/** Footpaths (dirt and stone, drivable): steps up the hill, path to the mill. */
+/** Footpaths (dirt and stone, drivable): steps up the hill, path to the mill, path to the court. */
 export const PATHS = [
   { key: 'steps', width: 2.4, pts: [[-14, -6], [-12, -15], [-10, -23]] },
   { key: 'millPath', width: 2.2, pts: [[-30.5, 43.5], [-38, 48], [-44, 51]] },
+  // from the end of Arena Lane along the river to the pickleball court's gate
+  { key: 'courtPath', width: 3.4, lamps: true, pts: [[45, 50], [50.5, 48.2], [55.2, 46.3], [57.3, 45]] },
 ];
 
 /** Squares: cobbled, flat. */
@@ -118,8 +120,10 @@ export const BUILDINGS = [
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
   { x: 46, z: 5.5, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose' },
-  { x: 50, z: 17, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,
-    label: 'The Volley Court', project: 'volley' },
+  // A small fenced pickleball court on the riverbank, long side along the
+  // water, gate at the end the court path comes in from.
+  { x: 60, z: 38, w: 6.8, h: 1.2, d: 12.8, court: true,
+    label: 'The Pickleball Court', project: 'volley', heading: Math.atan2(-0.365, 0.931) },
   { x: 44.5, z: 43.5, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
     roofSegs: 8, label: 'Prediction Colosseum', project: 'xg' },
 
@@ -699,7 +703,7 @@ export function buildLayout({ res = 1 } = {}) {
     if (Math.hypot(x - B.x, z - B.z) < 10) return false;
     return true;
   };
-  for (const r of L.roads) {
+  for (const r of [...L.roads, ...L.paths.filter(p => p.lamps)]) {
     const every = r.kind === 'main' ? 11 : 12.5;
     let side = 1;
     for (let s = 5; s < r.path.length - 2; s += every) {

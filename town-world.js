@@ -16,7 +16,7 @@ import {
   propMaterials, gableRoofGeometry, buildPathWall, buildClockTower,
   buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
   buildClouds, buildMountains, buildStall, buildFountain, buildWallLanterns,
-  buildTownhouses, buildMillWheel,
+  buildTownhouses, buildMillWheel, buildPickleballCourt,
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
@@ -222,8 +222,40 @@ function makeTempleBuilding(o) {
   return g;
 }
 
+// The pickleball court: a flat fenced court instead of a building (§2.14)
+function makeCourtBuilding(o) {
+  const g = new THREE.Group();
+  const court = buildPickleballCourt(o, o.project ? { project: o.project, label: o.label } : null);
+  g.add(court);
+  // stone curb under the apron, for where the riverbank falls away
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.3, 2.6, o.d + 0.3), propMaterials().stoneDark);
+  skirt.position.y = -1.22;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = 1.4;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+    animatedProps.push({ update: (t) => {
+      marker.rotation.y = t * 1.5;
+      marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    } });
+  }
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = court.children[0];
+  o.roofTop = roofTop;
+  o.roofH = 0;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.court) return makeCourtBuilding(o);
   const g = new THREE.Group();
   const tudor = isTudorBuilding(o);
   const M = propMaterials();
@@ -1178,9 +1210,9 @@ function initTownWorld() {
     }
   }
   const streetS = LAYOUT.streetS;
-  signAt('street', streetS(14, 58) + 4, '← Prediction Colosseum');
+  signAt('street', streetS(14, 58) + 4, '← Colosseum · Pickleball');
   signAt('street', streetS(14, 58) + 12, '↑ Market Terrace · Crest');
-  signAt('street', streetS(24, 16) - 3, '→ Forge · Volley Court', -1);
+  signAt('street', streetS(32, 15) - 3, '→ The Forge', -1);
   signAt('street', streetS(-26, -14) + 3, '← Navigator · Tiny Tots');
   signAt('street', streetS(-8, -26) - 5, '↑ City Hall · Observatory');
 
@@ -1560,6 +1592,8 @@ function initTownWorld() {
       npcAt('City Hall', 4.8, 2.4, 0),
       npcAt('The Forge', 2.1, 1.6, 1),
       npcAt('Prediction Colosseum', -2.4, 1.8, 0),
+      npcAt('The Pickleball Court', -1.1, -3.4, 0),         // a rally on court
+      npcAt('The Pickleball Court', 0.9, -9.6, 1),
       npcAt('Vortex Observatory', 1.6, 1.4, 2),
       npcAt('The Mill', 1.8, 1.4, 1),
     ].filter(Boolean));

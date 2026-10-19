@@ -193,6 +193,7 @@
 - [x] **Water** — river ribbon, stream ribbons, four pools (the last is the mill pond), three little falls with foam where the stream drops into a pool, a stone spring basin below the crest; one stylised water shader (flow streaks, evening glints, foam edges). River, stream and pool colliders (not on the bridge)
 - [x] **Bridge** — extruded stone arch, cobbled humped deck the cart drives over (`heightAt` returns the deck), parapets with lamp pillars
 - [x] **Mill** — new building on the stream below the terrace with a turning water wheel
+- [x] **Pickleball court** — the Volley Court building is now a small fenced pickleball court on the riverbank east of the Colosseum (`buildPickleballCourt()` in `town-props.js`): blue court on a green apron with baselines, sidelines, centre lines and kitchen lines, net on posts, chain-link fence with a gate, bench, paddles, balls and two players. Reached by the new **court path** from the end of Arena Lane along the river (lit); still opens the Vibe & Volley card
 - [x] **Cart on the hill** — sits on the ground, pitches / rolls with the slope, mild gravity along the grade (slower uphill); camera, shadows, light pool, labels and occlusion follow the height
 - [x] **Quarters** — Lower Town, Market Terrace, Hillside, The Crest (HUD, fast travel, respawn, audio chime, achievements, modal ribbons + accents). Old saved zone visits are dropped
 - [x] **Minimap** — north up, drawn from the plan (hill, river, stream, streets, squares, wall, houses); buildings in your quarter highlighted

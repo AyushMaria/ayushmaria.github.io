@@ -937,3 +937,122 @@ export function buildMillWheel(scene, at, { radius = 1.9, width = 0.9 } = {}) {
   scene.add(pivot);
   return { group: pivot, update(dt) { wheel.rotation.x -= dt * 0.9; } };
 }
+
+// ── Pickleball court ────────────────────────────────────────────
+function meshTexture(size, draw) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const c = cv.getContext('2d');
+  draw(c, size);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * A small fenced pickleball court, built in its own frame: centred on the
+ * origin, long axis along z, the gate at +z (the "front"). Court-proportioned
+ * playing area (20 × 44 ft) with baselines, sidelines, centre lines and the
+ * non-volley "kitchen" either side of the net, on a green apron; chain-link
+ * fence with a gate gap, net on two posts, a bench, paddles and balls.
+ * Every part is tagged with `userData` so clicking it opens the project.
+ *
+ * @param {{ w:number, d:number }} o   apron size (x, z)
+ * @returns {THREE.Group}
+ */
+export function buildPickleballCourt(o, userData = null) {
+  const g = new THREE.Group();
+  const M = propMaterials();
+  const W = o.w, D = o.d;
+  const cw = W * 0.69, cl = cw * 2.2;                 // playing area 20 × 44 ft
+  const kitchen = (cl / 2) * (7 / 22);                // non-volley zone depth
+  const add = (geo, mat, x, y, z, cast = false) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = cast; m.receiveShadow = true;
+    if (userData) m.userData = { ...userData };
+    g.add(m);
+    return m;
+  };
+  // surfaces: green apron, blue court, lighter kitchens
+  add(new THREE.BoxGeometry(W, 0.16, D), standardMat({ color: 0x4f8a5d, roughness: 0.8 }), 0, 0.08, 0);
+  add(new THREE.BoxGeometry(cw, 0.02, cl), standardMat({ color: 0x2f6c9f, roughness: 0.7 }), 0, 0.17, 0);
+  const kitchenMat = standardMat({ color: 0x4a8cc2, roughness: 0.7 });
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(cw, 0.022, kitchen), kitchenMat, 0, 0.172, s * kitchen / 2);
+  // white lines (merged)
+  const lw = 0.07, ly = 0.186, lines = [];
+  const line = (w, d, x, z) => { const b = new THREE.BoxGeometry(w, 0.012, d); b.translate(x, ly, z); lines.push(b); };
+  line(cw + lw, lw, 0, cl / 2); line(cw + lw, lw, 0, -cl / 2);              // baselines
+  line(lw, cl, cw / 2, 0); line(lw, cl, -cw / 2, 0);                         // sidelines
+  line(cw, lw, 0, kitchen); line(cw, lw, 0, -kitchen);                       // kitchen lines
+  for (const s of [-1, 1]) line(lw, cl / 2 - kitchen, 0, s * (kitchen + (cl / 2 - kitchen) / 2));   // centre lines
+  add(mergeBufferGeometries(lines, false), standardMat({ color: 0xf4f1e8, roughness: 0.6 }), 0, 0, 0);
+
+  // net: two posts, a mesh panel and a white top tape
+  const postMat = standardMat({ color: 0x2b2d2f, roughness: 0.5, metalness: 0.4 });
+  const netSpan = cw + 0.6;
+  for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.05, 0.05, 0.95, 8), postMat, s * netSpan / 2, 0.16 + 0.475, 0, true);
+  const netTex = meshTexture(64, (c, n) => {
+    c.strokeStyle = 'rgba(255,255,255,1)'; c.lineWidth = 3;
+    for (let k = 0; k <= n; k += n / 4) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k, n); c.stroke(); c.beginPath(); c.moveTo(0, k); c.lineTo(n, k); c.stroke(); }
+  });
+  netTex.repeat.set(netSpan / 0.14, 0.8 / 0.14);
+  const net = add(new THREE.PlaneGeometry(netSpan, 0.78), new THREE.MeshStandardMaterial({
+    map: netTex, alphaMap: netTex, alphaTest: 0.4, color: 0x1d1f22, side: THREE.DoubleSide, roughness: 0.9 }), 0, 0.2 + 0.39, 0);
+  net.receiveShadow = false;
+  add(new THREE.BoxGeometry(netSpan, 0.07, 0.03), standardMat({ color: 0xf4f1e8, roughness: 0.6 }), 0, 0.98, 0);
+
+  // chain-link fence round the apron, a gate gap in the front end
+  const FH = 1.15, gate = 1.9;
+  const fenceGreen = 0x2c4a3b;
+  const linkTex = meshTexture(64, (c, n) => {
+    c.strokeStyle = 'rgba(255,255,255,1)'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(n, n); c.moveTo(n, 0); c.lineTo(0, n); c.stroke();
+  });
+  const linkMat = new THREE.MeshStandardMaterial({ map: linkTex, alphaMap: linkTex, alphaTest: 0.35, color: fenceGreen, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.3 });
+  const railMat = standardMat({ color: fenceGreen, roughness: 0.5, metalness: 0.4 });
+  const hw = W / 2, hd = D / 2;
+  // runs as [x0, z0, x1, z1]
+  const runs = [[-hw, -hd, hw, -hd], [hw, -hd, hw, hd], [-hw, hd, -hw, -hd],
+                [hw, hd, gate / 2, hd], [-gate / 2, hd, -hw, hd]];
+  const posts = [], rails = [];
+  for (const [x0, z0, x1, z1] of runs) {
+    const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(-(z1 - z0), x1 - x0);
+    const panelTex = linkTex.clone(); panelTex.needsUpdate = true; panelTex.repeat.set(len / 0.22, FH / 0.22);
+    const pm = linkMat.clone(); pm.map = panelTex; pm.alphaMap = panelTex;
+    const panel = add(new THREE.PlaneGeometry(len, FH), pm, (x0 + x1) / 2, 0.16 + FH / 2, (z0 + z1) / 2);
+    panel.rotation.y = ang;
+    panel.receiveShadow = false;
+    const rail = new THREE.BoxGeometry(len + 0.06, 0.06, 0.06);
+    rail.rotateY(ang); rail.translate((x0 + x1) / 2, 0.16 + FH, (z0 + z1) / 2);
+    rails.push(rail);
+    const nPost = Math.max(1, Math.round(len / 2.1));
+    for (let k = 0; k <= nPost; k++) {
+      const t = k / nPost, p = new THREE.CylinderGeometry(0.045, 0.045, FH + 0.05, 6);
+      p.translate(x0 + (x1 - x0) * t, 0.16 + (FH + 0.05) / 2, z0 + (z1 - z0) * t);
+      posts.push(p);
+    }
+  }
+  add(mergeBufferGeometries([...posts, ...rails], false), railMat, 0, 0, 0, true);
+
+  // bench along the outside of the left long side, paddles, balls
+  const wood = standardMat({ color: 0x8a5a33, roughness: 0.85 });
+  const bench = [];
+  const box = (w, h, d, x, y, z) => { const b = new THREE.BoxGeometry(w, h, d); b.translate(x, y, z); bench.push(b); };
+  const bx = -hw - 0.55;
+  box(0.42, 0.07, 2.0, bx, 0.48, 1.6); box(0.06, 0.4, 2.0, bx - 0.2, 0.72, 1.6);
+  for (const dz of [-0.85, 0.85]) box(0.38, 0.45, 0.07, bx, 0.225, 1.6 + dz);
+  add(mergeBufferGeometries(bench, false), wood, 0, 0, 0, true);
+  const paddleGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.03, 16);
+  paddleGeo.scale(1, 1, 1.25);
+  [[0xd8462f, 0.2], [0xf2c230, 0.75]].forEach(([col, dz]) => {
+    const p = add(paddleGeo, standardMat({ color: col, roughness: 0.6 }), bx + 0.05, 0.56, 1.6 + dz);
+    p.rotation.set(0, 0, Math.PI / 2 - 0.25);
+  });
+  const ballMat = standardMat({ color: 0xd9f24a, roughness: 0.5 });
+  const ballGeo = new THREE.SphereGeometry(0.075, 10, 8);
+  [[0.9, cl * 0.31], [-1.3, -cl * 0.18], [1.6, -cl * 0.42], [bx + 0.1, 2.3]].forEach(([x, z]) =>
+    add(ballGeo, ballMat, x, x < -hw ? 0.6 : 0.26, z));
+  return g;
+}
