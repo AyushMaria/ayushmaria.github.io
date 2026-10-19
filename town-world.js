@@ -48,8 +48,8 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -814,29 +814,109 @@ function createRock(x, z, s) {
   return rock;
 }
 
-// Tracked collections for day/night toggling
-const lampRefs = [];      // { light, headMat }
+// Tracked collections for the evening glow level (applyEvening)
+const lampRefs = [];      // { headMat, source, x, z }
 const windowMats = [];    // MeshStandardMaterial refs
+let lampPoolMat = null;   // additive ground-glow decals under the lamps
+
+// ── Light pool (task.md §4.1 — point-light budget) ──────────────────
+// three.js compiles every lit material for the number of lights in the
+// scene and shades every pixel against all of them, so the old 27 lamp
+// PointLights + orb cost ~30 light loops per pixel whether or not they
+// were on screen. Now lamps (and the Observatory orb) are just *light
+// sources*: each keeps its emissive head and a cheap additive ground pool,
+// and a small fixed pool of PointLights (4 high tier / 2 low) follows the
+// sources nearest the camera focus. The light count never changes, so no
+// shader recompiles; the farthest pooled light fades to zero just as the
+// next-nearest source catches up with it, so hand-overs are invisible.
+const lightSources = [];  // { pos: Vector3, color: Color, intensity, distance }
+
+function createLightPool(scene, size) {
+  const lights = [];
+  for (let i = 0; i < size; i++) {
+    const l = new THREE.PointLight(0xffd166, 0, 8);
+    scene.add(l);
+    lights.push(l);
+  }
+  const order = [];
+  const FADE = 4;          // world units: how early the last pooled light starts fading
+  return {
+    lights,
+    update(focus) {
+      order.length = 0;
+      for (const s of lightSources) {
+        s._d = Math.hypot(s.pos.x - focus.x, s.pos.z - focus.z);
+        order.push(s);
+      }
+      order.sort((a, b) => a._d - b._d);
+      const cutoff = order.length > size ? order[size]._d : Infinity;
+      for (let i = 0; i < size; i++) {
+        const l = lights[i], s = order[i];
+        if (!s) { l.intensity = 0; continue; }
+        const f = Math.min(1, Math.max(0, (cutoff - s._d) / FADE));
+        l.position.copy(s.pos);
+        l.color.copy(s.color);
+        l.distance = s.distance;
+        l.intensity = s.intensity * f * f * (3 - 2 * f);   // smoothstep fade
+      }
+    },
+  };
+}
+
+// Shared lamp materials (one program, no per-lamp material copies)
+let _lampMats = null;
+function lampMaterials() {
+  if (_lampMats) return _lampMats;
+  _lampMats = {
+    pole: new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 }),
+    glow: new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.6 }),
+  };
+  return _lampMats;
+}
+const LAMP_COLOR = new THREE.Color(0xffd166);
 
 function addLamp(scene, x, z) {
+  const { pole: poleMat, glow: glowMat } = lampMaterials();
   const g = new THREE.Group();
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 });
-  const glowMat = new THREE.MeshStandardMaterial({
-    color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.6,
-  });
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.5, 8), poleMat);
   pole.position.y = 1.75;
   g.add(pole);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), glowMat);
   head.position.y = 3.6;
   g.add(head);
-  const pl = new THREE.PointLight(0xffd166, 0.7, 8);
-  pl.position.y = 3.6;
-  g.add(pl);
   g.position.set(x, 0, z);
   g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   scene.add(g);
-  lampRefs.push({ light: pl, headMat: glowMat });
+  // No PointLight of its own: the light pool lends one when the lamp is near.
+  const source = { pos: new THREE.Vector3(x, 3.6, z), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
+  lightSources.push(source);
+  lampRefs.push({ headMat: glowMat, source, x, z });
+}
+
+// Soft warm glow on the ground under every lamp — one additive InstancedMesh,
+// so even lamps without a pooled PointLight still read as lit.
+function buildLampGroundPools(scene) {
+  if (!lampRefs.length) return null;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const grd = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, 64, 64);
+  const mat = new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(c), color: 0xffb35c, transparent: true, opacity: 0.24,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const geo = new THREE.PlaneGeometry(1, 1);
+  geo.rotateX(-Math.PI / 2);
+  const im = new THREE.InstancedMesh(geo, mat, lampRefs.length);
+  const m = new THREE.Matrix4();
+  lampRefs.forEach((l, i) => { m.makeScale(6.5, 1, 6.5); m.setPosition(l.x, 0.11, l.z); im.setMatrixAt(i, m); });
+  im.renderOrder = 1;
+  im.frustumCulled = false;   // spans the whole town; one draw call either way
+  scene.add(im);
+  return mat;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1017,10 +1097,12 @@ function applyEvening(sun, ambient, skyMat, fog) {
   fog.density = E.fog.density;
 
   const g = E.glow;
+  const lampLevel = 0.1 + g * 0.9;
   for (const lamp of lampRefs) {
-    lamp.light.intensity = 0.1 + g * 0.9;
-    lamp.headMat.emissiveIntensity = 0.1 + g * 0.9;
+    lamp.source.intensity = lampLevel;          // strength of the pooled PointLight when this lamp is near
+    lamp.headMat.emissiveIntensity = lampLevel;
   }
+  if (lampPoolMat) lampPoolMat.opacity = 0.32 * lampLevel;
   for (const mat of windowMats) mat.emissiveIntensity = 0.2 + g * 0.8;
   for (const ref of coneLightRefs) ref.setNightness(g);
   for (const mat of npcMats) mat.color.setRGB(...E.spriteTint);
@@ -1346,9 +1428,8 @@ function initTownWorld() {
   const OBSERVATORY = BUILDINGS.find(b => b.label === 'Vortex Observatory') || { x: 40, z: -12, h: 10 };
   orb.position.set(OBSERVATORY.x, OBSERVATORY.h + 2, OBSERVATORY.z);   // above the Observatory
   scene.add(orb);
-  const orbLight = new THREE.PointLight(0x06d6a0, 1.2, 12);
-  orbLight.position.copy(orb.position);
-  scene.add(orbLight);
+  // Lit through the light pool like the lamps (orb.position is read live)
+  lightSources.push({ pos: orb.position, color: new THREE.Color(0x06d6a0), intensity: 1.2, distance: 12 });
 
   // ── Tavern terrace & campfire ───────────────────────────────
   // The tavern's front wall is at z = 32; the terrace sits on the plaza in
@@ -1426,6 +1507,10 @@ function initTownWorld() {
     LAMPS.push([Math.sin(a) * (RING_R + 6), Math.cos(a) * (RING_R + 6)]);
   }
   LAMPS.forEach(([x, z]) => { addLamp(scene, x, z); colliders.push({ circle: true, x, z, r: 0.35 }); });
+  lampPoolMat = buildLampGroundPools(scene);
+  // Fixed pool of PointLights shared by every lamp + the orb (see createLightPool)
+  const lightPool = createLightPool(scene, PERF.lightPool);
+  window._lightPool = lightPool;
 
   // ── Trees (leaf-card crowns, one InstancedMesh per species) ──
   // Species by quarter: Town Square green + cherry, Main Street oak,
@@ -2015,6 +2100,8 @@ function initTownWorld() {
   // EffectComposer runs several passes; auto-reset would only report the
   // final full-screen quad, so reset manually at the top of each frame.
   if (debugPerf) renderer.info.autoReset = false;
+  let pointLightCount = 0;
+  if (debugPerf) scene.traverse(o => { if (o.isPointLight) pointLightCount++; });
 
   // ── Gamepad (standard mapping) ──────────────────────────────
   // Left stick: point-to-drive (same as the touch stick). Triggers: RT
@@ -2161,6 +2248,7 @@ function initTownWorld() {
     // Camera
     followCam.update(cart, delta);
     updateOcclusion(delta);
+    lightPool.update(followCam._focus);   // move the pooled lights to the sources nearest the view
 
     // Labels
     labelSys.update(canvas.clientWidth, canvas.clientHeight, followCam._focus, followCam._dist);
@@ -2200,7 +2288,7 @@ function initTownWorld() {
       if (perfTimer >= 5) {
         const r = renderer.info.render;
         const fps = (perfFrames / perfTimer).toFixed(0);
-        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · tier=${perfTier} · grass=${grass ? grass.count : 0} · wind=${WIND.uniforms.uWindStrength.value}`;
+        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · ${pointLightCount} point lights · tier=${perfTier} · grass=${grass ? grass.count : 0} · wind=${WIND.uniforms.uWindStrength.value}`;
         (r.calls > DRAW_CALL_BUDGET ? console.warn : console.log)(msg);
         window._townPerf = { fps: +fps, calls: r.calls, triangles: r.triangles, tier: perfTier };
         perfTimer = 0; perfFrames = 0;
@@ -2211,7 +2299,6 @@ function initTownWorld() {
     // Existing animated props
     orb.rotation.y   = elapsed * 1.5;
     orb.position.y   = 12 + Math.sin(elapsed * 2) * 0.3;
-    orbLight.position.copy(orb.position);
     fireGlow.intensity = 1.6 + Math.sin(elapsed * 3) * 0.4;
 
     // Water shimmer

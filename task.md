@@ -243,7 +243,7 @@
 - [ ] **LOD** — Reduce geometry detail for distant buildings
 - [ ] **Frustum culling audit** — Ensure all meshes have proper bounding spheres
 - [x] **Draw call monitoring** — `?debug` logs fps / calls / tris every 5s; budget 700. Measured on swiftshader: ~420 calls at the Square, ~650 on Main Street (shadow pass roughly doubles calls); unchanged after the reference-art pass thanks to instancing/merging (~85k tris)
-- [ ] **Point-light budget** — 30 `PointLight`s (27 lamps + fire + orb + cart) are the main fragment cost; make far lamps emissive-only or cull by distance
+- [x] **Point-light budget** — 32 → 6 `PointLight`s. Lamps and the Observatory orb are now *light sources* (emissive head + one additive ground-glow `InstancedMesh`); a fixed pool of 4 PointLights (2 on the low tier) follows the sources nearest the camera focus (`createLightPool` in `town-world.js`), the farthest pooled light fading out as the next one catches up so hand-overs don't pop; campfire + cart lantern keep their own. Constant light count = no shader recompiles. Swiftshader frame time roughly halved (~1.6 s → ~0.85 s); `?debug` log now prints the point-light count
 - [ ] **Merge static building parts** — each building is ~10 meshes (timber, windows, door, trim); merge per building with `BufferGeometryUtils`
 - [ ] **Texture atlas** — Combine small textures (signs, flowers) into a single atlas
 
