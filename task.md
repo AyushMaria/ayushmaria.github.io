@@ -199,7 +199,9 @@
 - [x] **Minimap** — north up, drawn from the plan (hill, river, stream, streets, squares, wall, houses); buildings in your quarter highlighted
 - [x] **Docs map** — `node tools/make-town-map.mjs` → `docs/town-map.svg` (contours, water, streets, wall, buildings, houses, lamps, trees, play-area ring). The old Python map tool, drag-and-drop editor and `apply-placements.py` were retired (they parsed the old hand-placed arrays)
 - [ ] **Grass rework** — blades look like paper on the ground; to do next
-- [ ] Hairpins are tight at full speed (turning circle ~14 units at top speed) — consider a gentler curve at the gate bend, or speed-sensitive steering help
+- [x] **Room to turn off the bridge** — the High Street now runs straight for ~10 units after the deck before bending west; Arena Lane forks off as a gentle diagonal instead of a T at the bridge end, with an open green (no houses) inside the fork; parapet colliders stop where the parapets do; no lamps within 9 units of a junction; bridge 15.5 → 13.5 long
+- [x] **Tighter low-speed steering** — lock 30° → 39° when crawling (turning circle ~5 units), unchanged ~16.5° at top speed; townhouse corners kept 1.3 from every street edge (houses set back to match); wall towers never stand in a street; the terrace street moved off the town wall (Guild Board, Adventurer Stats, a bed, a stall and the Forge nudged clear). An autopilot drive now gets from the bridge to the crest square with no stops, and turns both ways off the bridge with no bumps
+- [ ] Hairpins are still tight at full speed — slow down for them (or add speed-sensitive steering assist)
 - [ ] Waterfall / river ambient sound, mill-wheel creak
 - [ ] Map editor for the new plan (drag points in `town-layout.js`)
 

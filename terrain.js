@@ -542,7 +542,7 @@ export function buildBridge(scene, L) {
   }
   // Parapets + end pillars
   for (const sd of [1, -1]) {
-    const sh = new THREE.Shape(), ext = Lh + 1;
+    const sh = new THREE.Shape(), ext = Lh + 0.3;
     sh.moveTo(-ext, top(-ext) - 0.3);
     for (let k = 0; k <= 20; k++) { const u = -ext + (k / 20) * 2 * ext; sh.lineTo(u, top(u) - 0.3); }
     for (let k = 20; k >= 0; k--) { const u = -ext + (k / 20) * 2 * ext; sh.lineTo(u, top(u) + 0.78); }
@@ -569,7 +569,7 @@ export function buildBridge(scene, L) {
   const rx = Math.cos(B.heading), rz = -Math.sin(B.heading);
   for (const sd of [1, -1]) {
     const o = W / 2 - 0.15;
-    colliders.push(obb(B.x + rx * sd * o, B.z + rz * sd * o, 0.3, Lh + 1.2, B.heading));
+    colliders.push(obb(B.x + rx * sd * o, B.z + rz * sd * o, 0.3, Lh + 0.35, B.heading));   // stop where the parapet ends: room to turn off the bridge
   }
   return { group, colliders };
 }

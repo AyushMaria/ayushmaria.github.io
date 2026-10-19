@@ -1210,8 +1210,8 @@ function initTownWorld() {
     }
   }
   const streetS = LAYOUT.streetS;
-  signAt('street', streetS(14, 58) + 4, '← Colosseum · Pickleball');
-  signAt('street', streetS(14, 58) + 12, '↑ Market Terrace · Crest');
+  signAt('street', streetS(14.2, 54.4) - 1.5, '→ Colosseum · Pickleball', -1);
+  signAt('street', streetS(13.1, 50.5) + 3, '← Market Terrace · Crest');
   signAt('street', streetS(32, 15) - 3, '→ The Forge', -1);
   signAt('street', streetS(-26, -14) + 3, '← Navigator · Tiny Tots');
   signAt('street', streetS(-8, -26) - 5, '↑ City Hall · Observatory');
@@ -1548,7 +1548,7 @@ function initTownWorld() {
   // Market Terrace): wooden planter + small hedge bushes + instanced blooms.
   const bedMat = standardMat({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
-  const BED_SLOTS = [[-16, -31.5], [4.5, -31.5], [-9.5, 29.5], [-25.8, 31.2]].map(([x, z]) => [x, z, groundAt(x, z)]);
+  const BED_SLOTS = [[-16, -31.5], [4.5, -31.5], [-9.2, 31.2], [-25.4, 34]].map(([x, z]) => [x, z, groundAt(x, z)]);
   BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
   const BUSHES = [];
   BED_SLOTS.forEach(([x, z, y]) => {
@@ -1600,7 +1600,7 @@ function initTownWorld() {
   }
 
   // Market stalls round the terrace fountain — curved red-orange awnings
-  const STALLS = [[-7.5, 34.5, -Math.PI / 2, false], [-24.2, 36.8, Math.PI / 2, true], [-20.5, 41.6, Math.PI, false]];
+  const STALLS = [[-7.5, 34.5, -Math.PI / 2, false], [-24.4, 37.7, Math.PI / 2, true], [-20.2, 40.6, Math.PI, false]];
   STALLS.forEach(([x, z, r, red]) => {
     const stall = buildStall(scene, x, z, r, { red, y: groundAt(x, z) });
     mergeStaticChildren(stall.group);
@@ -1665,7 +1665,7 @@ function initTownWorld() {
   // Barrels against the Tavern's side wall
   [tavernAt(5.6, -1.4), tavernAt(5.6, -0.2), tavernAt(6.3, -0.8)].forEach(([x, z]) => knockables.add('barrel', x, z, Math.random() * 6));
   // Crates beside two of the market stalls
-  [[-6.2, 31.9], [-5.6, 31.2], [-6.6, 30.9], [-26.6, 39.6], [-25.8, 40.3]].forEach(([x, z]) =>
+  [[-6.2, 31.9], [-5.6, 31.2], [-6.6, 30.9], [-26.3, 39.4], [-25.6, 40.1]].forEach(([x, z]) =>
     knockables.add('crate', x, z, (Math.random() - 0.5) * 0.6));
   // Two chairs at each terrace table, facing it
   TABLES.forEach(([tx, tz]) => {

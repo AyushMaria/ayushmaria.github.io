@@ -160,16 +160,22 @@ export function buildPathWall(scene, L) {
   merlons.castShadow = true;
   group.add(walls, merlons);
 
-  // towers: every ~17 units, not in or right beside a gap; a pair at each gate
-  const towerAt = [];
-  const nearGap = (s, pad) => W.gaps.some(g => { let d = Math.abs(s - g.s); d = Math.min(d, total - d); return d < g.half + pad; });
-  for (let s = 6; s < total - 4; s += 17) if (!nearGap(s, 4)) towerAt.push(s);
-  for (const g of W.gaps) if (g.kind === 'gate') towerAt.push((g.s - g.half - 2.2 + total) % total, (g.s + g.half + 2.2) % total);
   const pointAt = (s) => {
     const k = W.path.pts.length, i = Math.round((((s % total) + total) % total) / total * k) % k;
     return W.path.pts[i];
   };
+  // towers: every ~17 units, not in or right beside a gap; a pair at each gate
   const tR = 2.4;
+  const towerAt = [];
+  const nearGap = (s, pad) => W.gaps.some(g => { let d = Math.abs(s - g.s); d = Math.min(d, total - d); return d < g.half + pad; });
+  const clearOfRoads = (s) => { const c = pointAt(s); return !L.roadClear || L.roadClear(c.x, c.z) > tR + 0.6; };
+  for (let s = 6; s < total - 4; s += 17) {
+    if (nearGap(s, 4)) continue;
+    // a tower must not stand in a street: try a little either side, else skip it
+    const ok = [0, 3, -3, 6, -6].map(d => s + d).find(clearOfRoads);
+    if (ok !== undefined) towerAt.push(ok);
+  }
+  for (const g of W.gaps) if (g.kind === 'gate') towerAt.push((g.s - g.half - 2.2 + total) % total, (g.s + g.half + 2.2) % total);
   const towerGeo = new THREE.CylinderGeometry(tR, tR + 0.3, 1, 14);
   const roofGeo = new THREE.ConeGeometry(tR + 0.9, 4.2, 14);
   const towers = new THREE.InstancedMesh(towerGeo, stone, towerAt.length);

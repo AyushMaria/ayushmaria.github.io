@@ -42,12 +42,12 @@ export const START = { x: 18.6, z: 77.5 };
  */
 export const ROADS = [
   { key: 'street', name: 'High Street', width: 6, kind: 'main', pts: [
-    [21, 100], [19.5, 86], [18.5, 76], [14, 58], [-10, 50], [-30, 40], [-26, 26], [2, 22], [20, 20.5],
+    [21, 100], [19.5, 86], [18.5, 76], [16.4, 64], [14.8, 57], [13.1, 50.5], [8.5, 47.6], [-10, 49.4], [-30, 40], [-26, 27], [-10, 25.7], [4, 24.7], [20, 22.3],
     [32, 15], [27, 1], [10, -6], [-14, -6], [-26, -14], [-18, -24], [-8, -26] ] },
   { key: 'lowerLane', name: 'Forge Lane', width: 4.6, kind: 'lane', pts: [
     [32, 15], [42, 12], [52, 8.5], [64, 3] ] },
   { key: 'arenaLane', name: 'Arena Lane', width: 4.4, kind: 'lane', pts: [
-    [14, 58], [26, 54.5], [38, 51.5], [45, 50] ] },
+    [14.2, 54.4], [17.4, 51.4], [22.5, 50.2], [30, 51], [38.5, 51], [45, 50] ] },
   { key: 'towerLane', name: 'Tower Lane', width: 4, kind: 'alley', pts: [
     [-26, -14], [-33, -19], [-34, -27.5] ] },
   { key: 'starLane', name: 'Star Lane', width: 3.6, kind: 'alley', pts: [
@@ -108,17 +108,17 @@ export const BUILDINGS = [
   // Market Terrace
   { x: -42, z: 36, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',
     chimney: true, label: 'The Tavern', project: null, tavern: true, heading: Math.PI / 2 },
-  { x: -20.5, z: 30.4, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,
+  { x: -20.5, z: 31.4, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,
     label: 'Guild Board', project: null, heading: 0 },
   { x: -47, z: 51, w: 5.5, h: 5.5, d: 4.5, color: 0xeadbbd, roof: 0xb5503a,
     chimney: true, label: 'The Mill', project: null, mill: true, heading: Math.PI / 2 },
 
   // Lower Town (between the bridge and the walls)
-  { x: 10, z: 28, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
+  { x: 10, z: 29.6, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
     label: 'Adventurer Stats', project: null },
   { x: -16, z: 56.5, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
-  { x: 46, z: 5.5, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
+  { x: 46.3, z: 4.6, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose' },
   // A small fenced pickleball court on the riverbank, long side along the
   // water, gate at the end the court path comes in from.
@@ -412,7 +412,7 @@ export function buildLayout({ res = 1 } = {}) {
         if (r) { hit = { x: lerp(st[i].x, st[i + 1].x, r.t), z: lerp(st[i].z, st[i + 1].z, r.t), tx: st[i].tx, tz: st[i].tz, s: lerp(st[i].s, st[i + 1].s, r.t) }; break; }
       }
     }
-    L.bridge = { x: hit.x, z: hit.z, heading: Math.atan2(hit.tx, hit.tz), length: 15.5, width: 7.2, arch: 0.9, s: hit.s };
+    L.bridge = { x: hit.x, z: hit.z, heading: Math.atan2(hit.tx, hit.tz), length: 13.5, width: 7.2, arch: 0.9, s: hit.s };
   }
 
   // ── Wall path + gates ─────────────────────────────────────────
@@ -493,7 +493,7 @@ export function buildLayout({ res = 1 } = {}) {
       const c = Math.cos(heading), s = Math.sin(heading);
       for (const [u, v] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2], [0, d / 2]]) {
         const cx = x + u * c + v * s, cz = z - u * s + v * c;
-        for (const r of [...L.roads, ...L.paths]) if (pathDist(r.path, cx, cz, r.hw + 0.9) < r.hw + 0.9) return true;
+        for (const r of [...L.roads, ...L.paths]) if (pathDist(r.path, cx, cz, r.hw + 1.3) < r.hw + 1.3) return true;
       }
     }
     for (const pl of L.plazas) if (pointInPoly(x, z, pl.pts) || polyEdgeDist(x, z, pl.pts) < rad + 0.8) return true;
@@ -504,6 +504,8 @@ export function buildLayout({ res = 1 } = {}) {
     if (Math.hypot(x - L.bridge.x, z - L.bridge.z) < 14) return true;
     if (Math.hypot(x - CLOCK_TOWER.x, z - CLOCK_TOWER.z) < 9) return true;
     for (const g of L.wall.gaps) if (Math.hypot(x - g.x, z - g.z) < 9) return true;
+    // open ground round the junction just north of the bridge, room to turn either way
+    if (Math.hypot(x - 18, z - 49) < 11.5 + rad * 0.5) return true;
     if (Math.hypot(x - WORLD.playX, z - WORLD.playZ) > WORLD.playR - 6) return true;
     if (z > 63) return true;                        // nothing south of the river
     return false;
@@ -521,7 +523,7 @@ export function buildLayout({ res = 1 } = {}) {
           const p = r.path.pts[clamp(Math.round(s0 + ds), 0, r.path.pts.length - 1)];
           const ww = w - shrink, dd = d - shrink * 0.4;
           const nx = -p.tz * side, nz = p.tx * side;     // left/right of the road
-          const off = r.hw + dd / 2 + 0.9 + offJ;
+          const off = r.hw + dd / 2 + 1.45 + offJ;
           const x = p.x + nx * off, z = p.z + nz * off;
           const heading = Math.atan2(-nx, -nz);         // front faces the road
           if (!blockedForHouse(x, z, ww, dd, heading)) { place = { x, z, heading }; w = ww; d = dd; break; }
@@ -690,10 +692,19 @@ export function buildLayout({ res = 1 } = {}) {
     return sampleGrid(x, z);
   };
   L.zoneKeyAt = zoneKeyAt;
+  /** Distance from (x, z) to the edge of the nearest street, lane or path (negative = on it). */
+  L.roadClear = (x, z) => Math.min(...[...L.roads, ...L.paths].map(r => pathDist(r.path, x, z, 12) - r.hw));
 
   // ── Lamps along the streets ───────────────────────────────────
   L.lamps = [];
+  // where side roads meet a street: keep the corners clear for turning
+  const junctions = [];
+  for (const r of [...L.roads, ...L.paths]) for (const end of [r.path.pts[0], r.path.pts[r.path.pts.length - 1]]) {
+    if (L.roads.some(o => o !== r && pathDist(o.path, end.x, end.z, o.hw + 0.5) < o.hw + 0.5)) junctions.push({ x: end.x, z: end.z });
+  }
+  L.junctions = junctions;
   const lampOk = (x, z) => {
+    for (const j of junctions) if (Math.hypot(j.x - x, j.z - z) < 9) return false;
     for (const f of footprints) if (rectDist(x, z, f) < 1.4) return false;
     for (const r of L.roads) if (pathDist(r.path, x, z, r.hw + 0.5) < r.hw + 0.5) return false;
     for (const l of L.lamps) if (Math.hypot(l.x - x, l.z - z) < 6) return false;

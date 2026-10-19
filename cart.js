@@ -48,7 +48,7 @@ export class Cart {
     this.brakeForce    = 0.014;
     this.friction      = 0.0022;
     this.steerSpeed    = 0.022;
-    this.maxSteerAngle = Math.PI / 6;
+    this.maxSteerAngle = 0.68;     // ~39° at a crawl (turning circle ~5 units) — the hill town has tight corners
     this.steerReturn   = 0.04;
     this.wheelBase     = 4.2;
     this.boostSpeed    = 1.6;     // × maxSpeed while boosting
@@ -456,10 +456,11 @@ export class Cart {
     }
 
     // ── Steering ─────────────────────────────────────────────
-    // Speed-sensitive lock: full lock when crawling, ~55 % at top speed so
-    // a held key doesn't spin the cart. Eased toward the target (time-based).
+    // Speed-sensitive lock: full lock when crawling (tight junctions and
+    // hairpins), ~43 % at top speed (≈ the old 16.5°) so a held key doesn't
+    // spin the cart. Eased toward the target (time-based).
     {
-      const lock = this.maxSteerAngle * THREE.MathUtils.lerp(1, 0.55, speedRatio);
+      const lock = this.maxSteerAngle * THREE.MathUtils.lerp(1, 0.43, speedRatio);
       const target = THREE.MathUtils.clamp(inSteer, -1, 1) * lock;
       const diff = target - this.steerAngle;
       const k = 1 - Math.pow(inSteer !== 0 ? 0.86 : 0.88, dt);   // ~9 %/frame in, ~12 %/frame back
