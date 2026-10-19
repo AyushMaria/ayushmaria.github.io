@@ -603,7 +603,7 @@ export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd16
       const fx = cx + (rng() - 0.5) * 3, fz = cz + (rng() - 0.5) * 3;
       o.position.set(fx, heightAt(fx, fz), fz);
       o.rotation.y = Math.PI * 2 * rng();
-      o.scale.setScalar(0.7 + rng() * 0.5);
+      o.scale.setScalar(1.25 + rng() * 0.5);          // heads stand clear of the lawn's pile
       o.updateMatrix();
       transforms.push(o.matrix);
       colors.push(rng() < 0.7 ? c : palette[Math.floor(rng() * palette.length)]);

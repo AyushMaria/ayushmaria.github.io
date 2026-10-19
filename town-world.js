@@ -64,8 +64,8 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  terrainRes: 1,   maskRes: 2048, lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true, forest: 1 },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, terrainRes: 1.4, maskRes: 1024, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false, forest: 0.6 },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  terrainRes: 1,   maskRes: 2048, lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, lawnLayers: 10, flowers: true, forest: 1 },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, terrainRes: 1.4, maskRes: 1024, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  lawnLayers: 6, flowers: false, forest: 0.6 },
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -2013,8 +2013,10 @@ function initTownWorld() {
     for (const c of colliderGrid.near(x, z)) if (circlePush(c, x, z, 0.3)) return false;
     return true;
   }
+  // The lawn (§2.16): a velvet carpet over open ground, golden drifts at the forest's edge and the banks
   const grass = PERF.grass > 0
-    ? buildGrass(scene, { count: PERF.grass, radius: WORLD.playR, center: [WORLD.playX, WORLD.playZ], heightAt: groundAt, isOpen: isOpenGround })
+    ? buildGrass(scene, { terrain, layout: LAYOUT, heightAt: groundAt, isOpen: isOpenGround, layers: PERF.lawnLayers,
+                          drifts: Math.round(PERF.grass * 0.9), center: [WORLD.playX, WORLD.playZ], radius: WORLD.playR + 14 })
     : null;
 
   // Cobbled surfaces (streets, squares) — for wheel audio and so wheel

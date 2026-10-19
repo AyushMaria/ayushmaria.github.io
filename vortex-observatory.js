@@ -330,7 +330,7 @@ export function buildStreamlines(cx, cz, heightAt, { reducedMotion = false } = {
     for (let i = 0; i <= 40; i++) {
       const t = i / 40, a = a0 + t * 1.9, r = rA + t * 0.9;
       const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-      pts.push(new THREE.Vector3(x, heightAt(x, z) + 0.06, z));
+      pts.push(new THREE.Vector3(x, heightAt(x, z) + 0.44, z));      // just over the lawn's pile
     }
     // width lies flat: across = outward from the centre
     geos.push(ribbon(pts, 0.28, (i) => new THREE.Vector3(pts[i].x - cx, 0, pts[i].z - cz).normalize()));

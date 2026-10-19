@@ -231,6 +231,8 @@ export function buildTerrain(scene, L, { maskRes = 2048 } = {}) {
 
   return {
     mesh, material, mask,
+    /** shared with the lawn's velvet shells (grass.js): mask, tracks, lamp pools */
+    uniforms,
     setTrackMap(tex, extent) { uniforms.uTrack.value = tex; uniforms.uTrackExt.value = extent; uniforms.uTrackOn.value = 1; },
     /** lamps: [{x, y, z}] — ground y of each lamp */
     setLamps(list) { lamps = list.map(l => ({ x: l.x, y: l.y, z: l.z, d: 0 })); this.updateLamps({ x: 0, z: 0 }); },
