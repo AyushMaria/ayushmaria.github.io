@@ -180,7 +180,7 @@
 - [x] Day/night toggle and the old CSS sky layers hidden on the landing (the scene has its own night sky)
 - [x] **City Hall** at the head of Main Street (0, −39.5), facing the fountain in front of the clock tower — the same temple hall at 0.78 scale with a CITY HALL plaque, lighter daytime tiles, screens/lanterns on the town's glow cycle
 - [x] City Hall opens an **About** card: draft bio, Skills & Trades, Notable Quests list (replaces the stat bars), and a links row (GitHub now; LinkedIn / Email / Résumé render once filled in `PROJECTS.about.links`)
-- [ ] Replace the draft bio / highlights with your own words; fill in LinkedIn, email and résumé links
+- [x] About card filled in: business-owner / freelance-contractor bio, Agentic AI tags + agentic-app skills (LLM APIs, tool calling, LangChain, LangGraph, RAG, vector DBs, MCP, prompt engineering, WhatsApp Business API), Notable Quests = Ace, Expected Goals (xG), MAVPose; links = GitHub, LinkedIn, Email (no résumé)
 
 ## 2.12 Mobile Project Card Fit
 - [x] Phone project card fills the overlay (height 100 %) instead of 100vh, which on phones is the height *without* the URL bar and pushed the card's top ("Return to Town") and bottom (GitHub / Demo buttons) off-screen — rules live at the end of `town-styles.css`

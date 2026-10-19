@@ -248,29 +248,31 @@
 
     const PROJECTS = {
     // ── City Hall (head of Main Street) — the "about me" card ─────
-    // DRAFT copy written from the projects in this town: edit `why`,
-    // `badges`, `stack` and `highlights` to say it in your own words.
-    // Empty links are skipped, so fill in linkedin / email / resume when ready.
     about: {
       icon: '🏯',
       title: 'Ayush — Keeper of the Settlement',
-      badges: ['Software Engineer', 'Drones & Robotics', 'ML & Computer Vision', 'Full-Stack'],
+      badges: ['Business Owner', 'Freelance Software Contractor', 'Agentic AI', 'ML & Computer Vision', 'Full-Stack'],
       flavor: 'The hall at the head of Main Street, where the settlement keeps its records.',
-      why: 'I build software that flies, sees and serves. My work runs from the air — a browser-based ground control station for ArduPilot and PX4 drones and MAVLink flight-log analysis — through computer vision and data science, to AI agents and full-stack products people use every day. Every building in this town is one of those projects: drive up to a door to step inside.',
+      why: 'I run my own business and take on software work as a freelancer and independent contractor. I build AI agents and full-stack products that do real work for people, like Ace, a booking concierge that lives inside WhatsApp, alongside data-science and computer-vision projects. Every building in this town is one of those projects: drive up to a door to step inside, or get in touch below if you have something you\'d like built.',
       stackTitle: 'Skills & Trades',
-      stack: ['Python', 'JavaScript', 'MAVLink / ArduPilot', 'Computer Vision', 'YOLOv5', 'Scikit-learn', 'React', 'Node.js', 'Supabase', 'LangChain', 'AWS', 'Three.js'],
+      stack: [
+        // agentic apps
+        'LLM APIs (OpenAI · Gemini · Claude)', 'Tool / Function Calling', 'LangChain', 'LangGraph',
+        'RAG', 'Vector Databases', 'MCP', 'Prompt Engineering', 'WhatsApp Business API',
+        // product + data
+        'Python', 'JavaScript', 'React', 'Node.js', 'Supabase', 'AWS', 'Three.js',
+        'Computer Vision', 'Scikit-learn', 'MAVLink / ArduPilot',
+      ],
       highlightsTitle: 'Notable Quests',
       highlights: [
-        ['🛰', 'InstillGCS', 'Web ground control station for ArduPilot & PX4 drones'],
-        ['🛠', 'MAVPose', 'MAVLink log analysis and pose visualisation'],
         ['🔮', 'Ace', 'AI booking concierge that lives in WhatsApp'],
-        ['🌀', 'Vortex Core Detection', 'YOLOv5 + AdaBoost on fluid-dynamics imagery'],
+        ['⚽', 'Expected Goals (xG)', 'Shot-quality modelling and football analytics from event data'],
+        ['🛠', 'MAVPose', 'MAVLink flight-log analysis and pose visualisation'],
       ],
       links: [
         { label: 'GitHub', href: 'https://github.com/AyushMaria', cls: 'btn-github' },
-        { label: 'LinkedIn', href: '', cls: 'btn-demo' },      // TODO: your LinkedIn URL
-        { label: 'Email', href: '', cls: 'btn-readme' },       // TODO: 'mailto:you@example.com'
-        { label: 'Résumé', href: '', cls: 'btn-readme' },      // TODO: e.g. './assets/resume.pdf'
+        { label: 'LinkedIn', href: 'https://www.linkedin.com/in/ayushmaria/', cls: 'btn-demo' },
+        { label: 'Email', href: 'mailto:maria.ayush@gmail.com', cls: 'btn-readme' },
       ],
     },
 
