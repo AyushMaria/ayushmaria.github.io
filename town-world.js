@@ -1856,7 +1856,10 @@ function initTownWorld() {
   // the 3D interact keys are muted so E/Space don't leak into the modal.
   let modalOpen = false;
   document.addEventListener('settlement:modal', e => {
+    const wasOpen = modalOpen;
     modalOpen = !!(e.detail && e.detail.open);
+    if (modalOpen && !wasOpen) audioSys.playCardOpen();      // UI sounds (§2.6), muted with everything else
+    else if (!modalOpen && wasOpen) audioSys.playCardClose();
     cart.inputLocked = modalOpen;
     if (!modalOpen) followCam.frame(null);
     if (modalOpen && e.detail.projectId) achievements.onProjectOpened(e.detail.projectId);
@@ -1957,6 +1960,8 @@ function initTownWorld() {
     });
 
     if (nearest && !modalOpen) {
+      // soft "tok" when the prompt appears or switches to another building
+      if (currentInteractable !== nearest) audioSys.playPrompt();
       interactName.textContent = nearest.label;
       interactPrompt.classList.add('is-visible');
       currentInteractable = nearest;

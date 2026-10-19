@@ -358,6 +358,90 @@ export class AudioSystem {
     });
   }
 
+  // ── UI one-shots (task.md §2.6) ───────────────────────────────
+  // All routed through the listener's master gain, so the mute button
+  // silences them like everything else; quiet enough to sit under music.
+
+  /** Soft wooden "tok" + a tiny bright blip when an Enter prompt appears. */
+  playPrompt() {
+    if (!this.initialized) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    if (this._lastPrompt && now - this._lastPrompt < 0.35) return;
+    this._lastPrompt = now;
+    const out = this.listener.getInput();
+    [[784.0, 0, 0.035], [1174.7, 0.05, 0.022]].forEach(([f, dt, amp]) => {
+      const o = ctx.createOscillator(); o.type = 'triangle';
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + dt);
+      g.gain.linearRampToValueAtTime(amp, now + dt + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0003, now + dt + 0.22);
+      o.connect(g); g.connect(out);
+      o.start(now + dt); o.stop(now + dt + 0.25);
+    });
+  }
+
+  /** Scroll unfurling: a rising papery swish and a warm two-note open chord. */
+  playCardOpen() {
+    if (!this.initialized) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    const out = this.listener.getInput();
+    if (this._pink) {
+      const n = ctx.createBufferSource(); n.buffer = this._pink;
+      const bp = this._filter(ctx, 'bandpass', 900, 0.9);
+      bp.frequency.setValueAtTime(700, now);
+      bp.frequency.exponentialRampToValueAtTime(2600, now + 0.28);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.09, now + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0005, now + 0.36);
+      n.connect(bp); bp.connect(g); g.connect(out);
+      n.start(now, Math.random() * 3); n.stop(now + 0.4);
+    }
+    [[587.3, 0.06], [880.0, 0.12]].forEach(([f, dt]) => {          // D5 → A5
+      const o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now + dt);
+      g.gain.linearRampToValueAtTime(0.045, now + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0004, now + dt + 0.75);
+      o.connect(g); g.connect(out);
+      o.start(now + dt); o.stop(now + dt + 0.8);
+    });
+  }
+
+  /** Scroll rolling shut: a falling swish and one low note. */
+  playCardClose() {
+    if (!this.initialized) return;
+    const ctx = this.listener.context;
+    const now = ctx.currentTime;
+    this._lastPrompt = now + 0.3;   // the prompt reappearing right after closing stays quiet
+    const out = this.listener.getInput();
+    if (this._pink) {
+      const n = ctx.createBufferSource(); n.buffer = this._pink;
+      const bp = this._filter(ctx, 'bandpass', 1800, 0.9);
+      bp.frequency.setValueAtTime(2200, now);
+      bp.frequency.exponentialRampToValueAtTime(600, now + 0.25);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.07, now + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0005, now + 0.3);
+      n.connect(bp); bp.connect(g); g.connect(out);
+      n.start(now, Math.random() * 3); n.stop(now + 0.32);
+    }
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(440, now + 0.04);                  // A4, slight droop
+    o.frequency.exponentialRampToValueAtTime(392, now + 0.4);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, now + 0.04);
+    g.gain.linearRampToValueAtTime(0.04, now + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0004, now + 0.5);
+    o.connect(g); g.connect(out);
+    o.start(now + 0.04); o.stop(now + 0.55);
+  }
+
   // Boost start: a short rising whoosh
   playWhoosh() {
     if (!this.initialized || !this._pink) return;

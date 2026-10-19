@@ -131,7 +131,7 @@
 - [x] Zone detection via position angle (Town Square / East / West / North)
 - [x] **Mute that works** — `#sound-toggle` is one site-wide switch (icon shows the current state: 🔊 on / 🔇 muted), dispatches `sound:change`; the town's `AudioSystem` drives the listener master gain from it; landing-page loops are torn down on `town:enter`; preference saved in `localStorage['isekai-sound']`
 - [ ] **Engine/horse sound** — Dedicated clip-clop or engine hum tied to cart cadence
-- [ ] **UI interaction sounds** — Proximity prompt appear, modal open/close
+- [x] **UI interaction sounds** — synthesized in `audio.js`, routed through the master gain (the mute button silences them): `playPrompt()` soft two-note "tok" when an Enter prompt appears or switches building (rate-limited, quiet right after a card closes), `playCardOpen()` rising papery swish + D5→A5 chord, `playCardClose()` falling swish + low note; hooked to the prompt and the `settlement:modal` event in `town-world.js`
 
 ## 2.8 Living Vegetation (Bruno Simon's Wind / Foliage pattern)
 > Design notes and tuning reference: `docs/wind-foliage-guide.md`
