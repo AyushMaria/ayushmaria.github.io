@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTexture, leafClusterTexture } from './textures.js';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { attachWind } from './wind.js';
+import { standardMat } from './materials.js';
 
 // ── Shared materials ────────────────────────────────────────────
 let _mats = null;
@@ -28,20 +29,20 @@ export function propMaterials() {
   const stone = stoneTexture();
   const tile  = roofTileTexture();
   _mats = {
-    stone:      new THREE.MeshStandardMaterial({ map: stone, color: 0xd9cdb5, roughness: 0.95 }),
-    stoneDark:  new THREE.MeshStandardMaterial({ map: stone, color: 0xa89c86, roughness: 0.95 }),
-    tile:       new THREE.MeshStandardMaterial({ map: tile,  color: 0xffffff, roughness: 0.8 }),
-    tileDark:   new THREE.MeshStandardMaterial({ map: tile,  color: 0x9a7a70, roughness: 0.8 }),
-    plaster:    new THREE.MeshStandardMaterial({ map: plasterTexture(), color: 0xffffff, roughness: 0.9 }),
-    timber:     new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.95 }),
-    woodDoor:   new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 }),
-    trunk:      new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 }),
-    canopy:     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }),  // instanceColor
-    awning:     new THREE.MeshStandardMaterial({ color: 0xe86f2b, roughness: 0.75, side: THREE.DoubleSide }),
-    awningRed:  new THREE.MeshStandardMaterial({ color: 0xd8462f, roughness: 0.75, side: THREE.DoubleSide }),
-    mountain:   new THREE.MeshStandardMaterial({ color: 0x8aa3c4, roughness: 1, flatShading: true }),
-    mountainSnow: new THREE.MeshStandardMaterial({ color: 0xe8eef5, roughness: 1, flatShading: true }),
-    iron:       new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6, metalness: 0.6 }),
+    stone:      standardMat({ map: stone, color: 0xd9cdb5, roughness: 0.95 }),
+    stoneDark:  standardMat({ map: stone, color: 0xa89c86, roughness: 0.95 }),
+    tile:       standardMat({ map: tile,  color: 0xffffff, roughness: 0.8 }),
+    tileDark:   standardMat({ map: tile,  color: 0x9a7a70, roughness: 0.8 }),
+    plaster:    standardMat({ map: plasterTexture(), color: 0xffffff, roughness: 0.9 }),
+    timber:     standardMat({ color: 0x4a2c18, roughness: 0.95 }),
+    woodDoor:   standardMat({ color: 0x5c3a1e, roughness: 0.9 }),
+    trunk:      standardMat({ color: 0x6b4a2e, roughness: 0.95 }),
+    canopy:     standardMat({ color: 0xffffff, roughness: 0.85 }),  // instanceColor
+    awning:     standardMat({ color: 0xe86f2b, roughness: 0.75, side: THREE.DoubleSide }),
+    awningRed:  standardMat({ color: 0xd8462f, roughness: 0.75, side: THREE.DoubleSide }),
+    mountain:   standardMat({ color: 0x8aa3c4, roughness: 1, flatShading: true }),
+    mountainSnow: standardMat({ color: 0xe8eef5, roughness: 1, flatShading: true }),
+    iron:       standardMat({ color: 0x3a3a3a, roughness: 0.6, metalness: 0.6 }),
   };
   return _mats;
 }
@@ -612,8 +613,8 @@ export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles =
   const g = new THREE.Group();
   g.position.set(x, 0, z);
 
-  const marble = new THREE.MeshStandardMaterial({ map: stoneTexture(), color: 0xf3eee3, roughness: 0.7 });
-  const marbleDark = new THREE.MeshStandardMaterial({ map: stoneTexture(), color: 0xd9d2c4, roughness: 0.8 });
+  const marble = standardMat({ map: stoneTexture(), color: 0xf3eee3, roughness: 0.7 });
+  const marbleDark = standardMat({ map: stoneTexture(), color: 0xd9d2c4, roughness: 0.8 });
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x5fcbf5, transparent: true, opacity: 0.72, roughness: 0.08, metalness: 0.25,
   });
@@ -743,7 +744,7 @@ export function buildWallLanterns(scene, slots, { reducedMotion = false, windStr
   ], false);
   const glassGeo = part(new THREE.BoxGeometry(0.17, 0.3, 0.17), 0, -0.42, 0);
 
-  const iron = new THREE.MeshStandardMaterial({ color: 0x2b2622, roughness: 0.55, metalness: 0.6 });
+  const iron = standardMat({ color: 0x2b2622, roughness: 0.55, metalness: 0.6 });
   const glass = new THREE.MeshStandardMaterial({ color: 0xffc878, emissive: 0xff9a30, emissiveIntensity: 1.25, roughness: 0.4 });
   const n = slots.length;
   const brackets = new THREE.InstancedMesh(bracketGeo, iron, n);

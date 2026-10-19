@@ -22,6 +22,7 @@ import { buildGrass } from './grass.js';
 import { buildTempleHall } from './temple.js';
 import { mergeStaticChildren } from './merge-static.js';
 import { KnockableProps } from './props-physics.js';
+import { standardMat, sharedMaterialCount } from './materials.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -127,17 +128,17 @@ const isTudorBuilding = (o) => o.roof !== null && o.roof !== undefined && (!o.ro
 // ════════════════════════════════════════════════════════════════
 
 const SHARED = {
-  planterWood: new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.9 }),
-  foliage:     new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.85 }),
+  planterWood: standardMat({ color: 0x5a3a1e, roughness: 0.9 }),
+  foliage:     standardMat({ color: 0x3f8f3a, roughness: 0.85 }, 'wind-foliage'),   // wind-patched: own slot
   // vertexColors would be simpler but instanceColor keeps one geometry + one material
-  bloom:       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+  bloom:       standardMat({ color: 0xffffff, roughness: 0.7 }, 'wind-bloom'),      // wind-patched: own slot
   // Reference-art surfaces (textures are procedural canvases, see textures.js)
-  cobble:      new THREE.MeshStandardMaterial({ map: cobbleTexture(), roughness: 0.95 }),
-  cobbleWarm:  new THREE.MeshStandardMaterial({ map: cobbleTexture(), color: 0xd9c4a3, roughness: 0.95 }),
-  timber:      new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.95 }),
-  shutter:     new THREE.MeshStandardMaterial({ color: 0x5f7a4c, roughness: 0.9 }),
-  door:        new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 }),
-  stoneBody:   new THREE.MeshStandardMaterial({ map: stoneTexture(), roughness: 0.9 }),
+  cobble:      standardMat({ map: cobbleTexture(), roughness: 0.95 }),
+  cobbleWarm:  standardMat({ map: cobbleTexture(), color: 0xd9c4a3, roughness: 0.95 }),
+  timber:      standardMat({ color: 0x4a2c18, roughness: 0.95 }),
+  shutter:     standardMat({ color: 0x5f7a4c, roughness: 0.9 }),
+  door:        standardMat({ color: 0x5c3a1e, roughness: 0.9 }),
+  stoneBody:   standardMat({ map: stoneTexture(), roughness: 0.9 }),
   // One glowing lattice-window material for the whole town (map + emissiveMap)
   windowPane:  new THREE.MeshStandardMaterial({
     map: windowTexture(), emissive: 0xffc06a, emissiveMap: windowTexture(),
@@ -148,7 +149,7 @@ const SHARED = {
 const plasterMats = new Map();
 function plasterMat(color) {
   if (!plasterMats.has(color)) {
-    plasterMats.set(color, new THREE.MeshStandardMaterial({ map: plasterTexture(), color, roughness: 0.9 }));
+    plasterMats.set(color, standardMat({ map: plasterTexture(), color, roughness: 0.9 }));
   }
   return plasterMats.get(color);
 }
@@ -156,7 +157,7 @@ function plasterMat(color) {
 const stoneMats = new Map();
 function stoneMat(color) {
   if (!stoneMats.has(color)) {
-    stoneMats.set(color, new THREE.MeshStandardMaterial({ map: stoneTexture(), color, roughness: 0.9 }));
+    stoneMats.set(color, standardMat({ map: stoneTexture(), color, roughness: 0.9 }));
   }
   return stoneMats.get(color);
 }
@@ -249,7 +250,7 @@ function makeTempleBuilding(o) {
   if (o.project) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.5, 0),
-      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
     marker.position.y = roofTop + 1.5;
     g.add(marker);
     g.userData.marker = marker;
@@ -303,8 +304,8 @@ function makeBuilding(o) {
     const slopeLen = Math.hypot(span / 2 + 0.7, roofH);
     for (let i = 0; i < 8; i++) uv.setXY(i, uv.getX(i) * (len / 1.2), uv.getY(i) * (slopeLen / 1.2));
     uv.needsUpdate = true;
-    const roofMat = new THREE.MeshStandardMaterial({ map: M.tile.map, color: o.roof, roughness: 0.8 });
-    roofMat.color.lerp(new THREE.Color(0xffffff), 0.7);    // tint the tile texture, don't crush it
+    // tint the tile texture toward white so it isn't crushed (shared per tint)
+    const roofMat = standardMat({ map: M.tile.map, color: new THREE.Color(o.roof).lerp(new THREE.Color(0xffffff), 0.7), roughness: 0.8 });
     const roof = new THREE.Mesh(roofGeo, [roofMat, plasterMat(o.color)]);
     roof.position.y = o.h - 0.02;
     if (alongX) roof.rotation.y = Math.PI / 2;
@@ -314,7 +315,7 @@ function makeBuilding(o) {
     roofTop = o.h + roofH;
     o.roofH = roofH;
   } else if (o.roof !== null && o.roof !== undefined) {
-    const rMat = new THREE.MeshStandardMaterial({ color: o.roof, roughness: 0.7 });
+    const rMat = standardMat({ color: o.roof, roughness: 0.7 });
     const segs = o.roofSegs || 4;
     const roof = new THREE.Mesh(new THREE.ConeGeometry(o.w * 0.78, o.h * 0.5, segs), rMat);
     roof.position.y = o.h + o.h * 0.25;
@@ -484,7 +485,7 @@ function makeBuilding(o) {
     const signGroup = new THREE.Group();
     signGroup.position.set(1.0, -0.05, 0);
     const signMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.9),
-      new THREE.MeshStandardMaterial({ color: isTavern ? 0x8b1a1a : 0x4a4a4a, roughness: 0.8 }));
+      standardMat({ color: isTavern ? 0x8b1a1a : 0x4a4a4a, roughness: 0.8 }));
     signMesh.position.set(0, -0.55, 0);
     signGroup.add(signMesh);
     sPivot.add(signGroup);
@@ -519,7 +520,7 @@ function makeBuilding(o) {
   if (o.project) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.5, 0),
-      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
     marker.position.y = roofTop + 1.5;
     g.add(marker);
     g.userData.marker = marker;
@@ -816,7 +817,7 @@ function createRock(x, z, s) {
   s = s || 1;
   const rock = new THREE.Mesh(
     new THREE.DodecahedronGeometry(0.4 * s, 0),
-    new THREE.MeshStandardMaterial({ color: 0x7a7a7a, roughness: 0.95 })
+    standardMat({ color: 0x7a7a7a, roughness: 0.95 })
   );
   rock.position.set(x, 0.2 * s, z);
   rock.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
@@ -879,7 +880,7 @@ let _lampMats = null;
 function lampMaterials() {
   if (_lampMats) return _lampMats;
   _lampMats = {
-    pole: new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.9 }),
+    pole: standardMat({ color: 0x3e2518, roughness: 0.9 }),
     glow: new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.6 }),
   };
   return _lampMats;
@@ -1254,7 +1255,7 @@ function initTownWorld() {
     // Pole
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8),
-      new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 })
+      standardMat({ color: 0x5a3a1a, roughness: 0.9 })
     );
     pole.position.y = 1.4;
     pole.castShadow = true;
@@ -1276,13 +1277,12 @@ function initTownWorld() {
     const tex = new THREE.CanvasTexture(cv);
     const sign = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.55, 0.1),
-      [roadMat, roadMat, roadMat, roadMat,
-       new THREE.MeshStandardMaterial({ map: tex }),
-       new THREE.MeshStandardMaterial({ map: tex })]
+      [roadMat, roadMat, roadMat, roadMat, standardMat({ map: tex }), standardMat({ map: tex })]
     );
     sign.position.y = 3.0;
     sign.castShadow = true;
     g.add(sign);
+    mergeStaticChildren(g);           // 6-material board → board edges + two faces (§4.1)
     g.position.set(x, 0, z);
     g.rotation.y = rotY;
     scene.add(g);
@@ -1453,7 +1453,7 @@ function initTownWorld() {
   // ── Tavern terrace & campfire ───────────────────────────────
   // The tavern's front wall is at z = 32; the terrace sits on the plaza in
   // front of it (the old tables/fire/barrels were inside the building).
-  const tableMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8 });
+  const tableMat = standardMat({ color: 0x6b4226, roughness: 0.8 });
   const TABLES = [[-8, 35.5], [-13, 35.5], [-16.5, 38.5]];
   const tableTopGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.12, 10);
   const tableLegGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.85, 8);
@@ -1619,7 +1619,7 @@ function initTownWorld() {
 
   // Flower beds (Town Square): wooden planter + small hedge bushes on the
   // foliage system + instanced blooms on top.
-  const bedMat = new THREE.MeshStandardMaterial({ color: 0x5c3d2e });
+  const bedMat = standardMat({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
   const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-9.5, 42.5]];
   BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
@@ -1709,7 +1709,7 @@ function initTownWorld() {
   animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
 
   const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
-  const bookMat = new THREE.MeshStandardMaterial({ color: 0x5e35b1, roughness: 0.4 });
+  const bookMat = standardMat({ color: 0x5e35b1, roughness: 0.4 });
   const books = new THREE.Group();
   books.position.set(OBSERVATORY.x, 3, OBSERVATORY.z);
   scene.add(books);
@@ -1730,7 +1730,7 @@ function initTownWorld() {
 
   // Tavern Mugs and Barrels (South Arm - Tavern)
   const mugGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
-  const mugMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness:0.2 });
+  const mugMat = standardMat({ color: 0xcccccc, roughness: 0.2 });
   [[-8.2, 35.3], [-7.8, 35.7], [-13.1, 35.4], [-16.6, 38.7]].forEach(([x,z]) => {
     const mug = new THREE.Mesh(mugGeo, mugMat);
     mug.position.set(x, 1.05, z);
@@ -1745,9 +1745,9 @@ function initTownWorld() {
     colliders,
     reducedMotion: REDUCED_MOTION,
     materials: {
-      barrel: new THREE.MeshStandardMaterial({ color: 0x5a4033, roughness: 0.95 }),
+      barrel: standardMat({ color: 0x5a4033, roughness: 0.95 }),
       crate:  propMaterials().woodDoor,
-      chair:  new THREE.MeshStandardMaterial({ color: 0x7a4e2d, roughness: 0.85 }),
+      chair:  standardMat({ color: 0x7a4e2d, roughness: 0.85 }),
     },
     onHit: (strength) => audioSys.playThud(strength * 0.6),
   });
@@ -2342,7 +2342,7 @@ function initTownWorld() {
       if (perfTimer >= 5) {
         const r = renderer.info.render;
         const fps = (perfFrames / perfTimer).toFixed(0);
-        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · ${pointLightCount} point lights · tier=${perfTier} · grass=${grass ? grass.count : 0} · wind=${WIND.uniforms.uWindStrength.value}`;
+        const msg = `[town] ${fps}fps · ${r.calls} draw calls · ${r.triangles} tris · ${pointLightCount} point lights · ${sharedMaterialCount()} shared mats · tier=${perfTier} · grass=${grass ? grass.count : 0} · wind=${WIND.uniforms.uWindStrength.value}`;
         (r.calls > DRAW_CALL_BUDGET ? console.warn : console.log)(msg);
         window._townPerf = { fps: +fps, calls: r.calls, triangles: r.triangles, tier: perfTier };
         perfTimer = 0; perfFrames = 0;

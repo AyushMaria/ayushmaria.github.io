@@ -40,7 +40,7 @@
 
 ## 1.5 Core Patterns (Bruno Simon Reference)
 - [ ] **Priority-based event system** — Custom event emitter with ordered tick callbacks (physics → camera → particles)
-- [ ] **Centralized materials registry** — `materials.js` with `Map`-based shared materials (currently `new MeshStandardMaterial()` per building)
+- [x] **Centralized materials registry** — `materials.js` → `standardMat(params, tag?)` returns one shared `MeshStandardMaterial` per distinct parameter set (colours / textures normalised into the key). Buildings, roofs, markers, signs, rocks, sign posts, tables, props and the `propMaterials()` set all draw from it; runtime-mutated materials (window panes, lamp glow, clock face, temple) keep their own, and wind-patched ones use their own `tag`. Scene material objects 166 → 123; signboards also merged (6 draws → 2 each); `?debug` log shows the shared-material count
 
 ---
 
@@ -238,7 +238,7 @@
 # Phase 4: Performance & Polish
 
 ## 4.1 Performance Optimization
-- [ ] **Shared materials registry** — same task as §1.5 (`materials.js`); do it once, tick both
+- [x] **Shared materials registry** — done in §1.5 (`materials.js`)
 - [ ] **Instanced meshes** — Use `InstancedMesh` for trees, rocks, flowers, barrels (same geometry + material)
 - [ ] **LOD** — Reduce geometry detail for distant buildings
 - [ ] **Frustum culling audit** — Ensure all meshes have proper bounding spheres
