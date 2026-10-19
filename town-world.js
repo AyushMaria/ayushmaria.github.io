@@ -29,6 +29,7 @@ import { buildTerrain, buildWater, buildBridge } from './terrain.js';
 import { buildStadium } from './stadium.js';
 import { buildFanSquare } from './fan-square.js';
 import { buildControlTower, buildDrone, buildWaypointFlag } from './control-tower.js';
+import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from './vortex-observatory.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -335,8 +336,43 @@ function makeControlTowerBuilding(o) {
   return g;
 }
 
+// The Vortex Observatory: dome + telescope (vortex-observatory.js); the
+// vortex itself and the ground streamlines are added in initTownWorld
+function makeObservatoryBuilding(o) {
+  const g = new THREE.Group();
+  const ob = buildObservatory(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(ob.group);
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.6, 2.6, 28), propMaterials().stoneDark);
+  skirt.position.y = -1.29;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = ob.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    ob.update(t);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = ob.group.children[0];
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.observatory) return makeObservatoryBuilding(o);
   if (o.controlTower) return makeControlTowerBuilding(o);
   if (o.court) return makeCourtBuilding(o);
   if (o.stadium) return makeStadiumBuilding(o);
@@ -907,7 +943,7 @@ const wallLanternSlots = [];   // filled by makeBuilding, built once all buildin
 // three.js compiles every lit material for the number of lights in the
 // scene and shades every pixel against all of them, so the old 27 lamp
 // PointLights + orb cost ~30 light loops per pixel whether or not they
-// were on screen. Now lamps (and the Observatory orb) are just *light
+// were on screen. Now lamps (and the Observatory's vortex) are just *light
 // sources*: each keeps its emissive head and a cheap additive ground pool,
 // and a small fixed pool of PointLights (4 high tier / 2 low) follows the
 // sources nearest the camera focus. The light count never changes, so no
@@ -1504,19 +1540,19 @@ function initTownWorld() {
   audioSys.attachFountain(fountainWater);
   audioSys.zoneOf = (p) => ZONE_NAMES[zoneKeyAt(p.x, p.z)];
 
-  // ── Vortex orb (above the Observatory on the crest) ─────────
-  const orb = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, 16, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 1,
-    })
-  );
-  const OBSERVATORY = BUILDINGS.find(b => b.label === 'Vortex Observatory');
-  const ORB_Y = OBSERVATORY.y + OBSERVATORY.h + 7;
-  orb.position.set(OBSERVATORY.x, ORB_Y, OBSERVATORY.z);
-  scene.add(orb);
-  // Lit through the light pool like the lamps (orb.position is read live)
-  lightSources.push({ pos: orb.position, color: new THREE.Color(0x06d6a0), intensity: 1.2, distance: 12 });
+  // ── The vortex over the Observatory + streamlines round its foot ──
+  const OBSERVATORY = BUILDINGS.find(b => b.observatory);
+  {
+    const off = VORTEX_OFFSET.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), OBSERVATORY.heading || 0);
+    const vortex = buildVortex(new THREE.Vector3(OBSERVATORY.x + off.x, OBSERVATORY.y + off.y, OBSERVATORY.z + off.z), { reducedMotion: REDUCED_MOTION });
+    scene.add(vortex.group);
+    const lines = buildStreamlines(OBSERVATORY.x, OBSERVATORY.z, groundAt, { reducedMotion: REDUCED_MOTION });
+    scene.add(lines.mesh);
+    animatedProps.push({ update: (t) => { vortex.update(t, camera); lines.update(t); } });
+    // teal light from the vortex, through the light pool like the lamps
+    lightSources.push({ pos: vortex.light, color: new THREE.Color(0x2de0c0), intensity: 1.2, distance: 14 });
+    window._vortex = vortex;
+  }
 
   // ── Tavern terrace & campfire ───────────────────────────────
   // Placed in the Tavern's own frame (it faces the street at the hairpin).
@@ -1573,7 +1609,7 @@ function initTownWorld() {
   }
   if (lampField) mergeStaticChildren(lampField);      // every pole + head → 2 meshes
   terrain.setLamps(lampRefs);                          // warm pools of light on the ground
-  // Fixed pool of PointLights shared by every lamp + the orb (see createLightPool)
+  // Fixed pool of PointLights shared by every lamp + the vortex (see createLightPool)
   const lightPool = createLightPool(scene, PERF.lightPool);
   window._lightPool = lightPool;
 
@@ -1729,37 +1765,6 @@ function initTownWorld() {
     animatedProps.push({ update: (t) => drone.update(t) });
     window._drone = drone;
   }
-
-  // Glowing Rune Circle & Floating Books round the Observatory
-  const runeMat = new THREE.MeshStandardMaterial({
-    color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 0.8,
-    transparent: true, opacity: 0.6
-  });
-  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.1, 3, 32), runeMat);   // hugs the tower
-  runeRing.rotation.x = -Math.PI/2;
-  runeRing.position.set(OBSERVATORY.x, OBSERVATORY.y + 0.08, OBSERVATORY.z);
-  scene.add(runeRing);
-  animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
-
-  const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
-  const bookMat = standardMat({ color: 0x5e35b1, roughness: 0.4 });
-  const books = new THREE.Group();
-  books.position.set(OBSERVATORY.x, OBSERVATORY.y + 3, OBSERVATORY.z);
-  scene.add(books);
-  for(let i=0; i<3; i++) {
-    const b = new THREE.Mesh(bookGeo, bookMat);
-    b.position.set(Math.sin(i * Math.PI*2/3) * 4, Math.sin(i) * 2, Math.cos(i * Math.PI*2/3) * 4);
-    b.rotation.set(Math.random(), Math.random(), Math.random());
-    books.add(b);
-  }
-  animatedProps.push({ update: (t) => { 
-    books.rotation.y = t * 0.5;
-    books.children.forEach((b, i) => {
-      b.position.y += Math.sin(t * 2 + i) * 0.02;
-      b.rotation.x += 0.01;
-      b.rotation.z += 0.015;
-    });
-  }});
 
   // Tavern mugs on the terrace tables
   const mugGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
@@ -2369,8 +2374,6 @@ function initTownWorld() {
     }
 
     // Existing animated props
-    orb.rotation.y   = elapsed * 1.5;
-    orb.position.y   = ORB_Y + Math.sin(elapsed * 2) * 0.3;
     fireGlow.intensity = 1.6 + Math.sin(elapsed * 3) * 0.4;
 
     // Fountain water shimmer

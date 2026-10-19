@@ -56,6 +56,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`stadium.js`**: The Prediction Colosseum as a small football stadium (stands, pitch with an xG shot map, scoreboard, floodlights, a ball that rolls into the net).
 * **`fan-square.js`**: Fan Square by the stadium (footballer statue, ticket kiosk, club flag, bunting, benches).
 * **`control-tower.js`**: Navigator's Tower as an airfield control tower (glazed cab, radar, aviation light, windsock), plus the waypoint drone and flags.
+* **`vortex-observatory.js`**: the Vortex Observatory (dome, telescope, anemometer), the teal vortex with its detection box, and the streamlines round its foot.
 * **`colliders.js`**: Collision shapes shared by the cart and the knockable props (circles, rotated boxes, capsules, the play-area ring).
 * **`town-props.js`**: Town wall, townhouses, mill wheel, clock tower, trees, clouds, mountains, stalls.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).

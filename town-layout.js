@@ -170,8 +170,10 @@ export const BUILDINGS = [
   // The Crest
   { x: -6, z: -39.6, w: 13.1, h: 5, d: 11.4, temple: true, templeScale: 0.78,
     label: 'City Hall', project: 'about', heading: 0 },
-  { x: 16.5, z: -30, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
-    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', heading: 0 },
+  // A round observatory (vortex-observatory.js) whose telescope tracks a
+  // vortex of teal mist over the crest, boxed by a detector every few seconds
+  { x: 16.5, z: -30, w: 4.6, h: 6.6, d: 4.6, observatory: true,
+    label: 'Vortex Observatory', project: 'vortex', heading: 0 },
   // An airfield-style control tower (control-tower.js) for a drone ground
   // control station: glazed cab, radar, mast; a drone flies NAV_LOOP
   { x: -34, z: -31.4, w: 4.2, h: 11.5, d: 4.2, controlTower: true,
