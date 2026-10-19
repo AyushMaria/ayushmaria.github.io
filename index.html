@@ -130,10 +130,10 @@
 
     <!-- Zone fast-travel HUD — keyboard/screen-reader/mobile fallback to driving -->
     <nav id="zone-hud" class="zone-hud" aria-label="Fast travel between town quarters">
-      <button type="button" data-zone="square" class="active" aria-label="Fast travel to Town Square"><span class="zone-hud-icon" aria-hidden="true">⛲</span><span class="zone-hud-label">Square</span></button>
-      <button type="button" data-zone="north" aria-label="Fast travel to Main Street"><span class="zone-hud-icon" aria-hidden="true">🏘️</span><span class="zone-hud-label">Main St</span></button>
-      <button type="button" data-zone="east" aria-label="Fast travel to Research Quarter"><span class="zone-hud-icon" aria-hidden="true">🔬</span><span class="zone-hud-label">Research</span></button>
-      <button type="button" data-zone="west" aria-label="Fast travel to Services Quarter"><span class="zone-hud-icon" aria-hidden="true">🛎️</span><span class="zone-hud-label">Services</span></button>
+      <button type="button" data-zone="lower" class="active" aria-label="Fast travel to Lower Town"><span class="zone-hud-icon" aria-hidden="true">🌉</span><span class="zone-hud-label">Lower Town</span></button>
+      <button type="button" data-zone="terrace" aria-label="Fast travel to Market Terrace"><span class="zone-hud-icon" aria-hidden="true">⛲</span><span class="zone-hud-label">Market</span></button>
+      <button type="button" data-zone="hillside" aria-label="Fast travel to Hillside"><span class="zone-hud-icon" aria-hidden="true">🏘️</span><span class="zone-hud-label">Hillside</span></button>
+      <button type="button" data-zone="crest" aria-label="Fast travel to The Crest"><span class="zone-hud-icon" aria-hidden="true">🏛️</span><span class="zone-hud-label">Crest</span></button>
     </nav>
 
     <!-- Zone transition text -->
@@ -247,12 +247,12 @@
 
 
     const PROJECTS = {
-    // ── City Hall (head of Main Street) — the "about me" card ─────
+    // ── City Hall (on the crest, top of the High Street) — the "about me" card ─────
     about: {
       icon: '🏯',
       title: 'Ayush — Keeper of the Settlement',
       badges: ['Business Owner', 'Freelance Software Contractor', 'Agentic AI', 'ML & Computer Vision', 'Full-Stack'],
-      flavor: 'The hall at the head of Main Street, where the settlement keeps its records.',
+      flavor: 'The hall on the crest at the top of the High Street, where the settlement keeps its records.',
       why: 'I run my own business and take on software work as a freelancer and independent contractor. I build AI agents and full-stack products that do real work for people, like Ace, a booking concierge that lives inside WhatsApp, alongside data-science and computer-vision projects. Every building in this town is one of those projects: drive up to a door to step inside, or get in touch below if you have something you\'d like built.',
       stackTitle: 'Skills & Trades',
       stack: [
@@ -396,15 +396,15 @@
     // Which quarter of the settlement each project's building stands in.
     // Drives the modal's ribbon, accent colour and flavour line (§3.2).
     const PROJECT_ZONES = {
-      about: 'north', mavpose: 'north', vortex: 'north', tinytots: 'north',
-      xg: 'east', aws: 'east', ledger: 'east',
-      ace: 'west', volley: 'west', instillgcs: 'west',
+      about: 'crest', vortex: 'crest', instillgcs: 'crest',
+      ledger: 'hillside', aws: 'hillside', tinytots: 'hillside',
+      mavpose: 'lower', xg: 'lower', volley: 'lower', ace: 'lower',
     };
     const ZONE_INFO = {
-      square: { name: 'Town Square',      flavor: 'Where every road in the settlement begins.' },
-      north:  { name: 'Main Street',      flavor: 'Workshops, ledgers and lesson halls — where the settlement gets things done.' },
-      east:   { name: 'Research Quarter', flavor: 'Towers of inquiry, where raw data is turned into prophecy.' },
-      west:   { name: 'Services Quarter', flavor: 'Hospitality, sport and wayfinding for weary travellers.' },
+      terrace:  { name: 'Market Terrace', flavor: 'Where the road from the river meets the town — stalls, a fountain and the Tavern.' },
+      lower:    { name: 'Lower Town',     flavor: 'Workshops, arenas and parlours between the river and the walls.' },
+      hillside: { name: 'Hillside',       flavor: 'Ledgers, lesson halls and cloud towers climbing the hill.' },
+      crest:    { name: 'The Crest',      flavor: 'City Hall and the towers of inquiry, high above the rooftops.' },
     };
     const PROJECT_BUILDINGS = {
       about: 'City Hall', mavpose: 'The Forge', ledger: 'Ledger Sanctum', tinytots: 'Tiny Tots Academy',
@@ -422,8 +422,8 @@
       if (!p) return;
       ctx = ctx || {};
 
-      const zoneKey  = ctx.zoneKey || PROJECT_ZONES[projectId] || 'square';
-      const zoneInfo = ZONE_INFO[zoneKey] || ZONE_INFO.square;
+      const zoneKey  = ctx.zoneKey || PROJECT_ZONES[projectId] || 'terrace';
+      const zoneInfo = ZONE_INFO[zoneKey] || ZONE_INFO.terrace;
       modalCard.dataset.zone = zoneKey;
       document.getElementById('modal-zone').textContent = ctx.zone || zoneInfo.name;
       document.getElementById('modal-building').textContent = ctx.building || PROJECT_BUILDINGS[projectId] || '';

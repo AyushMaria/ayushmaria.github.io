@@ -54,7 +54,8 @@ export class AudioSystem {
     this._onChange = (e) => this.setEnabled(!!(e.detail && e.detail.on));
     window.addEventListener('sound:change', this._onChange);
 
-    this.currentZone = 'Town Square';
+    this.currentZone = null;          // set on the first update
+    this.zoneOf = null;               // (pos) => zone name — set by town-world.js
   }
 
   // ── Mute / unmute ─────────────────────────────────────────────
@@ -488,18 +489,6 @@ export class AudioSystem {
     osc.start(now); osc.stop(now + 0.12);
   }
 
-  _determineZone(pos) {
-    const dist = Math.hypot(pos.x, pos.z);
-    if (dist < 18) return 'Town Square';
-    const angle = Math.atan2(pos.x, pos.z);
-    if (Math.abs(angle) < Math.PI / 4) return 'Town Square';
-    // Names match ZONES in town-world.js (HUD, modal header, achievements)
-    if (angle > Math.PI / 4 && angle < 3 * Math.PI / 4) return 'Research Quarter';   // East
-    if (angle < -Math.PI / 4 && angle > -3 * Math.PI / 4) return 'Services Quarter'; // West
-    if (Math.abs(angle) >= 3 * Math.PI / 4) return 'Main Street';                      // North
-    return 'Town Square';
-  }
-
   update(delta, elapsed, cart, isNight) {
     if (!this.initialized) return;
 
@@ -541,11 +530,10 @@ export class AudioSystem {
     this._setVol(this.crickets, isNight ? 0.025 : 0, 0.8);
 
     // Zone change chime
-    const pos = cart.getPosition();
-    const newZone = this._determineZone(pos);
-    if (newZone !== this.currentZone) {
+    const newZone = this.zoneOf ? this.zoneOf(cart.getPosition()) : null;
+    if (newZone && newZone !== this.currentZone) {
+      if (this.currentZone) this.playChime();     // no chime for where you start
       this.currentZone = newZone;
-      this.playChime();
     }
   }
 

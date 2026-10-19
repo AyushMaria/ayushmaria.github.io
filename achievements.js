@@ -85,6 +85,8 @@ export class Achievements {
     this.onUnlock       = opts.onUnlock || null;
 
     this.stats = loadStats();
+    // quarters renamed with the hill-town layout: forget visits to zones that no longer exist
+    if (opts.zones) this.stats.zones = this.stats.zones.filter(z => opts.zones.includes(z));
     this.sessionTime = 0;
     this._saveTimer = 0;
     this._dirty = false;

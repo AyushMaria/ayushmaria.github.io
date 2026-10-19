@@ -2,7 +2,9 @@
  * town-props.js — Large set-dressing built to the reference art
  *
  *   • gableRoofGeometry()   — steep two-slope roof with closed gable ends
- *   • buildCityWall()       — circular stone curtain wall, towers, gates (instanced)
+ *   • buildPathWall()       — town wall following a path over the hill: towers, gate, water gate
+ *   • buildTownhouses()     — instanced filler townhouses lining the streets
+ *   • buildMillWheel()      — the turning water wheel behind the mill
  *   • buildClockTower()     — gothic landmark at the end of Main Street
  *   • buildTrees()          — leaf-card crowns per species (Bruno Simon's Foliage pattern)
  *   • buildBushes()         — same crowns, no trunk
@@ -20,7 +22,8 @@ import * as THREE from 'three';
 import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTexture, leafClusterTexture } from './textures.js';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { attachWind } from './wind.js';
-import { standardMat } from './materials.js';
+import { standardMat, withOcclusionCut } from './materials.js';
+import { seg as segCollider } from './colliders.js';
 
 // ── Shared materials ────────────────────────────────────────────
 let _mats = null;
@@ -95,125 +98,130 @@ export function gableRoofGeometry(w, h, d) {
   return g;
 }
 
-// ── City wall ───────────────────────────────────────────────────
+/** Box UVs in world units (so stone blocks keep their size on long boxes). */
+function boxUV(geo, unit = 2) {
+  const pos = geo.attributes.position, nrm = geo.attributes.normal, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i));
+    const [u, v] = ax > 0.5 ? [pos.getZ(i), pos.getY(i)] : ay > 0.5 ? [pos.getX(i), pos.getZ(i)] : [pos.getX(i), pos.getY(i)];
+    uv.setXY(i, u / unit, v / unit);
+  }
+  uv.needsUpdate = true;
+  return geo;
+}
+
+// ── Town wall ───────────────────────────────────────────────────
 /**
- * Circular curtain wall with crenellations, round towers and gatehouses.
- * @returns {{ group, colliders, radius }}
+ * Curtain wall that follows a closed path over the hill (town-layout.js):
+ * short straight runs that step with the ground, crenellations, round
+ * towers, an open gatehouse where the High Street passes through and a
+ * barred water gate where the stream leaves town. Instanced: a handful of
+ * draw calls for the whole wall. Its materials take part in the occlusion
+ * cut so the cart shows through when the wall is between it and the camera.
+ *
+ * @param {object} L  buildLayout() result (wall path, gaps, groundAt)
+ * @returns {{ group, colliders }}
  */
-export function buildCityWall(scene, { radius = 63, height = 6, gates = ['east', 'west', 'south'], towers = 8 } = {}) {
+export function buildPathWall(scene, L) {
   const M = propMaterials();
+  const stone = withOcclusionCut(M.stone.clone());
+  const stoneDark = withOcclusionCut(M.stoneDark.clone());
+  const tile = withOcclusionCut(M.tile.clone());
   const group = new THREE.Group();
+  group.name = 'town-wall';
   const colliders = [];
+  const W = L.wall, H = W.height, T = W.thickness, ground = L.groundAt;
+  const P = W.coarse.pts, total = W.coarse.length;
 
-  const SEGS = 60;
-  const segLen = (2 * Math.PI * radius) / SEGS + 0.35;   // slight overlap hides seams
-  const thickness = 1.8;
-
-  // Gate azimuths: south = +Z (0), east = +X (PI/2), north = -Z (PI), west = -X (-PI/2)
-  const gateAngle = { south: 0, east: Math.PI / 2, north: Math.PI, west: -Math.PI / 2 };
-  const gateHalfWidth = 5.2;                                // world units, at the wall line
-  const isGateSpan = (a) => gates.some(g => {
-    let d = a - gateAngle[g];
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    return Math.abs(d) * radius < gateHalfWidth;
-  });
-
-  // Wall segments
-  const wallGeo = new THREE.BoxGeometry(segLen, height, thickness);
-  const wall = new THREE.InstancedMesh(wallGeo, M.stone, SEGS);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1);
-  let wi = 0;
-  const merlonSlots = [];
-  for (let i = 0; i < SEGS; i++) {
-    const a = ((i + 0.5) / SEGS) * Math.PI * 2;
-    if (isGateSpan(a)) continue;
-    p.set(Math.sin(a) * radius, height / 2, Math.cos(a) * radius);
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), a);
-    m.compose(p, q, s);
-    wall.setMatrixAt(wi++, m);
-    // 4 merlons per segment
-    for (let k = 0; k < 4; k++) {
-      const aa = ((i + (k + 0.5) / 4) / SEGS) * Math.PI * 2;
-      merlonSlots.push(aa);
-    }
+  // runs: one box per coarse segment that isn't in a gap
+  const runs = [];
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length];
+    const sMid = (a.s + (b.s < a.s ? total : b.s)) / 2 % total;
+    if (L.wallGap(sMid) || L.wallGap(a.s) || L.wallGap(b.s)) continue;
+    const ga = ground(a.x, a.z), gb = ground(b.x, b.z);
+    runs.push({ a, b, top: (ga + gb) / 2 + H, bottom: Math.min(ga, gb) - 1.6 });
   }
-  wall.count = wi;
-  wall.castShadow = true; wall.receiveShadow = true;
-  group.add(wall);
-
-  // Crenellations
-  const merlonGeo = new THREE.BoxGeometry(1.1, 1.0, thickness + 0.2);
-  const merlons = new THREE.InstancedMesh(merlonGeo, M.stoneDark, merlonSlots.length);
-  merlonSlots.forEach((a, i) => {
-    p.set(Math.sin(a) * radius, height + 0.5, Math.cos(a) * radius);
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), a);
-    m.compose(p, q, s);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  const Y = new THREE.Vector3(0, 1, 0);
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const walls = new THREE.InstancedMesh(box, stone, runs.length);
+  const merlons = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.0, T + 0.2), stoneDark, runs.length);
+  runs.forEach((r, i) => {
+    const dx = r.b.x - r.a.x, dz = r.b.z - r.a.z, len = Math.hypot(dx, dz);
+    q.setFromAxisAngle(Y, Math.atan2(-dz, dx));
+    m.compose(p.set((r.a.x + r.b.x) / 2, (r.top + r.bottom) / 2, (r.a.z + r.b.z) / 2), q, sc.set(len + 0.35, r.top - r.bottom, T));
+    walls.setMatrixAt(i, m);
+    m.compose(p.setY(r.top + 0.5), q, sc.set(1, 1, 1));
     merlons.setMatrixAt(i, m);
+    colliders.push(segCollider(r.a.x, r.a.z, r.b.x, r.b.z, T / 2 + 0.25));
   });
+  walls.castShadow = walls.receiveShadow = true;
   merlons.castShadow = true;
-  group.add(merlons);
+  group.add(walls, merlons);
 
-  // Towers: evenly spaced, plus a pair flanking every gate
-  const towerAngles = [];
-  for (let i = 0; i < towers; i++) {
-    const a = (i / towers) * Math.PI * 2 + Math.PI / towers;   // offset so none lands on a gate
-    if (!isGateSpan(a)) towerAngles.push(a);
-  }
-  gates.forEach(g => {
-    const off = (gateHalfWidth + 1.6) / radius;
-    towerAngles.push(gateAngle[g] - off, gateAngle[g] + off);
+  // towers: every ~17 units, not in or right beside a gap; a pair at each gate
+  const towerAt = [];
+  const nearGap = (s, pad) => W.gaps.some(g => { let d = Math.abs(s - g.s); d = Math.min(d, total - d); return d < g.half + pad; });
+  for (let s = 6; s < total - 4; s += 17) if (!nearGap(s, 4)) towerAt.push(s);
+  for (const g of W.gaps) if (g.kind === 'gate') towerAt.push((g.s - g.half - 2.2 + total) % total, (g.s + g.half + 2.2) % total);
+  const pointAt = (s) => {
+    const k = W.path.pts.length, i = Math.round((((s % total) + total) % total) / total * k) % k;
+    return W.path.pts[i];
+  };
+  const tR = 2.4;
+  const towerGeo = new THREE.CylinderGeometry(tR, tR + 0.3, 1, 14);
+  const roofGeo = new THREE.ConeGeometry(tR + 0.9, 4.2, 14);
+  const towers = new THREE.InstancedMesh(towerGeo, stone, towerAt.length);
+  const roofs = new THREE.InstancedMesh(roofGeo, tile, towerAt.length);
+  towerAt.forEach((s, i) => {
+    const c = pointAt(s);
+    let lo = Infinity;
+    for (let a = 0; a < 6; a++) lo = Math.min(lo, ground(c.x + Math.cos(a) * tR, c.z + Math.sin(a) * tR));
+    const g0 = ground(c.x, c.z), topY = g0 + H + 4, base = lo - 1.5;
+    m.compose(p.set(c.x, (topY + base) / 2, c.z), q.identity(), sc.set(1, topY - base, 1));
+    towers.setMatrixAt(i, m);
+    m.compose(p.set(c.x, topY + 2.1, c.z), q.identity(), sc.set(1, 1, 1));
+    roofs.setMatrixAt(i, m);
+    colliders.push({ circle: true, x: c.x, z: c.z, r: tR + 0.5 });
   });
-  const tR = 2.4, tH = height + 4;
-  const towerGeo = new THREE.CylinderGeometry(tR, tR + 0.3, tH, 14);
-  const roofGeo  = new THREE.ConeGeometry(tR + 0.9, 4.2, 14);
-  const towerMesh = new THREE.InstancedMesh(towerGeo, M.stone, towerAngles.length);
-  const roofMesh  = new THREE.InstancedMesh(roofGeo,  M.tile,  towerAngles.length);
-  towerAngles.forEach((a, i) => {
-    p.set(Math.sin(a) * radius, tH / 2, Math.cos(a) * radius);
-    q.identity();
-    m.compose(p, q, s);
-    towerMesh.setMatrixAt(i, m);
-    p.y = tH + 2.1;
-    m.compose(p, q, s);
-    roofMesh.setMatrixAt(i, m);
-    colliders.push({ circle: true, x: p.x, z: p.z, r: tR + 0.5 });
-  });
-  towerMesh.castShadow = true; roofMesh.castShadow = true;
-  group.add(towerMesh, roofMesh);
+  towers.castShadow = roofs.castShadow = true;
+  towers.receiveShadow = true;
+  group.add(towers, roofs);
 
-  // Gatehouses: arch lintel + closed double doors (the wall's ring collider
-  // keeps the cart inside, so the doors are drawn shut — no fake openings)
-  const lintelGeo = new THREE.BoxGeometry(gateHalfWidth * 2 + 3.2, 2.6, thickness + 0.6);
-  const doorGeo   = new THREE.BoxGeometry(gateHalfWidth * 2 - 0.4, height - 1.6, 0.5);
-  const archGeo   = new THREE.TorusGeometry(gateHalfWidth - 0.2, 0.35, 8, 24, Math.PI);
-  gates.forEach(g => {
-    const a = gateAngle[g];
+  // gatehouse (open) and water gate (barred) spanning each gap
+  for (const g of W.gaps) {
+    const c = pointAt(g.s);
     const gh = new THREE.Group();
-    gh.position.set(Math.sin(a) * radius, 0, Math.cos(a) * radius);
-    gh.rotation.y = a;
-    const lintel = new THREE.Mesh(lintelGeo, M.stone);
-    lintel.position.y = height - 0.2;
+    const y0 = g.kind === 'gate' ? ground(g.x, g.z) : Math.max(ground(pointAt(g.s - g.half).x, pointAt(g.s - g.half).z), ground(pointAt(g.s + g.half).x, pointAt(g.s + g.half).z)) - 0.4;
+    gh.position.set(g.x, y0, g.z);
+    gh.rotation.y = Math.atan2(-c.tz, c.tx);       // local x along the wall
+    const span = g.half * 2 + 1.6;
+    const lintel = new THREE.Mesh(boxUV(new THREE.BoxGeometry(span, 2.4, T + 0.6), 2.2), stone);
+    lintel.position.y = H - 0.1;
     lintel.castShadow = true;
     gh.add(lintel);
-    const door = new THREE.Mesh(doorGeo, M.woodDoor);
-    door.position.y = (height - 1.6) / 2;
-    gh.add(door);
-    // iron bands on the door
-    [0.3, 0.6].forEach(f => {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(gateHalfWidth * 2 - 0.6, 0.18, 0.6), M.iron);
-      band.position.y = (height - 1.6) * f;
-      gh.add(band);
-    });
-    const arch = new THREE.Mesh(archGeo, M.stoneDark);
-    arch.position.y = height - 1.4;
+    const crenel = new THREE.Mesh(boxUV(new THREE.BoxGeometry(span, 0.9, T + 0.8), 2.2), stoneDark);
+    crenel.position.y = H + 1.5;
+    gh.add(crenel);
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(g.half - 0.25, 0.35, 8, 24, Math.PI), stoneDark);
+    arch.position.y = H - 1.4 - (g.half - 0.25) * 0.15;
+    arch.scale.y = 0.5;
     gh.add(arch);
+    if (g.kind === 'water') {
+      // portcullis bars down into the water
+      const bars = [];
+      for (let x = -g.half + 0.4; x <= g.half - 0.4; x += 0.45) bars.push(x);
+      const barMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.09, H - 0.4, 0.09), M.iron, bars.length);
+      bars.forEach((x, i) => { m.compose(p.set(x, (H - 1.3) / 2 - 0.2, 0), q.identity(), sc.set(1, 1, 1)); barMesh.setMatrixAt(i, m); });
+      gh.add(barMesh);
+      const a = pointAt(g.s - g.half), b = pointAt(g.s + g.half);
+      colliders.push(segCollider(a.x, a.z, b.x, b.z, 0.5));
+    }
     group.add(gh);
-  });
-
+  }
   scene.add(group);
-  // Stay inside the wall (inner face minus cart half-width)
-  colliders.push({ ring: true, r: radius - thickness / 2 - 0.4 });
-  return { group, colliders, radius };
+  return { group, colliders };
 }
 
 // ── Clock tower ─────────────────────────────────────────────────
@@ -221,10 +229,14 @@ export function buildCityWall(scene, { radius = 63, height = 6, gates = ['east',
  * Gothic stone clock tower (reference landmark). ~9 meshes.
  * @returns {{ group, collider, tick }}
  */
-export function buildClockTower(scene, x, z, { base = 6, height = 22 } = {}) {
+export function buildClockTower(scene, x, z, { base = 6, height = 22, y = 0 } = {}) {
   const M = propMaterials();
   const g = new THREE.Group();
-  g.position.set(x, 0, z);
+  g.position.set(x, y, z);
+  // foundation down into the slope
+  const found = new THREE.Mesh(new THREE.BoxGeometry(base + 0.6, 3, base + 0.6), M.stoneDark);
+  found.position.y = -1.3;
+  g.add(found);
 
   const shaft = new THREE.Mesh(new THREE.BoxGeometry(base, height, base), M.stone);
   shaft.position.y = height / 2;
@@ -371,7 +383,7 @@ export function foliageMaterials() { return [...speciesMats.values()]; }
  * Trees: instanced trunks + one leaf-card InstancedMesh per species.
  * @param places [[x, z, scale, species], ...]
  */
-export function buildTrees(scene, places, { sunDir, cards = 80 } = {}) {
+export function buildTrees(scene, places, { sunDir, cards = 80, heightAt = () => 0 } = {}) {
   const M = propMaterials();
   const trunkGeo = new THREE.CylinderGeometry(0.16, 0.28, 2.2, 7);
   const trunks = new THREE.InstancedMesh(trunkGeo, M.trunk, places.length);
@@ -382,10 +394,11 @@ export function buildTrees(scene, places, { sunDir, cards = 80 } = {}) {
   // group by species
   const bySpecies = new Map();
   places.forEach(([x, z, sc = 1, species = 'green'], i) => {
-    p.set(x, 1.1 * sc, z); s.set(sc, sc, sc); q.identity();
+    const gy = heightAt(x, z) - 0.15;
+    p.set(x, gy + 1.1 * sc, z); s.set(sc, sc, sc); q.identity();
     m.compose(p, q, s); trunks.setMatrixAt(i, m);
     if (!bySpecies.has(species)) bySpecies.set(species, []);
-    bySpecies.get(species).push([x, z, sc, i]);
+    bySpecies.get(species).push([x, z, sc, i, gy]);
     colliders.push({ circle: true, x, z, r: 0.55 * sc });
   });
   trunks.castShadow = true;
@@ -397,9 +410,9 @@ export function buildTrees(scene, places, { sunDir, cards = 80 } = {}) {
   for (const [species, list] of bySpecies) {
     const sp = SPECIES[species] || SPECIES.green;
     const mesh = new THREE.InstancedMesh(geo, speciesMaterial(species, sunDir), list.length);
-    list.forEach(([x, z, sc, i], k) => {
+    list.forEach(([x, z, sc, i, gy], k) => {
       const r = 1.9 * sc;                 // crown radius
-      p.set(x, 2.2 * sc + r * 0.55, z);
+      p.set(x, gy + 2.2 * sc + r * 0.55, z);
       s.set(r, r * 0.92, r);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.399) % (Math.PI * 2));
       m.compose(p, q, s);
@@ -422,7 +435,7 @@ export function buildTrees(scene, places, { sunDir, cards = 80 } = {}) {
  * Bushes: the same crown geometry/material with no trunk, sitting on the
  * ground. `places` = [[x, z, scale, species], ...]
  */
-export function buildBushes(scene, places, { sunDir, cards = 80, colliders: wantColliders = true } = {}) {
+export function buildBushes(scene, places, { sunDir, cards = 80, colliders: wantColliders = true, heightAt = () => 0 } = {}) {
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const col = new THREE.Color();
   const colliders = [];
@@ -438,7 +451,7 @@ export function buildBushes(scene, places, { sunDir, cards = 80, colliders: want
     const sp = SPECIES[species] || SPECIES.green;
     const mesh = new THREE.InstancedMesh(geo, speciesMaterial(species, sunDir), list.length);
     list.forEach(([x, z, sc, i], k) => {
-      p.set(x, sc * 0.75, z);
+      p.set(x, heightAt(x, z) + sc * 0.75, z);
       s.set(sc, sc * 0.8, sc);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 1.7) % (Math.PI * 2));
       m.compose(p, q, s);
@@ -461,7 +474,7 @@ export function buildBushes(scene, places, { sunDir, cards = 80, colliders: want
  * flowers per cluster, one InstancedMesh, heads sway with the wind.
  * @param clusters [[x, z], ...]
  */
-export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd166, 0xff6d6d, 0xc77dff, 0xff9f43] } = {}) {
+export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd166, 0xff6d6d, 0xc77dff, 0xff9f43], heightAt = () => 0 } = {}) {
   const rng = seededRng(99);
   // flower geometry: 8 tiny cards facing outward around a stem top
   const planes = [];
@@ -491,7 +504,8 @@ export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd16
     const c = palette[Math.floor(rng() * palette.length)];
     for (let j = 0; j < n; j++) {
       const o = new THREE.Object3D();
-      o.position.set(cx + (rng() - 0.5) * 3, 0, cz + (rng() - 0.5) * 3);
+      const fx = cx + (rng() - 0.5) * 3, fz = cz + (rng() - 0.5) * 3;
+      o.position.set(fx, heightAt(fx, fz), fz);
       o.rotation.y = Math.PI * 2 * rng();
       o.scale.setScalar(0.7 + rng() * 0.5);
       o.updateMatrix();
@@ -564,7 +578,7 @@ export function buildMountains(scene, { radius = 118 } = {}) {
 }
 
 // ── Market stall with curved awning ─────────────────────────────
-export function buildStall(scene, x, z, rotY, { red = false } = {}) {
+export function buildStall(scene, x, z, rotY, { red = false, y = 0 } = {}) {
   const M = propMaterials();
   const g = new THREE.Group();
   const table = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 1.6), M.woodDoor);
@@ -595,7 +609,7 @@ export function buildStall(scene, x, z, rotY, { red = false } = {}) {
     crate.position.set(cx, 1.11, cz);
     g.add(crate);
   });
-  g.position.set(x, 0, z);
+  g.position.set(x, y, z);
   g.rotation.y = rotY;
   scene.add(g);
   return { group: g, collider: { circle: true, x, z, r: 1.9 } };
@@ -609,9 +623,9 @@ export function buildStall(scene, x, z, rotY, { red = false } = {}) {
  *
  * Returns { group, water (pool disc — use for audio / shimmer), collider }.
  */
-export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles = 120 } = {}) {
+export function buildFountain(scene, particleSystem, { x = 0, z = 0, y = 0, particles = 120 } = {}) {
   const g = new THREE.Group();
-  g.position.set(x, 0, z);
+  g.position.set(x, y, z);
 
   const marble = standardMat({ map: stoneTexture(), color: 0xf3eee3, roughness: 0.7 });
   const marbleDark = standardMat({ map: stoneTexture(), color: 0xd9d2c4, roughness: 0.8 });
@@ -685,7 +699,7 @@ export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles =
     add(sheet, below + sheetH / 2, false);
     // falling droplets
     if (particleSystem) {
-      particleSystem.createFountainFall(new THREE.Vector3(x, t.y + 0.02, z), t.r + 0.14, Math.round(particles * 0.45), sheetH, 6.0);
+      particleSystem.createFountainFall(new THREE.Vector3(x, y + t.y + 0.02, z), t.r + 0.14, Math.round(particles * 0.45), sheetH, 6.0);
     }
   });
 
@@ -694,7 +708,7 @@ export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles =
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.45, 8), marble), top.y + 0.2);
   add(new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 10), marbleDark), top.y + 0.68);
   if (particleSystem) {
-    particleSystem.createFountainSpray(new THREE.Vector3(x, top.y + 0.95, z), particles,
+    particleSystem.createFountainSpray(new THREE.Vector3(x, y + top.y + 0.95, z), particles,
       { up: 2.4, upVar: 0.8, spread: 0.35, size: 11.0, gravity: 6.0 });
   }
 
@@ -711,8 +725,9 @@ export function buildFountain(scene, particleSystem, { x = 0, z = 0, particles =
  * The lanterns hang from the bracket tip and swing gently with the wind.
  *
  * @param {THREE.Scene} scene
- * @param {{x:number, y:number, z:number}[]} slots  world position of the
- *        wall plate (front wall, above the door); lanterns hang out along +Z
+ * @param {{x:number, y:number, z:number, rot?:number}[]} slots  world position of the
+ *        wall plate (front wall, above the door); lanterns hang out along the
+ *        building's heading `rot` (+Z when 0)
  * @param {{ reducedMotion?: boolean, windStrength?: () => number }} [opts]
  * @returns {{ update(t:number):void, glass: THREE.Material }}
  */
@@ -757,7 +772,8 @@ export function buildWallLanterns(scene, slots, { reducedMotion = false, windStr
 
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), one = new THREE.Vector3(scale, scale, scale);
   const phase = slots.map((s, i) => (s.x * 0.37 + s.z * 0.61 + i) % (Math.PI * 2));
-  slots.forEach((s, i) => { m4.compose(p.set(s.x, s.y, s.z), q.identity(), one); brackets.setMatrixAt(i, m4); });
+  const yaw = slots.map(s => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.rot || 0));
+  slots.forEach((s, i) => { m4.compose(p.set(s.x, s.y, s.z), yaw[i], one); brackets.setMatrixAt(i, m4); });
   brackets.instanceMatrix.needsUpdate = true;
 
   function pose(t) {
@@ -766,8 +782,9 @@ export function buildWallLanterns(scene, slots, { reducedMotion = false, windStr
       const ph = phase[i];
       // swing mostly out from / back to the wall, a little side to side
       e.set(Math.sin(t * 1.7 + ph) * amp, 0, Math.sin(t * 1.13 + ph * 1.7) * amp * 0.5);
-      q.setFromEuler(e);
-      p.set(s.x, s.y, s.z + ARM * scale);
+      q.setFromEuler(e).premultiply(yaw[i]);
+      const r = s.rot || 0;
+      p.set(s.x + Math.sin(r) * ARM * scale, s.y, s.z + Math.cos(r) * ARM * scale);
       m4.compose(p, q, one);
       cages.setMatrixAt(i, m4);
       panes.setMatrixAt(i, m4);
@@ -777,4 +794,146 @@ export function buildWallLanterns(scene, slots, { reducedMotion = false, windStr
   }
   pose(0);
   return { update: reducedMotion ? () => {} : pose, glass };
+}
+
+// ── Filler townhouses ───────────────────────────────────────────
+const HOUSE_PLASTER = [0xf3e4c4, 0xefe0bf, 0xf7dcc4, 0xe9d6ae, 0xf6ead0];
+const HOUSE_ROOF    = [0xc9553d, 0xb84a36, 0xa9432f, 0xd9694a];
+
+/**
+ * Small plaster-and-timber townhouses lining the streets (town-layout.js
+ * places them; each faces its street). Everything is instanced — plinth,
+ * walls, timber frame, roof, gable ends, windows, doors, chimneys — so
+ * forty houses cost about nine draw calls. All of it takes part in the
+ * occlusion cut.
+ *
+ * @param {Array} houses  [{ x, y, z, w, d, h, heading, storeys, ridgeAlong, tint, roofTint, chimney, chimneySide }]
+ * @param {{ windowMaterial: THREE.Material }} opts  glowing lattice windows (shared with the town)
+ */
+export function buildTownhouses(scene, houses, { windowMaterial }) {
+  const M = propMaterials();
+  const tileTex = M.tile.map.clone(); tileTex.repeat.set(4, 2.6); tileTex.needsUpdate = true;
+  const plasterTex = M.plaster.map.clone(); plasterTex.repeat.set(2, 2); plasterTex.needsUpdate = true;
+  const mat = {
+    plinth:  withOcclusionCut(new THREE.MeshStandardMaterial({ map: M.stoneDark.map, color: 0xa89c86, roughness: 0.95 })),
+    plaster: withOcclusionCut(new THREE.MeshStandardMaterial({ map: plasterTex, color: 0xffffff, roughness: 0.9 })),
+    timber:  withOcclusionCut(new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.95 })),
+    tile:    withOcclusionCut(new THREE.MeshStandardMaterial({ map: tileTex, color: 0xffffff, roughness: 0.8 })),
+    gable:   withOcclusionCut(new THREE.MeshStandardMaterial({ map: plasterTex, color: 0xffffff, roughness: 0.9 })),
+    door:    withOcclusionCut(new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 })),
+    chimney: withOcclusionCut(new THREE.MeshStandardMaterial({ map: M.stoneDark.map, color: 0x9a8e7a, roughness: 0.95 })),
+    window:  withOcclusionCut(windowMaterial),
+  };
+  // unit roof split into its tiled slopes and its plaster gable ends
+  const roofGeo = gableRoofGeometry(1, 1, 1);
+  const ri = roofGeo.index.array;
+  const slopes = roofGeo.clone(); slopes.setIndex(Array.from(ri.slice(0, 12))); slopes.clearGroups();
+  const gables = roofGeo.clone(); gables.setIndex(Array.from(ri.slice(12, 18))); gables.clearGroups();
+
+  const counts = { win: 0, timber: 0, chim: 0 };
+  for (const h of houses) {
+    counts.win += (h.storeys === 2 ? 4 : 2) + 1;   // front windows (+1 back)
+    counts.timber += h.storeys === 2 ? 14 : 10;
+    if (h.chimney) counts.chim++;
+  }
+  const N = houses.length;
+  const mk = (geo, m, n, cast = true) => {
+    const im = new THREE.InstancedMesh(geo, m, Math.max(1, n));
+    im.count = n; im.castShadow = cast; im.receiveShadow = true; im.name = 'townhouses';
+    scene.add(im); return im;
+  };
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  const plinths = mk(unit, mat.plinth, N), bodies = mk(unit, mat.plaster, N);
+  const roofs = mk(slopes, mat.tile, N), ends = mk(gables, mat.gable, N);
+  const doors = mk(unit, mat.door, N, false), timbers = mk(unit, mat.timber, counts.timber);
+  const windows = mk(new THREE.PlaneGeometry(0.85, 1.0), mat.window, counts.win, false);
+  const chims = mk(unit, mat.chimney, counts.chim);
+
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  const Y = new THREE.Vector3(0, 1, 0), col = new THREE.Color(), white = new THREE.Color(0xffffff);
+  let wi = 0, ti = 0, ci = 0;
+  houses.forEach((h, i) => {
+    const c = Math.cos(h.heading), s = Math.sin(h.heading);
+    const W = (lx, ly, lz) => p.set(h.x + lx * c + lz * s, h.y + ly, h.z - lx * s + lz * c);
+    q.setFromAxisAngle(Y, h.heading);
+    const set = (im, k, lx, ly, lz, sx, sy, sz, extraYaw = 0) => {
+      const qq = extraYaw ? q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Y, extraYaw)) : q;
+      m.compose(W(lx, ly, lz), qq, sc.set(sx, sy, sz));
+      im.setMatrixAt(k, m);
+    };
+    set(plinths, i, 0, -1.1, 0, h.w + 0.3, 2.9, h.d + 0.3);
+    set(bodies, i, 0, (h.h + 0.3) / 2, 0, h.w, h.h - 0.3, h.d);
+    bodies.setColorAt(i, col.setHex(HOUSE_PLASTER[h.tint % HOUSE_PLASTER.length]));
+    ends.setColorAt(i, col.setHex(HOUSE_PLASTER[h.tint % HOUSE_PLASTER.length]));
+    roofs.setColorAt(i, col.setHex(HOUSE_ROOF[h.roofTint % HOUSE_ROOF.length]).lerp(white, 0.68));
+    // roof: gable to the street ('front') or eaves to the street ('side')
+    const front = h.ridgeAlong === 'front';
+    const span = front ? h.w : h.d, len = front ? h.d : h.w, rh = span * 0.6;
+    set(roofs, i, 0, h.h - 0.02, 0, span + 1.0, rh, len + 0.9, front ? 0 : Math.PI / 2);
+    set(ends, i, 0, h.h - 0.02, 0, span + 1.0, rh, len + 0.9, front ? 0 : Math.PI / 2);
+    set(doors, i, (i % 3 - 1) * h.w * 0.18, 0.3 + 1.0, h.d / 2 + 0.04, 1.0, 2.0, 0.12);
+    // timber frame: corner posts + a band at each floor and under the eaves
+    const t = 0.15, hw = h.w / 2, hd = h.d / 2, top = h.h;
+    for (const [x, z] of [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]]) set(timbers, ti++, x, (top + 0.3) / 2, z, t * 1.3, top - 0.3, t * 1.3);
+    const bands = h.storeys === 2 ? [0.4, top / 2 + 0.2, top - 0.08] : [0.4, top - 0.08];
+    for (const y of bands) {
+      set(timbers, ti++, 0, y, hd + 0.01, h.w + 0.1, t, t);
+      set(timbers, ti++, 0, y, -hd - 0.01, h.w + 0.1, t, t);
+      if (y > 0.5) { set(timbers, ti++, hw + 0.01, y, 0, t, t, h.d + 0.1); set(timbers, ti++, -hw - 0.01, y, 0, t, t, h.d + 0.1); }
+    }
+    // windows: two per floor on the front, one on the back
+    const rows = h.storeys === 2 ? [1.55, top / 2 + 1.35] : [1.55];
+    const doorX = (i % 3 - 1) * h.w * 0.18;
+    for (const y of rows) for (const x of [-h.w * 0.28, h.w * 0.28]) {
+      if (y < 2 && Math.abs(x - doorX) < 1.0) continue;
+      if (wi < counts.win) set(windows, wi++, x, y, hd + 0.03, 1, 1, 1);
+    }
+    if (wi < counts.win) set(windows, wi++, 0, rows[rows.length - 1], -hd - 0.03, 1, 1, 1, Math.PI);
+    if (h.chimney) set(chims, ci++, h.chimneySide * h.w * 0.28, top + rh * 0.55, -h.d * 0.12, 0.55, rh + 1.2, 0.55);
+  });
+  windows.count = wi; timbers.count = ti; chims.count = ci;
+  for (const im of [plinths, bodies, roofs, ends, doors, timbers, windows, chims]) {
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  }
+  return { materials: mat };
+}
+
+// ── Mill wheel ──────────────────────────────────────────────────
+/**
+ * An undershot water wheel against the back wall of the mill, dipping into
+ * the stream. Turns with update(dt).
+ * @param {{x,y,z,heading}} at  wheel centre and the mill's heading (axle runs along it)
+ */
+export function buildMillWheel(scene, at, { radius = 1.9, width = 0.9 } = {}) {
+  const M = propMaterials();
+  const wood = standardMat({ color: 0x6b4a2e, roughness: 0.9 });
+  const pivot = new THREE.Group();
+  pivot.position.set(at.x, at.y, at.z);
+  pivot.rotation.y = at.heading - Math.PI / 2;      // local x = the mill's facing (the axle)
+  const wheel = new THREE.Group();
+  pivot.add(wheel);
+  for (const sx of [-width / 2, width / 2]) {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.08, 6, 28), wood);
+    rim.rotation.y = Math.PI / 2; rim.position.x = sx;
+    wheel.add(rim);
+  }
+  for (let i = 0; i < 6; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(width * 0.9, 0.09, radius * 2), wood);
+    spoke.rotation.x = (i / 6) * Math.PI;
+    wheel.add(spoke);
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const paddle = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 0.06, 0.55), wood);
+    paddle.position.set(0, Math.sin(a) * radius, Math.cos(a) * radius);
+    paddle.rotation.x = -a;
+    paddle.castShadow = true;
+    wheel.add(paddle);
+  }
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, width + 1.2, 8), M.iron);
+  axle.rotation.z = Math.PI / 2;
+  pivot.add(axle);
+  scene.add(pivot);
+  return { group: pivot, update(dt) { wheel.rotation.x -= dt * 0.9; } };
 }

@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { mergeStaticChildren } from './merge-static.js';
+import { pointHit } from './colliders.js';
 
 // Wrap an angle to (-π, π]
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -28,8 +29,15 @@ export class Cart {
     this.velocity   = 0;
     this.steerAngle = 0;
     this.position   = new THREE.Vector3(startPos.x, 0, startPos.z);
-    this.rotation   = Math.PI;            // facing into town (-Z)
+    this.rotation   = startPos.rot ?? Math.PI;   // facing into town
     this.teleporting = false;
+
+    // Ground: town-world sets heightAt(x, z) (terrain + bridge deck). The
+    // cart sits on it, tilts with the slope (pitch / roll) and feels a
+    // little gravity along it — slower uphill, a touch quicker downhill.
+    this.heightAt = null;
+    this.slopeGravity = 0.004;    // per frame, per unit of grade
+    this._tilt = { pitch: 0, roll: 0, ready: false };
 
     // ── Tuning ────────────────────────────────────────────────
     // Gentle: ~4s to top speed (accel minus friction), top speed ~12 world units/s,
@@ -304,7 +312,7 @@ export class Cart {
   teleportTo(x, z, faceAngle, duration) {
     duration = duration || 1.5;
     const gsap = window.gsap;
-    if (!gsap) { this.position.set(x, 0, z); return; }
+    if (!gsap) { this.position.set(x, this.position.y, z); return; }
 
     this.teleporting = true;
     this.velocity = 0;
@@ -332,6 +340,7 @@ export class Cart {
 
     // Teleport: just sync transform, skip physics
     if (this.teleporting) {
+      this._followGround(delta, true);
       this.group.position.copy(this.position);
       this.group.rotation.y = this.rotation;
       this._lastRot = this.rotation; this._lastVel = 0;
@@ -465,6 +474,14 @@ export class Cart {
       this.rotation += (this.velocity * Math.tan(this.steerAngle) / this.wheelBase) * dt;
     }
 
+    // ── Slope: gravity along the grade (uphill slows, downhill helps) ──
+    if (this.heightAt && Math.abs(this.velocity) > 0.002) {
+      const fx = Math.sin(this.rotation), fz = Math.cos(this.rotation);
+      const p = this.position;
+      const grade = (this.heightAt(p.x + fx * 1.5, p.z + fz * 1.5) - this.heightAt(p.x - fx * 1.5, p.z - fz * 1.5)) / 3;
+      this.velocity -= THREE.MathUtils.clamp(grade, -0.6, 0.6) * this.slopeGravity * dt;
+    }
+
     // ── Position ─────────────────────────────────────────────
     const dx = Math.sin(this.rotation) * this.velocity * dt;
     const dz = Math.cos(this.rotation) * this.velocity * dt;
@@ -472,9 +489,9 @@ export class Cart {
     newPos.x += dx;
     newPos.z += dz;
 
-    // World bounds (the city wall's ring collider is the real limit)
-    newPos.x = THREE.MathUtils.clamp(newPos.x, -70, 70);
-    newPos.z = THREE.MathUtils.clamp(newPos.z, -70, 70);
+    // World bounds (the play-area ring collider is the real limit)
+    newPos.x = THREE.MathUtils.clamp(newPos.x, -90, 90);
+    newPos.z = THREE.MathUtils.clamp(newPos.z, -90, 90);
 
     // ── Collision: slide along the surface that was hit ──────
     // Find the contact normal (circle → radial, wall ring → inward, box →
@@ -499,7 +516,7 @@ export class Cart {
           hit = null;
           break;
         }
-        newPos.set(this.position.x + mx, 0, this.position.z + mz);
+        newPos.set(this.position.x + mx, this.position.y, this.position.z + mz);
         hit = this._hit(newPos, colliders);
         pass++;
       }
@@ -541,7 +558,8 @@ export class Cart {
       }
     }
 
-    // ── Sync transform ───────────────────────────────────────
+    // ── Sync transform (sit on the ground, tilt with the slope) ──
+    this._followGround(delta);
     this.group.position.copy(this.position);
     this.group.rotation.y = this.rotation;
 
@@ -566,6 +584,31 @@ export class Cart {
       this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.05 + this.steerAngle * 0.3 - this._spring.roll * 1.5;
     if (this.lanternLight)
       this.lanternLight.intensity = 1.0 + Math.sin(Date.now() * 0.004) * 0.3;
+  }
+
+  // Sit on the ground and tilt with it. Height comes from the centre;
+  // pitch / roll from the ground under the nose, tail and both sides,
+  // eased so cobbles and pad edges don't make it twitch.
+  _followGround(delta, snap = false) {
+    if (!this.heightAt) return;
+    const p = this.position, h = this.heightAt;
+    const fx = Math.sin(this.rotation), fz = Math.cos(this.rotation);
+    const rx = Math.cos(this.rotation), rz = -Math.sin(this.rotation);
+    const hF = h(p.x + fx * 1.5, p.z + fz * 1.5), hB = h(p.x - fx * 1.5, p.z - fz * 1.5);
+    const hR = h(p.x + rx, p.z + rz), hL = h(p.x - rx, p.z - rz);
+    const centre = h(p.x, p.z);
+    // never sink a wheel into a crest: ride on the higher of centre / wheel average
+    const y = Math.max(centre, (hF + hB + hR + hL) / 4);
+    const pitch = -Math.atan2(hF - hB, 3), roll = Math.atan2(hR - hL, 2);
+    const t = this._tilt;
+    const k = snap || !t.ready ? 1 : 1 - Math.pow(0.0005, Math.min(delta || 1 / 60, 0.1));   // ~0.1 s
+    t.pitch += (pitch - t.pitch) * k;
+    t.roll  += (roll - t.roll) * k;
+    p.y = y;
+    t.ready = true;
+    this.group.rotation.order = 'YXZ';
+    this.group.rotation.x = t.pitch;
+    this.group.rotation.z = t.roll;
   }
 
   // Spring-damper body motion (visual only; physics footprint unchanged)
@@ -620,7 +663,7 @@ export class Cart {
     m.mat.opacity = m.opacity;
     m.group.visible = m.opacity > 0.01;
     if (!m.group.visible) return;
-    m.group.position.set(this.position.x, 0.12, this.position.z);
+    m.group.position.set(this.position.x, this.position.y + 0.12, this.position.z);
     if (this.stickTarget !== null) {
       // pivot's local -Z points along the arrow; heading convention: forward = (sin a, cos a)
       m.pivot.rotation.y = this.stickTarget + Math.PI;
@@ -630,9 +673,7 @@ export class Cart {
 
   /**
    * True if any footprint probe at `pos` (with current heading) is inside a
-   * collider. Colliders may be THREE.Box3 (buildings), `{ circle, x, z, r }`
-   * (fountain, towers, lamp posts) or `{ ring, r }` (stay INSIDE radius r —
-   * the city wall).
+   * collider (shapes: see colliders.js).
    */
   _blocked(pos, colliders) {
     const s = Math.sin(this.rotation), c = Math.cos(this.rotation);
@@ -640,16 +681,7 @@ export class Cart {
       // local (x right, z forward) → world, matching getForward()
       const px = pos.x + fx * c + fz * s;
       const pz = pos.z - fx * s + fz * c;
-      for (const col of colliders) {
-        if (col.isBox3) {
-          if (px >= col.min.x && px <= col.max.x && pz >= col.min.z && pz <= col.max.z) return true;
-        } else if (col.circle) {
-          const dx = px - col.x, dz = pz - col.z;
-          if (dx * dx + dz * dz < col.r * col.r) return true;
-        } else if (col.ring) {
-          if (px * px + pz * pz > col.r * col.r) return true;
-        }
-      }
+      for (const col of colliders) if (pointHit(col, px, pz)) return true;
     }
     return false;
   }
@@ -665,30 +697,8 @@ export class Cart {
       const px = pos.x + fx * c + fz * s;
       const pz = pos.z - fx * s + fz * c;
       for (const col of colliders) {
-        if (col.isBox3) {
-          if (px >= col.min.x && px <= col.max.x && pz >= col.min.z && pz <= col.max.z) {
-            // nearest face
-            const dl = px - col.min.x, dr = col.max.x - px, dn = pz - col.min.z, df = col.max.z - pz;
-            const m = Math.min(dl, dr, dn, df);
-            if (m === dl) return { nx: -1, nz: 0 };
-            if (m === dr) return { nx: 1, nz: 0 };
-            if (m === dn) return { nx: 0, nz: -1 };
-            return { nx: 0, nz: 1 };
-          }
-        } else if (col.circle) {
-          const dx = px - col.x, dz = pz - col.z;
-          const d2 = dx * dx + dz * dz;
-          if (d2 < col.r * col.r) {
-            const d = Math.sqrt(d2) || 1;
-            return { nx: dx / d, nz: dz / d };
-          }
-        } else if (col.ring) {
-          const d2 = px * px + pz * pz;
-          if (d2 > col.r * col.r) {
-            const d = Math.sqrt(d2);
-            return { nx: -px / d, nz: -pz / d };
-          }
-        }
+        const h = pointHit(col, px, pz);
+        if (h) return h;
       }
     }
     return null;
@@ -936,7 +946,8 @@ export class FollowCamera {
     if (fr.target) fr.point.copy(fr.target);
 
     // Focus = cart + look-ahead + pan, blended toward the cart↔building midpoint
-    const f = this._focus.set(cartPos.x + this._ahead.x + this.pan.x, 0, cartPos.z + this._ahead.z + this.pan.z);
+    // (y = the cart's ground height, so shadows / lights follow it up the hill)
+    const f = this._focus.set(cartPos.x + this._ahead.x + this.pan.x, cartPos.y, cartPos.z + this._ahead.z + this.pan.z);
     if (fr.mix > 0.001) {
       const mx = (cartPos.x + fr.point.x) / 2, mz = (cartPos.z + fr.point.z) / 2;
       f.x += (mx - f.x) * fr.mix; f.z += (mz - f.z) * fr.mix;

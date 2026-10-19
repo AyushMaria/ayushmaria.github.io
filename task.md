@@ -114,7 +114,7 @@
 - [x] **Sky dressing** — drifting cumulus sprites (tinted by DayCycle), fogged mountain range past the wall, grass texture on the ground
 - [x] **Bugfix: gable roof slopes were wound inside-out** (front-face culled → roofs looked half missing); trees/lamps/signs pulled clear of the Ledger, Forge, Stats and Guild footprints
 - [x] **Chibi cursor follower removed** (Step 25 JS + CSS) — it read as an annoying stickman on the pointer
-- [ ] **Gate doors that open** — animate the doors + extend the drivable area outside the wall (currently drawn shut)
+- [x] ~~Gate doors that open~~ — superseded by the hill-town layout (§2.14): the gatehouse is open and the town spills outside the wall
 - [ ] **Dormer windows / balconies** on the taller Tudor buildings (reference has them)
 - [x] **Hanging lanterns** — `buildWallLanterns()` in `town-props.js`: a bracketed iron lantern (wall plate, arm, brace, cage with glowing glass) above every building door (12; City Hall keeps its own temple lanterns). Three `InstancedMesh`es for the whole town = 3 draw calls; no PointLights (emissive glass + bloom). Lanterns hang from the bracket tip and swing gently with the shared wind (still under reduced motion)
 
@@ -181,6 +181,26 @@
 - [x] **City Hall** at the head of Main Street (0, −39.5), facing the fountain in front of the clock tower — the same temple hall at 0.78 scale with a CITY HALL plaque, lighter daytime tiles, screens/lanterns on the town's glow cycle
 - [x] City Hall opens an **About** card: draft bio, Skills & Trades, Notable Quests list (replaces the stat bars), and a links row (GitHub now; LinkedIn / Email / Résumé render once filled in `PROJECTS.about.links`)
 - [x] About card filled in: business-owner / freelance-contractor bio, Agentic AI tags + agentic-app skills (LLM APIs, tool calling, LangChain, LangGraph, RAG, vector DBs, MCP, prompt engineering, WhatsApp Business API), Notable Quests = Ace, Expected Goals (xG), MAVPose; links = GitHub, LinkedIn, Email (no résumé)
+
+## 2.14 Town Layout: Hilltop Burg (layout option B)
+- [x] **New plan, from scratch** — the wheel layout (roundabout, four straight spokes, ring road, round wall) is gone. The town climbs a hill above a river: you cross a stone bridge at the foot (south-east, facing the camera) and one switchback **High Street** winds past the Market Terrace and through the town gate up to City Hall on the crest. All the plan lives in `town-layout.js` (pure data + geometry, also used by the docs map tool)
+- [x] **Terrain** — one height-field mesh (`terrain.js`): elliptical hill (10 high), gentle meadow roll; streets cut level across and smoothed along, flat pads for every building / townhouse / square at the level of the street outside its door, channels for the river, stream and pools. Stone foundations under buildings for where the slope falls away
+- [x] **Streets painted into the ground** — cobbles, warm square stones, dirt shoulders, footpaths and field furrows are a mask texture blended in the terrain shader (no planes laid on top, no z-fighting on slopes). The same shader draws the wheel tracks and the lamplight pools (16 nearest lamps)
+- [x] **Buildings face their street** — rotation support everywhere: OBB colliders (`colliders.js`, shared by cart + knockables), shutters / window boxes / wall lanterns / chimney smoke in building space, interaction range measured to the rotated footprint
+- [x] **Townhouses** — ~40 filler houses line the streets (both sides, front to the street, corners kept off every road): plinth, plaster, timber frame, gable or eave roofs, windows, doors, chimneys — all instanced (~9 draw calls)
+- [x] **Occlusion cut** — townhouses and the wall dither away in a soft tube between the camera and the cart (`withOcclusionCut` in `materials.js`); portfolio buildings keep their fade
+- [x] **Wall over the hill** — `buildPathWall()`: wall runs that step with the ground, crenellations, towers every ~17 units, an open gatehouse where the High Street enters and a barred water gate for the stream
+- [x] **Water** — river ribbon, stream ribbons, four pools (the last is the mill pond), three little falls with foam where the stream drops into a pool, a stone spring basin below the crest; one stylised water shader (flow streaks, evening glints, foam edges). River, stream and pool colliders (not on the bridge)
+- [x] **Bridge** — extruded stone arch, cobbled humped deck the cart drives over (`heightAt` returns the deck), parapets with lamp pillars
+- [x] **Mill** — new building on the stream below the terrace with a turning water wheel
+- [x] **Cart on the hill** — sits on the ground, pitches / rolls with the slope, mild gravity along the grade (slower uphill); camera, shadows, light pool, labels and occlusion follow the height
+- [x] **Quarters** — Lower Town, Market Terrace, Hillside, The Crest (HUD, fast travel, respawn, audio chime, achievements, modal ribbons + accents). Old saved zone visits are dropped
+- [x] **Minimap** — north up, drawn from the plan (hill, river, stream, streets, squares, wall, houses); buildings in your quarter highlighted
+- [x] **Docs map** — `node tools/make-town-map.mjs` → `docs/town-map.svg` (contours, water, streets, wall, buildings, houses, lamps, trees, play-area ring). The old Python map tool, drag-and-drop editor and `apply-placements.py` were retired (they parsed the old hand-placed arrays)
+- [ ] **Grass rework** — blades look like paper on the ground; to do next
+- [ ] Hairpins are tight at full speed (turning circle ~14 units at top speed) — consider a gentler curve at the gate bend, or speed-sensitive steering help
+- [ ] Waterfall / river ambient sound, mill-wheel creak
+- [ ] Map editor for the new plan (drag points in `town-layout.js`)
 
 ## 2.12 Mobile Project Card Fit
 - [x] Phone project card fills the overlay (height 100 %) instead of 100vh, which on phones is the height *without* the URL bar and pushed the card's top ("Return to Town") and bottom (GitHub / Demo buttons) off-screen — rules live at the end of `town-styles.css`

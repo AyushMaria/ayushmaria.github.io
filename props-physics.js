@@ -13,6 +13,7 @@
  * Each kind of prop is one InstancedMesh, so all of them cost 3 draw calls.
  */
 import * as THREE from 'three';
+import { circlePush } from './colliders.js';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 
 const CART_HALF = { x: 1.0, z: 1.75 };   // matches the cart's footprint probes
@@ -40,8 +41,9 @@ export class KnockableProps {
    * @param {{ colliders: Array, materials: { barrel, crate, chair },
    *           onHit?: (strength:number) => void, reducedMotion?: boolean }} opts
    */
-  constructor(scene, { colliders, materials, onHit = null, reducedMotion = false }) {
+  constructor(scene, { colliders, materials, onHit = null, reducedMotion = false, heightAt = null }) {
     this.colliders = colliders;
+    this.heightAt = heightAt;           // props sit on the terrain
     this.onHit = onHit;
     this.reducedMotion = reducedMotion;
     this.bodies = [];
@@ -92,7 +94,7 @@ export class KnockableProps {
   _write(b) {
     this._e.set(b.tx, b.yaw, b.tz);
     this._q.setFromEuler(this._e);
-    this._p.set(b.x, 0, b.z);
+    this._p.set(b.x, this.heightAt ? this.heightAt(b.x, b.z) : 0, b.z);
     this._m.compose(this._p, this._q, this._s);
     b.kind.mesh.setMatrixAt(b.index, this._m);
   }
@@ -204,30 +206,9 @@ export class KnockableProps {
   // Push a prop out of buildings / circles / the wall ring and bounce it.
   _collideStatic(b) {
     for (const col of this.colliders) {
-      let nx = 0, nz = 0, pen = 0;
-      if (col.isBox3) {
-        const qx = THREE.MathUtils.clamp(b.x, col.min.x, col.max.x);
-        const qz = THREE.MathUtils.clamp(b.z, col.min.z, col.max.z);
-        const dx = b.x - qx, dz = b.z - qz, d = Math.hypot(dx, dz);
-        if (d >= b.r) continue;
-        if (d > 1e-5) { nx = dx / d; nz = dz / d; pen = b.r - d; }
-        else {                                   // centre inside the box: nearest face
-          const dl = b.x - col.min.x, dr = col.max.x - b.x, dn = b.z - col.min.z, df = col.max.z - b.z;
-          const m = Math.min(dl, dr, dn, df);
-          if (m === dl) nx = -1; else if (m === dr) nx = 1; else if (m === dn) nz = -1; else nz = 1;
-          pen = m + b.r;
-        }
-      } else if (col.circle) {
-        const dx = b.x - col.x, dz = b.z - col.z, rr = col.r + b.r;
-        const d2 = dx * dx + dz * dz;
-        if (d2 >= rr * rr) continue;
-        const d = Math.sqrt(d2) || 1;
-        nx = dx / d; nz = dz / d; pen = rr - d;
-      } else if (col.ring) {
-        const d = Math.hypot(b.x, b.z), lim = col.r - b.r;
-        if (d <= lim) continue;
-        nx = -b.x / d; nz = -b.z / d; pen = d - lim;
-      } else continue;
+      const hit = circlePush(col, b.x, b.z, b.r);
+      if (!hit) continue;
+      const { nx, nz, pen } = hit;
       b.x += nx * pen; b.z += nz * pen;
       const vn = b.vx * nx + b.vz * nz;
       if (vn < 0) { b.vx -= (1 + BOUNCE_WALL) * vn * nx; b.vz -= (1 + BOUNCE_WALL) * vn * nz; b.yawV *= 0.6; }

@@ -51,10 +51,13 @@ We have successfully transitioned from a static void into a living settlement.
 * **`index.html`**: The entry point to the settlement.
 * **`cart.js`**: Handles the steering, acceleration, and "cart-physics."
 * **`town-world.js`**: The architect of the 3D town environment.
-* **`town-props.js`**: City wall, clock tower, trees, clouds, mountains, stalls.
+* **`town-layout.js`**: The plan of the hill town: hill, High Street and lanes, squares, river, stream and pools, wall and gates, portfolio buildings, filler townhouses, lamps, trees and the carved height field.
+* **`terrain.js`**: The landscape mesh with streets painted into it, the river / stream / pools / falls, and the stone bridge.
+* **`colliders.js`**: Collision shapes shared by the cart and the knockable props (circles, rotated boxes, capsules, the play-area ring).
+* **`town-props.js`**: Town wall, townhouses, mill wheel, clock tower, trees, clouds, mountains, stalls.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
 * **`achievements.js`**: Exploration tracking, achievements and toasts.
-* **`docs/town-map.svg`** / **`docs/town-map-editor.html`**: Top-down placement map and a drag-and-drop editor that exports paste-ready `town-world.js` snippets. Regenerate both with `python3 tools/make-town-map.py` after editing placements, or apply the editor's downloaded JSON directly with `python3 tools/apply-placements.py town-placements.json`.
+* **`docs/town-map.svg`**: Top-down reference map of the town (contours, water, streets, wall, buildings, townhouses, lamps, trees), drawn from `town-layout.js`. Regenerate with `node tools/make-town-map.mjs` after changing the plan.
 * **`wind.js`** / **`grass.js`**: Shared wind field, leaf-card foliage helpers and grass blades (see `docs/wind-foliage-guide.md`).
 * **`implementation_plan.md`**: Our roadmap for future town expansions.
 

@@ -11,18 +11,22 @@ import { ParticleSystem } from './particles.js';
 import { PostProcessing } from './post-processing.js';
 import { AudioSystem } from './audio.js';
 import { Achievements } from './achievements.js';
-import { cobbleTexture, plasterTexture, stoneTexture, windowTexture, grassTexture } from './textures.js';
+import { cobbleTexture, plasterTexture, stoneTexture, windowTexture } from './textures.js';
 import {
-  propMaterials, gableRoofGeometry, buildCityWall, buildClockTower,
+  propMaterials, gableRoofGeometry, buildPathWall, buildClockTower,
   buildTrees, buildBushes, buildWildFlowers, foliageMaterials,
   buildClouds, buildMountains, buildStall, buildFountain, buildWallLanterns,
+  buildTownhouses, buildMillWheel,
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
 import { buildTempleHall } from './temple.js';
 import { mergeStaticChildren } from './merge-static.js';
 import { KnockableProps } from './props-physics.js';
-import { standardMat, sharedMaterialCount } from './materials.js';
+import { standardMat, sharedMaterialCount, OCCLUSION_CUT } from './materials.js';
+import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
+import { buildTerrain, buildWater, buildBridge } from './terrain.js';
+import { obb, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -51,73 +55,28 @@ function detectPerfTier() {
 }
 
 const PERF_PRESETS = {
-  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
-  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
+  high: { pixelRatio: 2,   shadowMap: 2048, softShadows: true,  terrainRes: 1,   maskRes: 2048, lightPool: 4, fireflies: 150, fountain: 120, dust: 80, campfire: 40, bloom: true,  bloomScale: 1.0, npcs: true, clouds: 12, crownCards: 96, grass: 22000, flowers: true },
+  low:  { pixelRatio: 1.5, shadowMap: 1024, softShadows: false, terrainRes: 1.4, maskRes: 1024, lightPool: 2, fireflies: 60,  fountain: 60,  dust: 40, campfire: 24, bloom: true,  bloomScale: 0.5, npcs: true, clouds: 6,  crownCards: 40, grass: 6000,  flowers: false },
 };
 
 // ════════════════════════════════════════════════════════════════
+// THE TOWN PLAN — Hilltop Burg (see town-layout.js)
 // ════════════════════════════════════════════════════════════════
-// BUILDING DATA  (circular layout — hub + 3 spoke arms)
-// ════════════════════════════════════════════════════════════════
+// Everything about where things are lives in town-layout.js: the hill, the
+// switchback High Street, the squares, the river and the stream, the wall,
+// the portfolio buildings and the townhouses. buildLayout() is run once at
+// boot (initTownWorld) and the result is kept in LAYOUT.
 
 export const animatedProps = [];
+let LAYOUT = null;
+export let BUILDINGS = [];        // LAYOUT.buildings: plan + heading + floor level + zone
 
-// Zone names are shared with audio.js zone detection, the fast-travel HUD,
-// achievements and the project modal's contextual header.
-export const ZONES = {
-  square:   { name: 'Town Square',      spawn: { x: 0,   z: 30, rot:  Math.PI     } },
-  north:    { name: 'Main Street',      spawn: { x: 0,   z: -24, rot: Math.PI     } },
-  east:     { name: 'Research Quarter', spawn: { x: 24,  z: 0,  rot:  Math.PI / 2 } },
-  west:     { name: 'Services Quarter', spawn: { x: -24, z: 0,  rot: -Math.PI / 2 } },
-};
+// Zone names are shared with audio.js, the fast-travel HUD, achievements
+// and the project modal's contextual header. Spawns come from the layout.
+export const ZONES = Object.fromEntries(Object.entries(ZONE_NAMES).map(([k, name]) => [k, { name, spawn: null }]));
 
-// Road half-widths (see the road section in initTownWorld): spokes 6, ring 4.5,
-// roundabout out to 13. Every building below sits clear of those strips —
-// the Observatory and Navigator's Tower used to stand IN the east/west roads.
-const ROAD_HALF = 6;
-
-// Tudor buildings (`roof` set, ≤4 roof segs) get cream plaster + dark timber +
-// terracotta gable roofs; `color` is the plaster tint. Stone/fantasy
-// buildings keep their own colour on a stone-block texture.
-const BUILDINGS = [
-  // Town Square — entry area (south of roundabout, z > 0)
-  { x: -11.5, z: 28, w: 10, h: 7.5, d: 8, color: 0xf3e4c4, roof: 0xc9553d, ridge: 'x',
-    chimney: true, label: 'The Tavern', project: null, zone: 'square', tavern: true },
-  { x: -9, z: 14.5, w: 4.5, h: 5.5, d: 4, color: 0xefe0bf, roof: 0xc9553d,
-    label: 'Adventurer Stats', project: null, zone: 'square' },
-  { x: 10, z: 16, w: 4.5, h: 5.5, d: 4, color: 0xf6ead0, roof: 0xb84a36,
-    label: 'Guild Board', project: null, zone: 'square' },
-
-  // North Arm (Main Street)
-  { x: -11, z: -21, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
-    chimney: true, label: 'The Forge', project: 'mavpose', zone: 'north' },
-  { x: 20, z: -10.5, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
-    chimney: true, label: 'Ledger Sanctum', project: 'ledger', zone: 'east' },
-  { x: -10.5, z: -36, w: 6, h: 5.5, d: 5, color: 0xf7dcc4, roof: 0xd9694a,
-    label: 'Tiny Tots Academy', project: 'tinytots', zone: 'north' },
-
-  // City Hall closes Main Street in front of the clock tower, facing the
-  // fountain. Same procedural temple as the landing page (temple.js);
-  // w/d are its scaled footprint incl. the front steps. Opens the About card.
-  { x: 0, z: -39.5, w: 13.1, h: 5, d: 11.4, temple: true, templeScale: 0.78,
-    label: 'City Hall', project: 'about', zone: 'north' },
-
-  // East Arm (Research Quarter)
-  { x: 37.5, z: -11, w: 6, h: 5, d: 6, color: 0x9a9aa8, roof: 0x5a4a5a,
-    roofSegs: 8, label: 'Prediction Colosseum', project: 'xg', zone: 'east' },
-  { x: 22, z: 12, w: 6, h: 4, d: 6, color: 0xe8dcc8, roof: null,
-    label: 'Cloud Citadel', project: 'aws', zone: 'east' },
-  { x: 11, z: -34, w: 4.5, h: 10, d: 4.5, color: 0x3f5578, roof: 0x1a2a4a,
-    roofSegs: 16, label: 'Vortex Observatory', project: 'vortex', zone: 'north' },
-
-  // West Arm (Services Quarter)
-  { x: -20, z: 11, w: 4.5, h: 9, d: 4, color: 0x6a4a9a, roof: 0x6a0dad,
-    roofSegs: 6, label: 'Concierge Parlour', project: 'ace', zone: 'west' },
-  { x: -36, z: -11, w: 6, h: 4.5, d: 6, color: 0x3fbf9a, roof: null,
-    label: 'The Volley Court', project: 'volley', zone: 'west' },
-  { x: -40, z: 12, w: 3.5, h: 14, d: 3.5, color: 0x5c6f82, roof: null,
-    label: "Navigator's Tower", project: 'instillgcs', zone: 'west' },
-];
+/** Which quarter of town a world position is in. */
+export const zoneKeyAt = layoutZoneKeyAt;
 
 const isTudorBuilding = (o) => o.roof !== null && o.roof !== undefined && (!o.roofSegs || o.roofSegs === 4);
 
@@ -189,16 +148,6 @@ const BLOOM_PALETTE = [0xff4d6d, 0xff7b9c, 0xffb3c6, 0xfff1f5, 0xc77dff, 0xffa94
 attachWind(SHARED.bloom,   { amplitude: 0.06, yOffset: 1 });
 attachWind(SHARED.foliage, { amplitude: 0.05, yOffset: 1 });
 
-// Which zone a world position falls in (same partition as audio.js).
-export function zoneKeyAt(x, z) {
-  if (Math.hypot(x, z) < 18) return 'square';
-  const a = Math.atan2(x, z);                    // 0 = south (+z), ±PI = north
-  if (Math.abs(a) < Math.PI / 4) return 'square';
-  if (a > Math.PI / 4 && a < 3 * Math.PI / 4) return 'east';
-  if (a < -Math.PI / 4 && a > -3 * Math.PI / 4) return 'west';
-  return 'north';
-}
-
 // Collected during building construction, instanced once the scene is built
 const flowerBoxSlots = [];   // { x, y, z }
 const shutterSlots   = [];   // { x, y, z, rot }
@@ -246,7 +195,13 @@ function makeTempleBuilding(o) {
   windowMats.push(hall.materials.paper, hall.materials.lantern);
 
   const roofTop = hall.height * S;
-  g.position.set(o.x, 0, o.z);
+  // stone foundation under the platform, for where the crest falls away
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w - 1.6, 3, o.d - 2.6), propMaterials().stoneDark);
+  skirt.position.set(0, -1.45, -0.6);
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
   if (o.project) {
     const marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.5, 0),
@@ -272,6 +227,9 @@ function makeBuilding(o) {
   const g = new THREE.Group();
   const tudor = isTudorBuilding(o);
   const M = propMaterials();
+  // building-local → world (local x = right, local z = front; see town-layout.js)
+  const hc = Math.cos(o.heading || 0), hs = Math.sin(o.heading || 0), baseY = o.y || 0;
+  const toWorld = (lx, ly, lz) => ({ x: o.x + lx * hc + lz * hs, y: baseY + ly, z: o.z - lx * hs + lz * hc });
 
   // Storeys drive window rows and timber bands
   const storeys = o.h >= 5.5 ? 2 : 1;
@@ -380,10 +338,10 @@ function makeBuilding(o) {
       addWindow(wx, wy, frontZ);
       if (tudor) {
         // shutters (muted green) — merged separately since they're a different colour
-        shutterSlots.push({ x: o.x + wx - winW / 2 - 0.34, y: wy, z: o.z + frontZ + 0.05, rot: 0 });
-        shutterSlots.push({ x: o.x + wx + winW / 2 + 0.34, y: wy, z: o.z + frontZ + 0.05, rot: 0 });
+        shutterSlots.push({ ...toWorld(wx - winW / 2 - 0.34, wy, frontZ + 0.05), rot: o.heading || 0 });
+        shutterSlots.push({ ...toWorld(wx + winW / 2 + 0.34, wy, frontZ + 0.05), rot: o.heading || 0 });
         // window box under every front window (reference: blooms on every storey)
-        flowerBoxSlots.push({ x: o.x + wx, y: wy - winH / 2 - 0.22, z: o.z + frontZ + 0.18 });
+        flowerBoxSlots.push({ ...toWorld(wx, wy - winH / 2 - 0.22, frontZ + 0.18), rot: o.heading || 0 });
       }
       // Warm light spilling from the Tavern's ground-floor windows
       if (o.tavern && row === 0) g.add(createConeLight(wx, wy, frontZ + 0.05, wy + 0.2));
@@ -458,7 +416,7 @@ function makeBuilding(o) {
   // ── Door (arched) ────────────────────────────────────────────
   const doorH = Math.min(2.2, storeyH * 0.7), doorW = 1.1;
   // Bracketed lantern above the door (instanced town-wide, see buildWallLanterns)
-  wallLanternSlots.push({ x: o.x, y: doorH + 1.05, z: o.z + frontZ });
+  wallLanternSlots.push({ ...toWorld(0, doorH + 1.05, frontZ), rot: o.heading || 0 });
   const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.12), SHARED.door);
   door.position.set(0, doorH / 2, frontZ + 0.04);
   g.add(door);
@@ -505,8 +463,15 @@ function makeBuilding(o) {
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.18, 0.8), M.stoneDark);
     cap.position.set(cx, chim.position.y + chimH / 2 + 0.09, cz);
     g.add(cap);
-    o._chimneyTop = { x: o.x + cx, y: chim.position.y + chimH / 2 + 0.3, z: o.z + cz };
+    o._chimneyTop = toWorld(cx, chim.position.y + chimH / 2 + 0.3, cz);
   }
+
+  // Stone foundation: the pad is cut level into the slope, so on the downhill
+  // side the ground falls away below the floor
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w + 0.3, 2.8, o.d + 0.3), M.stoneDark);
+  skirt.position.y = -1.15;
+  skirt.receiveShadow = true;
+  g.add(skirt);
 
   // Bake static parts that share a material into one mesh each (§4.1):
   // walls + gable ends, roof + trim, timber + door frame, door + arch,
@@ -514,7 +479,8 @@ function makeBuilding(o) {
   const merged = mergeStaticChildren(g, { userData: o.project ? { project: o.project, label: o.label } : null });
   const bodyMesh = body.parent ? body : (merged.find(m => m.material === bodyMat) || body);
 
-  g.position.set(o.x, 0, o.z);
+  g.position.set(o.x, baseY, o.z);
+  g.rotation.y = o.heading || 0;
 
   // ── Phase 3.1: Floating interactive marker ───────────────────
   if (o.project) {
@@ -635,7 +601,7 @@ function createConeLight(wx, wy, wz, drop) {
 /**
  * Instanced window boxes: one planter box, foliage clumps and bloom
  * clusters per slot — 3 draw calls for the whole town regardless of count.
- * Also called for the Town Square flower beds (topOnly = true).
+ * Also draws the bloom clusters on the flower beds (crest square, terrace).
  */
 function buildFlowerBoxes(scene, slots, bedSlots) {
   const planterGeo = new THREE.BoxGeometry(0.78, 0.22, 0.28);
@@ -655,8 +621,8 @@ function buildFlowerBoxes(scene, slots, bedSlots) {
   const col = new THREE.Color();
   let fi = 0, bi = 0;
 
-  const place = (mesh, i, x, y, z, sc, rot) => {
-    q.setFromEuler(new THREE.Euler(rot ? Math.random() : 0, rot ? Math.random() * Math.PI : 0, 0));
+  const place = (mesh, i, x, y, z, sc, rot, yaw = 0) => {
+    q.setFromEuler(new THREE.Euler(rot ? Math.random() : 0, rot ? Math.random() * Math.PI : yaw, 0));
     s.set(sc.x, sc.y, sc.z);
     p.set(x, y, z);
     m.compose(p, q, s);
@@ -664,28 +630,30 @@ function buildFlowerBoxes(scene, slots, bedSlots) {
   };
 
   slots.forEach((sl, i) => {
-    place(planters, i, sl.x, sl.y, sl.z, { x: 1, y: 1, z: 1 }, false);
+    // local x along the wall, local z out from it (rotated by the building's heading)
+    const rc = Math.cos(sl.rot || 0), rs = Math.sin(sl.rot || 0);
+    const at = (lx, lz) => [sl.x + lx * rc + lz * rs, sl.z - lx * rs + lz * rc];
+    place(planters, i, sl.x, sl.y, sl.z, { x: 1, y: 1, z: 1 }, false, sl.rot || 0);
     for (let k = 0; k < FOLIAGE_PER_BOX; k++) {
-      const fx = sl.x + (k - 1) * 0.24, fz = sl.z + (Math.random() - 0.5) * 0.08;
+      const [fx, fz] = at((k - 1) * 0.24, (Math.random() - 0.5) * 0.08);
       place(foliage, fi++, fx, sl.y + 0.16, fz, { x: 1, y: 0.75, z: 0.9 }, true);
     }
     for (let k = 0; k < BLOOM_PER_BOX; k++) {
-      const bx = sl.x - 0.32 + (k / (BLOOM_PER_BOX - 1)) * 0.64 + (Math.random() - 0.5) * 0.06;
+      const [bx, bz] = at(-0.32 + (k / (BLOOM_PER_BOX - 1)) * 0.64 + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.14 + 0.04);
       const by = sl.y + 0.22 + Math.random() * 0.12;
-      const bz = sl.z + (Math.random() - 0.5) * 0.14 + 0.04;
       place(blooms, bi, bx, by, bz, { x: 1, y: 1, z: 1 }, true);
       col.setHex(BLOOM_PALETTE[(i * 3 + k) % BLOOM_PALETTE.length]);
       blooms.setColorAt(bi++, col);
     }
   });
 
-  bedSlots.forEach(([x, z], i) => {
+  bedSlots.forEach(([x, z, y = 0], i) => {
     for (let k = 0; k < 4; k++) {
-      place(foliage, fi++, x + (Math.random() - 0.5) * 1.5, 0.55, z + (Math.random() - 0.5) * 1.5,
+      place(foliage, fi++, x + (Math.random() - 0.5) * 1.5, y + 0.55, z + (Math.random() - 0.5) * 1.5,
         { x: 1.4, y: 0.9, z: 1.4 }, true);
     }
     for (let k = 0; k < BLOOM_PER_BED; k++) {
-      place(blooms, bi, x + (Math.random() - 0.5) * 1.7, 0.62 + Math.random() * 0.15,
+      place(blooms, bi, x + (Math.random() - 0.5) * 1.7, y + 0.62 + Math.random() * 0.15,
         z + (Math.random() - 0.5) * 1.7, { x: 1.3, y: 1.3, z: 1.3 }, true);
       col.setHex(BLOOM_PALETTE[(i * 5 + k) % BLOOM_PALETTE.length]);
       blooms.setColorAt(bi++, col);
@@ -783,14 +751,14 @@ function buildNpcs(scene, placements) {
     return { idle, wave };
   });
 
-  placements.forEach(([x, z, variant], i) => {
+  placements.forEach(([x, z, variant, gy = 0], i) => {
     const f = frames[variant % 3];
     const h = variant === 2 ? 1.5 : 1.9;
     const sprite = new THREE.Sprite(f.idle);
     sprite.scale.set(h * 0.5, h, 1);
-    sprite.position.set(x, h / 2, z);
+    sprite.position.set(x, gy + h / 2, z);
     scene.add(sprite);
-    npcs.push({ sprite, idle: f.idle, wave: f.wave, baseY: h / 2, phase: i * 1.7, waving: false });
+    npcs.push({ sprite, idle: f.idle, wave: f.wave, baseY: gy + h / 2, phase: i * 1.7, waving: false });
   });
 }
 
@@ -813,22 +781,10 @@ function updateNpcs(cartPos, elapsed) {
 // HELPERS: Trees, Rocks, Lamps
 // ════════════════════════════════════════════════════════════════
 
-function createRock(x, z, s) {
-  s = s || 1;
-  const rock = new THREE.Mesh(
-    new THREE.DodecahedronGeometry(0.4 * s, 0),
-    standardMat({ color: 0x7a7a7a, roughness: 0.95 })
-  );
-  rock.position.set(x, 0.2 * s, z);
-  rock.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
-  rock.castShadow = true;
-  return rock;
-}
-
 // Tracked collections for the evening glow level (applyEvening)
 const lampRefs = [];      // { headMat, source, x, z }
 const windowMats = [];    // MeshStandardMaterial refs
-let lampPoolMat = null;   // additive ground-glow decals under the lamps
+let terrainRef = null;    // terrain (draws the lamplight pools on the ground)
 const wallLanternSlots = [];   // filled by makeBuilding, built once all buildings exist
 
 // ── Light pool (task.md §4.1 — point-light budget) ──────────────────
@@ -890,47 +846,21 @@ const LAMP_COLOR = new THREE.Color(0xffd166);
 // All lamps live in one group so their poles and heads merge into two
 // meshes town-wide (mergeStaticChildren after the last lamp is placed).
 let lampField = null;
-function addLamp(scene, x, z) {
+function addLamp(scene, x, z, y = 0) {
   const { pole: poleMat, glow: glowMat } = lampMaterials();
   if (!lampField) { lampField = new THREE.Group(); lampField.name = 'lamps'; scene.add(lampField); }
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.5, 8), poleMat);
-  pole.position.set(x, 1.75, z);
+  pole.position.set(x, y + 1.75, z);
   pole.castShadow = true;
   lampField.add(pole);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), glowMat);
-  head.position.set(x, 3.6, z);
+  head.position.set(x, y + 3.6, z);
   head.castShadow = true;
   lampField.add(head);
   // No PointLight of its own: the light pool lends one when the lamp is near.
-  const source = { pos: new THREE.Vector3(x, 3.6, z), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
+  const source = { pos: new THREE.Vector3(x, y + 3.6, z), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
   lightSources.push(source);
-  lampRefs.push({ headMat: glowMat, source, x, z });
-}
-
-// Soft warm glow on the ground under every lamp — one additive InstancedMesh,
-// so even lamps without a pooled PointLight still read as lit.
-function buildLampGroundPools(scene) {
-  if (!lampRefs.length) return null;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const ctx = c.getContext('2d');
-  const grd = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.45, 'rgba(255,255,255,0.45)');
-  grd.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = grd; ctx.fillRect(0, 0, 64, 64);
-  const mat = new THREE.MeshBasicMaterial({
-    map: new THREE.CanvasTexture(c), color: 0xffb35c, transparent: true, opacity: 0.24,
-    blending: THREE.AdditiveBlending, depthWrite: false,
-  });
-  const geo = new THREE.PlaneGeometry(1, 1);
-  geo.rotateX(-Math.PI / 2);
-  const im = new THREE.InstancedMesh(geo, mat, lampRefs.length);
-  const m = new THREE.Matrix4();
-  lampRefs.forEach((l, i) => { m.makeScale(6.5, 1, 6.5); m.setPosition(l.x, 0.11, l.z); im.setMatrixAt(i, m); });
-  im.renderOrder = 1;
-  im.frustumCulled = false;   // spans the whole town; one draw call either way
-  scene.add(im);
-  return mat;
+  lampRefs.push({ headMat: glowMat, source, x, y, z });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1116,7 +1046,7 @@ function applyEvening(sun, ambient, skyMat, fog) {
     lamp.source.intensity = lampLevel;          // strength of the pooled PointLight when this lamp is near
     lamp.headMat.emissiveIntensity = lampLevel;
   }
-  if (lampPoolMat) lampPoolMat.opacity = 0.32 * lampLevel;
+  if (terrainRef) terrainRef.setLampLevel(0.32 * lampLevel);
   for (const mat of windowMats) mat.emissiveIntensity = 0.2 + g * 0.8;
   for (const ref of coneLightRefs) ref.setNightness(g);
   for (const mat of npcMats) mat.color.setRGB(...E.spriteTint);
@@ -1178,76 +1108,24 @@ function initTownWorld() {
   // ── Sky ─────────────────────────────────────────────────────
   const skyData = createSkyDome(scene);
 
-  // ── Ground ──────────────────────────────────────────────────
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(320, 320),
-    new THREE.MeshStandardMaterial({ map: grassTexture(), color: 0xb9d89a, roughness: 1 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // ── The town plan (town-layout.js) ──────────────────────────
+  // Hilltop Burg: the hill, the switchback High Street, squares, river,
+  // stream, wall, buildings and townhouses — worked out once here.
+  LAYOUT = buildLayout({ res: PERF.terrainRes });
+  BUILDINGS = LAYOUT.buildings;
+  window._layout = LAYOUT;
+  const heightAt = LAYOUT.heightAt;      // ground, or the bridge deck: wheels, feet, props
+  const groundAt = LAYOUT.groundAt;      // the terrain itself
+  for (const [k, sp] of Object.entries(LAYOUT.spawns)) if (ZONES[k]) ZONES[k].spawn = sp;
 
-  // ── Roads (circular layout: roundabout + spokes + ring) ─────
-  // Widened to 12 (spokes) / 9 (ring) — the cart is 2 wide, so two carts
-  // pass comfortably and the cobbles read as a street, not a footpath.
+  // ── Terrain: the hill with the streets painted on, water, bridge ──
+  const terrain = buildTerrain(scene, LAYOUT, { maskRes: PERF.maskRes });
+  terrainRef = terrain;
+  window._terrain = terrain;
+  const waterSys = buildWater(scene, LAYOUT, { heightAt: groundAt });
+  const bridge = buildBridge(scene, LAYOUT);
+  const BRIDGE = LAYOUT.bridge;
   const roadMat = SHARED.cobble;
-  const SPOKE_W = ROAD_HALF * 2;
-  const COBBLE_UNIT = 3;                  // world units per cobble texture tile (small stones)
-
-  function addRoad(x, z, w, h) {
-    const geo = tileUVs(new THREE.PlaneGeometry(w, h), w, h, COBBLE_UNIT);
-    const r = new THREE.Mesh(geo, roadMat);
-    r.rotation.x = -Math.PI / 2;
-    r.position.set(x, 0.05, z);
-    r.receiveShadow = true;
-    scene.add(r);
-  }
-
-  // Roundabout (cobbled ring around the fountain)
-  const ROUNDABOUT_R = 13;
-  const rbGeo = new THREE.RingGeometry(3.4, ROUNDABOUT_R, 48);
-  tileUVs(rbGeo, ROUNDABOUT_R * 2, ROUNDABOUT_R * 2, COBBLE_UNIT);
-  const roundabout = new THREE.Mesh(rbGeo, SHARED.cobbleWarm);
-  roundabout.rotation.x = -Math.PI / 2;
-  roundabout.position.y = 0.07;
-  roundabout.receiveShadow = true;
-  scene.add(roundabout);
-
-  // South spoke (entry road — town square → south gate)
-  addRoad(0, 32, SPOKE_W, 58);
-  // Town square plaza (cobbled, warmer tone)
-  const plazaGeo = tileUVs(new THREE.PlaneGeometry(30, 20), 30, 20, COBBLE_UNIT);
-  const sqPlaza = new THREE.Mesh(plazaGeo, SHARED.cobbleWarm);
-  sqPlaza.rotation.x = -Math.PI / 2;
-  sqPlaza.position.set(-2, 0.04, 27);
-  sqPlaza.receiveShadow = true;
-  scene.add(sqPlaza);
-
-  // North spoke runs to the clock tower; East / West run to their gates
-  addRoad(0, -27.5, SPOKE_W, 49);
-  addRoad(32, 0, 58, SPOKE_W);
-  addRoad(-32, 0, 58, SPOKE_W);
-
-  // Ring road (approximated as 24-segment polygon at radius 50)
-  const RING_R = 50;
-  const RING_W = 9;
-  const RING_SEGS = 24;
-  for (let i = 0; i < RING_SEGS; i++) {
-    const a1 = (i / RING_SEGS) * Math.PI * 2;
-    const a2 = ((i + 1) / RING_SEGS) * Math.PI * 2;
-    const mx = (Math.sin(a1) + Math.sin(a2)) / 2 * RING_R;
-    const mz = (Math.cos(a1) + Math.cos(a2)) / 2 * RING_R;
-    const dx = Math.sin(a2) * RING_R - Math.sin(a1) * RING_R;
-    const dz = Math.cos(a2) * RING_R - Math.cos(a1) * RING_R;
-    const len = Math.sqrt(dx * dx + dz * dz);
-    const geo = tileUVs(new THREE.PlaneGeometry(RING_W, len + 1.2), RING_W, len + 1.2, COBBLE_UNIT);
-    const seg = new THREE.Mesh(geo, roadMat);
-    seg.rotation.x = -Math.PI / 2;
-    seg.rotation.z = -Math.atan2(dz, dx) + Math.PI / 2;
-    seg.position.set(mx, 0.05, mz);
-    seg.receiveShadow = true;
-    scene.add(seg);
-  }
 
   // ── Signboards ──────────────────────────────────────────────
   function addSignboard(x, z, text, rotY = 0) {
@@ -1273,7 +1151,7 @@ function initTownWorld() {
     cx.font = 'bold 26px serif';
     cx.textAlign = 'center';
     cx.textBaseline = 'middle';
-    cx.fillText(text, 128, 32);
+    cx.fillText(text, 128, 32, 244);
     const tex = new THREE.CanvasTexture(cv);
     const sign = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.55, 0.1),
@@ -1283,23 +1161,28 @@ function initTownWorld() {
     sign.castShadow = true;
     g.add(sign);
     mergeStaticChildren(g);           // 6-material board → board edges + two faces (§4.1)
-    g.position.set(x, 0, z);
+    g.position.set(x, groundAt(x, z), z);
     g.rotation.y = rotY;
     scene.add(g);
   }
-
-  // Roundabout exit signs
-  // (roadside — they used to stand in the middle of each exit)
-  const SIGN_X = ROAD_HALF + 1.8;
-  addSignboard(7.8, -14, "← Forge · Vortex · TinyTots →", 0);  // north exit
-  addSignboard(14, 7.8, "← Ledger · Colosseum · Cloud →", Math.PI / 2);  // east exit
-  addSignboard(-14, -7.8, "← Concierge · Nav · Volley →", -Math.PI / 2);  // west exit
-  addSignboard(-8.5, 10.5, "↓ Town Square · Tavern ↓", Math.PI);  // south exit
-
-  // Ring road signposts (beside the spoke-ring intersections)
-  addSignboard(7.8, -42, "← West  ·  Roundabout  ·  East →", 0);
-  addSignboard(42, -7.8, "← North  ·  Roundabout  ·  South →", Math.PI / 2);
-  addSignboard(-42, 7.8, "← South  ·  Roundabout  ·  North →", -Math.PI / 2);
+  // Beside a road at arc length s (tries both sides and a little either way
+  // for a spot clear of houses and lamps); the board faces along the road.
+  function signAt(key, s, text, side = 1) {
+    const r = LAYOUT.road(key);
+    for (const ds of [0, 2, -2, 4, -4]) for (const sd of [side, -side]) {
+      const p = r.path.pts[Math.max(0, Math.min(r.path.pts.length - 1, Math.round(s + ds)))];
+      const o = r.hw + 1.3, x = p.x - p.tz * sd * o, z = p.z + p.tx * sd * o;
+      if (!LAYOUT.freeGround(x, z, 0.2)) continue;
+      addSignboard(x, z, text, Math.atan2(p.tx, p.tz));
+      return;
+    }
+  }
+  const streetS = LAYOUT.streetS;
+  signAt('street', streetS(14, 58) + 4, '← Prediction Colosseum');
+  signAt('street', streetS(14, 58) + 12, '↑ Market Terrace · Crest');
+  signAt('street', streetS(24, 16) - 3, '→ Forge · Volley Court', -1);
+  signAt('street', streetS(-26, -14) + 3, '← Navigator · Tiny Tots');
+  signAt('street', streetS(-8, -26) - 5, '↑ City Hall · Observatory');
 
   // ── Lighting ────────────────────────────────────────────────
   const ambientLight = new THREE.AmbientLight(EVENING.ambient.color, EVENING.ambient.intensity);
@@ -1344,13 +1227,17 @@ function initTownWorld() {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     };
-    for (const [nx, ny] of _ndc) {
-      _ray.set(nx, ny, 0.5).unproject(camera).sub(cam).normalize();
-      const t = _ray.y < -0.02 ? Math.min(-cam.y / _ray.y, 220) : 220;     // ground hit (or far, above the horizon)
-      take(_hit.copy(cam).addScaledVector(_ray, t));
-      take(_hit.y > 0 ? _hit.setY(0) : _hit);
+    // ground hits at the cart's height and a few units below it (the hill
+    // drops away in front of the camera), so the box covers both
+    for (const gy of [focus.y || 0, Math.max(-1, (focus.y || 0) - 7)]) {
+      for (const [nx, ny] of _ndc) {
+        _ray.set(nx, ny, 0.5).unproject(camera).sub(cam).normalize();
+        const t = _ray.y < -0.02 ? Math.min((gy - cam.y) / _ray.y, 220) : 220;   // ground hit (or far, above the horizon)
+        take(_hit.copy(cam).addScaledVector(_ray, t));
+        take(_hit.y > gy ? _hit.setY(gy) : _hit);
+      }
     }
-    take(_ctr.set(focus.x, 0, focus.z));
+    take(_ctr.set(focus.x, focus.y || 0, focus.z));
     const MARGIN = 6, STEP = 4;
     const hx = Math.ceil(((maxX - minX) / 2 + MARGIN) / STEP) * STEP;
     const hy = Math.ceil(((maxY - minY) / 2 + MARGIN) / STEP) * STEP;
@@ -1365,7 +1252,7 @@ function initTownWorld() {
     const cx = Math.round(((minX + maxX) / 2) / texX) * texX;
     const cy = Math.round(((minY + maxY) / 2) / texY) * texY;
     // a world point with that light-space x/y, on the ground plane's depth line through the focus
-    const fz = _ctr.set(focus.x, 0, focus.z).dot(lsZ);
+    const fz = _ctr.set(focus.x, focus.y || 0, focus.z).dot(lsZ);
     sun.target.position.set(0, 0, 0).addScaledVector(lsX, cx).addScaledVector(lsY, cy).addScaledVector(lsZ, fz);
     sun.position.copy(sun.target.position).addScaledVector(SUN_FROM, SUN_DIST);
     sun.target.updateMatrixWorld();
@@ -1387,7 +1274,7 @@ function initTownWorld() {
 
     buildingMeta.push({
       data: o,
-      position: new THREE.Vector3(o.x, 0, o.z),
+      position: new THREE.Vector3(o.x, o.y, o.z),
       mesh: b
     });
 
@@ -1396,15 +1283,8 @@ function initTownWorld() {
       particleSystem.createSmoke(new THREE.Vector3(c.x, c.y, c.z));
     }
 
-    // Collider — tight to the walls now that the cart tests its real
-    // rotated footprint (the old 0.5 padding + axis-aligned cart box was
-    // most of the "crashing into thin air").
-    const hw = o.w / 2 + 0.15;
-    const hd = o.d / 2 + 0.15;
-    colliders.push(new THREE.Box3(
-      new THREE.Vector3(o.x - hw, 0, o.z - hd),
-      new THREE.Vector3(o.x + hw, o.h + 2, o.z + hd)
-    ));
+    // Collider: the building's own rotated footprint (it faces its street)
+    colliders.push(obb(o.x, o.z, o.w / 2 + 0.15, o.d / 2 + 0.15, o.heading));
   });
   buildShutters(scene);
   const wallLanterns = buildWallLanterns(scene, wallLanternSlots, {
@@ -1413,6 +1293,16 @@ function initTownWorld() {
   });
   windowMats.push(SHARED.windowPane);
 
+  // ── Townhouses lining the streets (instanced, see town-props.js) ──
+  const houseWindow = SHARED.windowPane.clone();
+  windowMats.push(houseWindow);
+  buildTownhouses(scene, LAYOUT.houses, { windowMaterial: houseWindow });
+  LAYOUT.houses.forEach(h => colliders.push(obb(h.x, h.z, h.w / 2 + 0.35, h.d / 2 + 0.35, h.heading)));
+
+  // Water, bridge parapets and the edge of the play area
+  colliders.push(...waterSys.colliders, ...bridge.colliders);
+  colliders.push({ ring: true, x: WORLD.playX, z: WORLD.playZ, r: WORLD.playR });
+
   // ── Isometric occlusion fade ────────────────────────────────
   // The camera looks down from the south-east, so a building between it
   // and the cart would hide the cart. Each frame we cast two rays (cart
@@ -1420,6 +1310,8 @@ function initTownWorld() {
   // building's bounds; a building that blocks them fades to ~25% using
   // per-building transparent material clones, and swaps back to its
   // original (opaque, depth-writing) materials once it's clear again.
+  // (Townhouses and the town wall use the cheaper dither cut instead —
+  // OCCLUSION_CUT in materials.js.)
   const occluders = buildingMeta.map(bm => {
     bm.mesh.updateMatrixWorld(true);
     const box = new THREE.Box3();
@@ -1463,7 +1355,7 @@ function initTownWorld() {
     for (const o of occluders) {
       let hit = false;
       for (const yOff of [0.7, 2.0]) {
-        _occPt.set(cp.x, yOff, cp.z);
+        _occPt.set(cp.x, cp.y + yOff, cp.z);
         _occRay.origin.copy(cam);
         _occRay.direction.subVectors(_occPt, cam);
         const d = _occRay.direction.length();
@@ -1479,208 +1371,157 @@ function initTownWorld() {
     }
   }
 
-  // ── Town Square fountain (three-tier stone fountain) ────────
-  const fountain = buildFountain(scene, particleSystem, { particles: PERF.fountain });
+  // ── Fountain in the middle of the Market Terrace ────────────
+  const FOUNTAIN = { x: -14.5, z: 38.2 };
+  const fountain = buildFountain(scene, particleSystem, { x: FOUNTAIN.x, z: FOUNTAIN.z, y: groundAt(FOUNTAIN.x, FOUNTAIN.z), particles: PERF.fountain });
   colliders.push(fountain.collider);
-  const water = fountain.water;
-  water.userData.keep = true;              // spins every frame — stays its own mesh
+  const fountainWater = fountain.water;
+  fountainWater.userData.keep = true;      // spins every frame — stays its own mesh
   mergeStaticChildren(fountain.group);
 
   // Audio system integration
   const audioSys = new AudioSystem(camera);
   window._audio = audioSys;
-  audioSys.attachFountain(water);
+  audioSys.attachFountain(fountainWater);
+  audioSys.zoneOf = (p) => ZONE_NAMES[zoneKeyAt(p.x, p.z)];
 
-  // ── Vortex orb (East arm — above Observatory) ───────────────
+  // ── Vortex orb (above the Observatory on the crest) ─────────
   const orb = new THREE.Mesh(
     new THREE.SphereGeometry(0.5, 16, 16),
     new THREE.MeshStandardMaterial({
       color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 1,
     })
   );
-  const OBSERVATORY = BUILDINGS.find(b => b.label === 'Vortex Observatory') || { x: 40, z: -12, h: 10 };
-  orb.position.set(OBSERVATORY.x, OBSERVATORY.h + 2, OBSERVATORY.z);   // above the Observatory
+  const OBSERVATORY = BUILDINGS.find(b => b.label === 'Vortex Observatory');
+  const ORB_Y = OBSERVATORY.y + OBSERVATORY.h + 7;
+  orb.position.set(OBSERVATORY.x, ORB_Y, OBSERVATORY.z);
   scene.add(orb);
   // Lit through the light pool like the lamps (orb.position is read live)
   lightSources.push({ pos: orb.position, color: new THREE.Color(0x06d6a0), intensity: 1.2, distance: 12 });
 
   // ── Tavern terrace & campfire ───────────────────────────────
-  // The tavern's front wall is at z = 32; the terrace sits on the plaza in
-  // front of it (the old tables/fire/barrels were inside the building).
+  // Placed in the Tavern's own frame (it faces the street at the hairpin).
+  const TAVERN = BUILDINGS.find(b => b.tavern);
+  const tavernAt = (lateral, fwd) => {
+    const c = Math.cos(TAVERN.heading), s = Math.sin(TAVERN.heading);
+    return [TAVERN.x + lateral * c + fwd * s, TAVERN.z - lateral * s + fwd * c];
+  };
   const tableMat = standardMat({ color: 0x6b4226, roughness: 0.8 });
-  const TABLES = [[-8, 35.5], [-13, 35.5], [-16.5, 38.5]];
+  const TABLES = [tavernAt(-2.6, 6.1), tavernAt(2.6, 6.1)];
   const tableTopGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.12, 10);
   const tableLegGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.85, 8);
   const umbrellaGeo = new THREE.ConeGeometry(1.5, 0.7, 10, 1, true);
   const umbrellaPole = new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6);
-  TABLES.forEach(([x, z], i) => {
+  TABLES.forEach(([x, z]) => {
+    const gy = groundAt(x, z);
     const top = new THREE.Mesh(tableTopGeo, tableMat);
-    top.position.set(x, 0.9, z);
+    top.position.set(x, gy + 0.9, z);
     top.castShadow = true;
     scene.add(top);
     const leg = new THREE.Mesh(tableLegGeo, tableMat);
-    leg.position.set(x, 0.45, z);
+    leg.position.set(x, gy + 0.45, z);
     scene.add(leg);
     // red café umbrellas like the reference's terrace
-    if (i < 2) {
-      const pole = new THREE.Mesh(umbrellaPole, propMaterials().iron);
-      pole.position.set(x, 1.9, z);
-      scene.add(pole);
-      const um = new THREE.Mesh(umbrellaGeo, propMaterials().awningRed);
-      um.position.set(x, 3.05, z);
-      um.castShadow = true;
-      scene.add(um);
-    }
+    const pole = new THREE.Mesh(umbrellaPole, propMaterials().iron);
+    pole.position.set(x, gy + 1.9, z);
+    scene.add(pole);
+    const um = new THREE.Mesh(umbrellaGeo, propMaterials().awningRed);
+    um.position.set(x, gy + 3.05, z);
+    um.castShadow = true;
+    scene.add(um);
     colliders.push({ circle: true, x, z, r: 1.0 });
   });
 
-  const CAMPFIRE = { x: -12.5, z: 40 };
+  const [cfx, cfz] = tavernAt(-7.2, 2.6);
+  const CAMPFIRE = { x: cfx, z: cfz, y: groundAt(cfx, cfz) };
   const fireGlow = new THREE.PointLight(0xff6b35, 2, 12);
-  fireGlow.position.set(CAMPFIRE.x, 2, CAMPFIRE.z);
+  fireGlow.position.set(CAMPFIRE.x, CAMPFIRE.y + 2, CAMPFIRE.z);
   scene.add(fireGlow);
   // stone ring + logs
   const fireRing = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.16, 6, 12), propMaterials().stoneDark);
   fireRing.rotation.x = -Math.PI / 2;
-  fireRing.position.set(CAMPFIRE.x, 0.1, CAMPFIRE.z);
+  fireRing.position.set(CAMPFIRE.x, CAMPFIRE.y + 0.1, CAMPFIRE.z);
   scene.add(fireRing);
   colliders.push({ circle: true, x: CAMPFIRE.x, z: CAMPFIRE.z, r: 1.1 });
 
-  particleSystem.createCampfire(new THREE.Vector3(CAMPFIRE.x, 0.2, CAMPFIRE.z), PERF.campfire);
+  particleSystem.createCampfire(new THREE.Vector3(CAMPFIRE.x, CAMPFIRE.y + 0.2, CAMPFIRE.z), PERF.campfire);
   audioSys.attachFire(fireGlow);
 
-  // ── Lamps (circular layout, all set back from the road edges) ──
-  const LAMP_X = ROAD_HALF + 1.5;
-  const LAMPS = [
-    [10.5, 10.5],
-    [-10, 9],
-    [10.5, -10.5],
-    [-10.5, -10.5],
-    [-6.5, 23],
-    [7.5, 21],
-    [-18, 35],
-    [-7.5, 38],
-    [7.5, 30],
-    [-7.5, -9],
-    [7.5, -15],
-    [-7.5, -28],
-    [7.5, -38],
-    [14, -7.5],
-    [14, 7.5],
-    [28, -7.5],
-    [28, 7.5],
-    [42, -7.5],
-    [-14, -7.5],
-    [-15, 6.5],
-    [-28, -7.5],
-    [-26.5, 6.5],
-    [-42, 7.5],
-  ];
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    LAMPS.push([Math.sin(a) * (RING_R + 6), Math.cos(a) * (RING_R + 6)]);
+  // ── Lamps along the streets (placed by town-layout.js) ──────
+  for (const l of LAYOUT.lamps) {
+    addLamp(scene, l.x, l.z, l.onBridge ? l.y : groundAt(l.x, l.z));
+    colliders.push({ circle: true, x: l.x, z: l.z, r: 0.35 });
   }
-  LAMPS.forEach(([x, z]) => { addLamp(scene, x, z); colliders.push({ circle: true, x, z, r: 0.35 }); });
-  if (lampField) mergeStaticChildren(lampField);      // 27 poles + 27 heads → 2 meshes
-  lampPoolMat = buildLampGroundPools(scene);
+  if (lampField) mergeStaticChildren(lampField);      // every pole + head → 2 meshes
+  terrain.setLamps(lampRefs);                          // warm pools of light on the ground
   // Fixed pool of PointLights shared by every lamp + the orb (see createLightPool)
   const lightPool = createLightPool(scene, PERF.lightPool);
   window._lightPool = lightPool;
 
   // ── Trees (leaf-card crowns, one InstancedMesh per species) ──
-  // Species by quarter: Town Square green + cherry, Main Street oak,
-  // Research Quarter birch, Services green, wilderness a mix.
-  const treeScale = (i) => 0.85 + ((i * 7919) % 100) / 100 * 0.55;
+  // Scattered by town-layout.js: gardens inside the walls, orchards and
+  // copses on the slopes, birches to the east, willows-ish greens by the river.
   const SUN_DIR = new THREE.Vector3(...EVENING.sun.position).normalize();
-  const TREES = [
-    [16, 20, 'cherry'],
-    [-19.5, 21, 'green'],
-    [17, 35, 'cherry'],
-    [-20, 38, 'green'],
-    [22.5, -25, 'oak'],
-    [-23.5, -29.5, 'oak'],
-    [16, 12.5, 'green'],
-    [-16, 12.5, 'cherry'],
-    [30, 14, 'birch'],
-    [-28, -23, 'green'],
-    [28.5, -21, 'birch'],
-    [-30, 16, 'green'],
-    [58, 10, 'birch'],
-    [58, -10, 'birch'],
-    [-58, 10, 'green'],
-    [-58, -10, 'oak'],
-    [12, -58, 'oak'],
-    [-12, -58, 'oak'],
-    [10, 58, 'cherry'],
-    [-10, 58, 'green'],
-    [42, 38, 'green'],
-    [-42, 38, 'oak'],
-    [42, -38, 'birch'],
-    [-42, -38, 'green'],
-    [38, 42, 'cherry'],
-    [-38, 42, 'green'],
-    [38, -42, 'oak'],
-    [-38, -42, 'oak'],
-    [70, 25, 'green'],
-    [-70, 25, 'oak'],
-    [70, -30, 'birch'],
-    [-70, -30, 'green'],
-    [30, 70, 'green'],
-    [-30, 70, 'cherry'],
-    [30, -70, 'oak'],
-    [-30, -70, 'green'],
-    [60, 52, 'oak'],
-    [-60, 52, 'green'],
-    [55, -58, 'green'],
-    [-55, -58, 'oak'],
-    [80, 5, 'green'],
-    [-80, -5, 'green'],
-    [5, 82, 'oak'],
-    [-8, -80, 'birch'],
-    [17, 38.5, 'cherry'],
-    [-24, 52, 'green'],
-    [22, 54, 'green'],
-    [-27, 53, 'cherry'],
-    [-21.5, -25, 'cherry'],
-  ].map(([x, z, sp], i) => [x, z, treeScale(i), sp]);
-  const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards });
+  const TREES = LAYOUT.trees.map(t => [t.x, t.z, t.s, t.species]);
+  const trees = buildTrees(scene, TREES, { sunDir: SUN_DIR, cards: PERF.crownCards, heightAt: groundAt });
   colliders.push(...trees.colliders);
 
-  // ── Rocks ───────────────────────────────────────────────────
-  [
-    [15, 24], [-19, 24], [25, -16], [-25, -18],
-    [10, -30], [-14, -32], [30, 10], [-32, 10],
-    [53.5, -22.3], [-53.6, 20.1], [22.3, -53.5], [-20.1, 53.6],
-    [55, 35], [-55, -40], [38, -55], [-40, 55],
-  ].forEach(([x, z]) => scene.add(createRock(x, z, 0.6 + Math.random() * 0.8)));
+  // ── Rocks (round the pools, the spring, the falls and the river) ──
+  {
+    const rockGeo = new THREE.DodecahedronGeometry(0.4, 0);
+    const rocks = new THREE.InstancedMesh(rockGeo, standardMat({ color: 0x8a857c, roughness: 0.95 }), LAYOUT.rocks.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    LAYOUT.rocks.forEach((r, i) => {
+      q.setFromEuler(e.set(i * 1.7, i * 2.3, i * 0.9));
+      m.compose(new THREE.Vector3(r.x, groundAt(r.x, r.z) + 0.1 * r.s, r.z), q, new THREE.Vector3(r.s, r.s * 0.7, r.s));
+      rocks.setMatrixAt(i, m);
+    });
+    rocks.castShadow = rocks.receiveShadow = true;
+    scene.add(rocks);
+  }
 
-  // ── City wall, clock tower, sky dressing ────────────────────
-  const wall = buildCityWall(scene, { radius: 63, height: 6, gates: ['east', 'west', 'south'] });
+  // ── Town wall, clock tower, sky dressing ────────────────────
+  const wall = buildPathWall(scene, LAYOUT);
   colliders.push(...wall.colliders);
-  mergeStaticChildren(wall.group);
 
-  // Clock tower closes the view down Main Street (reference landmark)
-  const clockTower = buildClockTower(scene, 0, -58, { base: 6, height: 22 });
+  // Clock tower on the crest behind City Hall — the town's skyline mark
+  const clockTower = buildClockTower(scene, CLOCK_TOWER.x, CLOCK_TOWER.z, {
+    base: CLOCK_TOWER.base, height: CLOCK_TOWER.height, y: groundAt(CLOCK_TOWER.x, CLOCK_TOWER.z) });
   colliders.push(clockTower.collider);
   mergeStaticChildren(clockTower.group);
   windowMats.push(clockTower.faceMat);
-  particleSystem.createFireflies(30, { x: 20, y: 6, z: 20 }).position.set(0, 20, -18);
+  particleSystem.createFireflies(30, { x: 20, y: 6, z: 20 }).position.set(-6, 18, -30);
 
   const clouds = buildClouds(scene, PERF.clouds, { radius: 130, reducedMotion: REDUCED_MOTION });
   npcMats.push(clouds.material);          // tinted like the NPC sprites
-  buildMountains(scene, { radius: 112 });
+  buildMountains(scene, { radius: 150 });
+
+  // ── Water wheel behind the mill ─────────────────────────────
+  const MILL = BUILDINGS.find(b => b.mill);
+  let millWheel = null;
+  if (MILL) {
+    const c = Math.cos(MILL.heading), s = Math.sin(MILL.heading), back = -(MILL.d / 2 + 0.75);
+    const wx = MILL.x + back * s, wz = MILL.z + back * c;
+    const near = LAYOUT.stream.path.pts.reduce((best, p, i) => {
+      const d = Math.hypot(p.x - wx, p.z - wz);
+      return d < best.d ? { d, i } : best;
+    }, { d: Infinity, i: 0 });
+    const surf = LAYOUT.stream.surface[near.i];
+    millWheel = buildMillWheel(scene, { x: wx, y: surf + 1.25, z: wz, heading: MILL.heading });
+  }
 
   // ── Phase 2.5: Enhanced Zone Details ──────────────────────────
 
-  // Flower beds (Town Square): wooden planter + small hedge bushes on the
-  // foliage system + instanced blooms on top.
+  // Flower beds (crest square either side of the City Hall steps, and the
+  // Market Terrace): wooden planter + small hedge bushes + instanced blooms.
   const bedMat = standardMat({ color: 0x5c3d2e });
   const bedGeo = new THREE.BoxGeometry(2.4, 0.3, 2.4);
-  const BED_SLOTS = [[-14, 11], [14, 11], [14, 27], [-9.5, 42.5]];
+  const BED_SLOTS = [[-16, -31.5], [4.5, -31.5], [-9.5, 29.5], [-25.8, 31.2]].map(([x, z]) => [x, z, groundAt(x, z)]);
   BED_SLOTS.forEach(([x, z]) => colliders.push({ circle: true, x, z, r: 1.5 }));
   const BUSHES = [];
-  BED_SLOTS.forEach(([x, z]) => {
+  BED_SLOTS.forEach(([x, z, y]) => {
     const bed = new THREE.Mesh(bedGeo, bedMat);
-    bed.position.set(x, 0.15, z);
+    bed.position.set(x, y + 0.15, z);
     scene.add(bed);
     [[-0.55, -0.55], [0.55, -0.55], [-0.55, 0.55], [0.55, 0.55]].forEach(([dx, dz]) =>
       BUSHES.push([x + dx, z + dz, 0.5, 'green']));
@@ -1689,83 +1530,64 @@ function initTownWorld() {
   // Phase 2.5: window flower boxes (instanced) + bloom clusters on the beds
   buildFlowerBoxes(scene, flowerBoxSlots, BED_SLOTS);
 
-  // ── Bushes (Bruno: Foliage without a trunk) ─────────────────
-  // Beside doors, around the fountain, along the inside of the wall.
-  BUSHES.push(
-
-    [-16, 18, 0.75, 'oak'],
-    [13.3, 19.2, 0.75, 'oak'],
-    [-17.7, 33.5, 0.8, 'green'],
-    [-7.4, 33.8, 0.7, 'green'],
-    [-14.5, -10.2, 0.7, 'oak'],
-    [14.5, -16.6, 0.7, 'oak'],
-    [-14.8, -32.2, 0.8, 'cherry'],
-    [-6.6, -32.4, 0.6, 'cherry'],
-    [25.8, 16.2, 0.7, 'birch'],
-    [18.2, 16.2, 0.7, 'birch'],
-    [-24.5, 14.5, 0.7, 'green'],
-    [-15.5, 14.5, 0.6, 'green'],
-    [12.5, 9, 0.55, 'green'],
-    [-12.5, 9, 0.55, 'green'],
-    [12.5, -9, 0.55, 'green'],
-    [-12.5, -9, 0.55, 'green'],
-    [9.5, -56.5, 0.9, 'oak'],
-    [-9.5, -56.5, 0.9, 'oak'],
-  );
-  for (let i = 0; i < 14; i++) {                                     // along the wall
-    const a = (i / 14) * Math.PI * 2 + 0.15;
-    if (Math.abs(Math.sin(a)) < 0.2 || Math.abs(Math.cos(a)) < 0.2) continue;   // keep gates/roads clear
-    BUSHES.push([Math.sin(a) * 59.5, Math.cos(a) * 59.5, 0.8 + (i % 3) * 0.15, ['green', 'oak', 'birch'][i % 3]]);
-  }
-  const bushes = buildBushes(scene, BUSHES, { sunDir: SUN_DIR, cards: PERF.crownCards });
+  // ── Bushes: beside doors, round the pools, along the inside of the wall ──
+  BUSHES.push(...LAYOUT.bushes.map(b => [b.x, b.z, b.s, b.species]));
+  const bushes = buildBushes(scene, BUSHES, { sunDir: SUN_DIR, cards: PERF.crownCards, heightAt: groundAt });
   colliders.push(...bushes.colliders);
 
-  // ── Wild flowers along the ring road & the approach ─────────
-  if (PERF.flowers) {
-    buildWildFlowers(scene, [
-      [7.1, 40.9], [-11.1, 56.9], [19.3, 36.8], [-29.3, 50.1], [40.9, 7.1], [56.9, -11.1], [-40.7, 8], [-57.1, -9.9], [8.3, -40.7], [-11.6, -56.8], [29.3, 29.3], [-41, 41], [29.3, -29.3], [-41, -41], [12.9, 39.4], [-18, 55.1],
-    ]);
-  }
+  // ── Wild flowers in the meadows ─────────────────────────────
+  if (PERF.flowers) buildWildFlowers(scene, LAYOUT.flowers.map(f => [f.x, f.z]), { heightAt: groundAt });
 
-  // Phase 2.5: NPC silhouettes near stalls, tavern tables and shopfronts
+  // Phase 2.5: NPC silhouettes by doorways, the terrace tables and the squares
+  // [building, lateral, distance in front of its door, variant]
+  const npcAt = (label, lateral, fwd, v) => {
+    const b = BUILDINGS.find(x => x.label === label);
+    if (!b) return null;
+    const c = Math.cos(b.heading), s = Math.sin(b.heading), f = b.d / 2 + fwd;
+    const x = b.x + lateral * c + f * s, z = b.z - lateral * s + f * c;
+    return [x, z, v, heightAt(x, z)];
+  };
   if (PERF.npcs) {
     buildNpcs(scene, [
-      [-9.5, 18.5, 0],
-      [8.5, 24.5, 1],
-      [-10.5, 37, 2],
-      [-8, 18.5, 1],
-      [-8, -10.5, 0],
-      [8.5, -16.8, 2],
-      [-7.5, -32.5, 2],
-      [19.5, 16.2, 1],
-      [-16.5, 14, 0],
-      [8, 33, 0],
-    ]);
+      npcAt('The Tavern', 0, 2.2, 0),
+      npcAt('Guild Board', -1.6, 1.9, 1),
+      npcAt('Guild Board', 1.5, 2.3, 0),
+      npcAt('Concierge Parlour', 1.6, 1.6, 1),
+      npcAt('Adventurer Stats', -1.4, 1.6, 0),
+      npcAt('Ledger Sanctum', 1.8, 1.4, 2),
+      npcAt('Tiny Tots Academy', -1.7, 1.6, 2),
+      npcAt('City Hall', -4.6, 1.4, 1),
+      npcAt('City Hall', 4.8, 2.4, 0),
+      npcAt('The Forge', 2.1, 1.6, 1),
+      npcAt('Prediction Colosseum', -2.4, 1.8, 0),
+      npcAt('Vortex Observatory', 1.6, 1.4, 2),
+      npcAt('The Mill', 1.8, 1.4, 1),
+    ].filter(Boolean));
   }
 
-  // Market stalls (Town Square) — curved red-orange awnings, off the road
-  [[-9.5, 21, Math.PI / 2, false], [9.5, 21.5, -Math.PI / 2, true], [9.5, 31, -Math.PI / 2, false]]
-    .forEach(([x, z, r, red]) => {
-      const stall = buildStall(scene, x, z, r, { red });
-      mergeStaticChildren(stall.group);
-      colliders.push(stall.collider);
-    });
+  // Market stalls round the terrace fountain — curved red-orange awnings
+  const STALLS = [[-7.5, 34.5, -Math.PI / 2, false], [-24.2, 36.8, Math.PI / 2, true], [-20.5, 41.6, Math.PI, false]];
+  STALLS.forEach(([x, z, r, red]) => {
+    const stall = buildStall(scene, x, z, r, { red, y: groundAt(x, z) });
+    mergeStaticChildren(stall.group);
+    colliders.push(stall.collider);
+  });
 
-  // Glowing Rune Circles & Floating Books (Research Quarter - East Arm)
+  // Glowing Rune Circle & Floating Books round the Observatory
   const runeMat = new THREE.MeshStandardMaterial({
     color: 0x06d6a0, emissive: 0x06d6a0, emissiveIntensity: 0.8,
     transparent: true, opacity: 0.6
   });
-  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.1, 3, 32), runeMat);   // hugs the tower, stays off the road
+  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.1, 3, 32), runeMat);   // hugs the tower
   runeRing.rotation.x = -Math.PI/2;
-  runeRing.position.set(OBSERVATORY.x, 0.05, OBSERVATORY.z);
+  runeRing.position.set(OBSERVATORY.x, OBSERVATORY.y + 0.08, OBSERVATORY.z);
   scene.add(runeRing);
   animatedProps.push({ update: (t) => { runeRing.rotation.z = t * -0.2; }});
 
   const bookGeo = new THREE.BoxGeometry(0.8, 0.2, 0.6);
   const bookMat = standardMat({ color: 0x5e35b1, roughness: 0.4 });
   const books = new THREE.Group();
-  books.position.set(OBSERVATORY.x, 3, OBSERVATORY.z);
+  books.position.set(OBSERVATORY.x, OBSERVATORY.y + 3, OBSERVATORY.z);
   scene.add(books);
   for(let i=0; i<3; i++) {
     const b = new THREE.Mesh(bookGeo, bookMat);
@@ -1782,14 +1604,14 @@ function initTownWorld() {
     });
   }});
 
-  // Tavern Mugs and Barrels (South Arm - Tavern)
+  // Tavern mugs on the terrace tables
   const mugGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
   const mugMat = standardMat({ color: 0xcccccc, roughness: 0.2 });
-  [[-8.2, 35.3], [-7.8, 35.7], [-13.1, 35.4], [-16.6, 38.7]].forEach(([x,z]) => {
+  TABLES.forEach(([tx, tz], i) => [[-0.3, 0.2], [0.25, -0.15]].slice(0, i ? 1 : 2).forEach(([dx, dz]) => {
     const mug = new THREE.Mesh(mugGeo, mugMat);
-    mug.position.set(x, 1.05, z);
+    mug.position.set(tx + dx, groundAt(tx, tz) + 1.05, tz + dz);
     scene.add(mug);
-  });
+  }));
   
   // ── Knockable props (§2.11): barrels, crates, terrace chairs ──
   // Not colliders: the cart shoves them (and loses a little speed), they
@@ -1797,6 +1619,7 @@ function initTownWorld() {
   // One InstancedMesh per kind (see props-physics.js).
   const knockables = new KnockableProps(scene, {
     colliders,
+    heightAt,
     reducedMotion: REDUCED_MOTION,
     materials: {
       barrel: standardMat({ color: 0x5a4033, roughness: 0.95 }),
@@ -1805,16 +1628,16 @@ function initTownWorld() {
     },
     onHit: (strength) => audioSys.playThud(strength * 0.6),
   });
-  // Barrels by the tavern's west wall
-  [[-17.9, 29.4], [-17.9, 30.5], [-17.1, 31.2]].forEach(([x, z]) => knockables.add('barrel', x, z, Math.random() * 6));
+  // Barrels against the Tavern's side wall
+  [tavernAt(5.6, -1.4), tavernAt(5.6, -0.2), tavernAt(6.3, -0.8)].forEach(([x, z]) => knockables.add('barrel', x, z, Math.random() * 6));
   // Crates beside two of the market stalls
-  [[-12.7, 19.1], [-13.5, 19.9], [-12.5, 20.0], [12.4, 32.9], [12.8, 31.9]].forEach(([x, z]) =>
+  [[-6.2, 31.9], [-5.6, 31.2], [-6.6, 30.9], [-26.6, 39.6], [-25.8, 40.3]].forEach(([x, z]) =>
     knockables.add('crate', x, z, (Math.random() - 0.5) * 0.6));
   // Two chairs at each terrace table, facing it
-  TABLES.forEach(([tx, tz], i) => {
-    const seats = i === 2 ? [[0, 1.45], [1.45, 0]] : [[-1.45, 0], [1.45, 0]];
-    seats.forEach(([ox, oz]) => {
-      const x = tx + ox, z = tz + oz;
+  TABLES.forEach(([tx, tz]) => {
+    const c = Math.cos(TAVERN.heading), s = Math.sin(TAVERN.heading);
+    [-1.45, 1.45].forEach(lat => {
+      const x = tx + lat * c, z = tz - lat * s;
       knockables.add('chair', x, z, Math.atan2(tx - x, tz - z));
     });
   });
@@ -1822,38 +1645,27 @@ function initTownWorld() {
   window._knockables = knockables;
 
   // ── Grass on open ground (after every collider exists) ───────
-  // Roads, plaza, roundabout, ring road and anything solid are excluded.
+  // Streets, squares, paths, fields, water and anything solid are excluded.
+  const colliderGrid = colliderIndex(colliders);
   function isOpenGround(x, z) {
-    const r = Math.hypot(x, z);
-    if (r < ROUNDABOUT_R + 1.5) return false;
-    if (Math.abs(r - RING_R) < RING_W / 2 + 1) return false;
-    if (Math.abs(x) < ROAD_HALF + 1.2 && z > -54 && z < 62) return false;   // north/south spokes
-    if (Math.abs(z) < ROAD_HALF + 1.2 && Math.abs(x) < 62) return false;    // east/west spokes
-    if (x > -18 && x < 14 && z > 16 && z < 38) return false;                // plaza
-    for (const c of colliders) {
-      if (c.isBox3) {
-        if (x > c.min.x - 0.6 && x < c.max.x + 0.6 && z > c.min.z - 0.6 && z < c.max.z + 0.6) return false;
-      } else if (c.circle) {
-        const dx = x - c.x, dz = z - c.z;
-        if (dx * dx + dz * dz < (c.r + 0.3) * (c.r + 0.3)) return false;
-      }
-    }
+    const m = terrain.mask.sample(x, z);
+    if (m.r > 0.05 || m.g > 0.05 || m.b > 0.3) return false;
+    if (groundAt(x, z) < LAYOUT.river.level + 0.2) return false;     // river and its wet banks
+    if (LAYOUT.poolAt(x, z, 1.25)) return false;
+    for (const c of colliderGrid.near(x, z)) if (circlePush(c, x, z, 0.3)) return false;
     return true;
   }
   const grass = PERF.grass > 0
-    ? buildGrass(scene, { count: PERF.grass, radius: 61, isOpen: isOpenGround })
+    ? buildGrass(scene, { count: PERF.grass, radius: WORLD.playR, center: [WORLD.playX, WORLD.playZ], heightAt: groundAt, isOpen: isOpenGround })
     : null;
 
-  // Cobbled surfaces (roundabout, ring road, spokes, plaza) — for wheel audio
-  // and to keep wheel-track points for the grass only.
+  // Cobbled surfaces (streets, squares) — for wheel audio and so wheel
+  // tracks are only painted on grass.
   function isCobble(x, z) {
-    const r = Math.hypot(x, z);
-    if (r < ROUNDABOUT_R) return true;
-    if (Math.abs(r - RING_R) < RING_W / 2) return true;
-    if (Math.abs(x) < ROAD_HALF && z > -54 && z < 62) return true;
-    if (Math.abs(z) < ROAD_HALF && Math.abs(x) < 62) return true;
-    if (x > -17 && x < 13 && z > 17 && z < 37) return true;
-    return false;
+    const m = terrain.mask.sample(x, z);
+    if (m.r > 0.5) return true;
+    const [u, v] = BRIDGE.toLocal(x, z);
+    return Math.abs(u) < BRIDGE.width / 2 && Math.abs(v) < BRIDGE.length / 2;
   }
 
   // ── Wind: calmer for reduced-motion users, never fully still ──
@@ -1868,11 +1680,13 @@ function initTownWorld() {
   const labelsContainer = document.getElementById('labels-container');
   const labelSys = new LabelSystem(camera, labelsContainer);
   buildingMeta.forEach(bm => {
-    labelSys.add(bm.data.label, new THREE.Vector3(bm.data.x, (bm.data.roofTop || bm.data.h) + 1.2, bm.data.z));
+    labelSys.add(bm.data.label, new THREE.Vector3(bm.data.x, bm.data.y + (bm.data.roofTop || bm.data.h) + 1.2, bm.data.z));
   });
 
   // ── Cart ────────────────────────────────────────────────────
-  const cart = new Cart(scene, { x: 0, z: 30 });
+  // Starts just south of the bridge, looking up at the town
+  const cart = new Cart(scene, LAYOUT.start);
+  cart.heightAt = heightAt;
   const cartDust = particleSystem.createCartDust(PERF.dust);
   window._cart = cart;
   cart.viewCamera = camera;          // touch stick reads in screen space (point-to-drive)
@@ -1921,7 +1735,7 @@ function initTownWorld() {
 
   function openProject(data) {
     if (!data || !data.project || modalOpen || typeof window.openModal !== 'function') return;
-    followCam.frame(new THREE.Vector3(data.x, 0, data.z));   // ease toward the building while its card is open
+    followCam.frame(new THREE.Vector3(data.x, data.y || 0, data.z));   // ease toward the building while its card is open
     const zone = ZONES[data.zone];
     window.openModal(data.project, { zone: zone ? zone.name : '', zoneKey: data.zone, building: data.label });
   }
@@ -1992,9 +1806,7 @@ function initTownWorld() {
   // size. Rechecked only after the cart moves 0.2 units (or state changes).
   const INTERACT_RANGE = 5;      // units from the wall
   const VISIT_RANGE    = 7;      // "approached" for exploration achievements
-  const edgeDist = (p, d) => Math.hypot(
-    Math.max(Math.abs(p.x - d.x) - d.w / 2, 0),
-    Math.max(Math.abs(p.z - d.z) - d.d / 2, 0));
+  const edgeDist = (p, d) => footprintDist(p.x, p.z, d);    // buildings are rotated to face their street
   let lastCheckPos = null, lastModalState = null;
   interactPrompt.style.display = 'flex';          // visibility via .is-visible (fades)
   function updateInteraction(force = false) {
@@ -2078,90 +1890,88 @@ function initTownWorld() {
   });
 
   // ── Minimap ─────────────────────────────────────────────────
+  // North up. The plan (hill, river, stream, streets, squares, wall) is
+  // drawn once to an offscreen canvas; each frame adds the buildings (the
+  // ones in your current quarter highlighted) and the cart arrow.
   const minimapCanvas = document.getElementById('minimap-canvas');
   let minimap = null;
   if (minimapCanvas) {
     const mCtx = minimapCanvas.getContext('2d');
     const mSize = minimapCanvas.width; // 160
     const mCenter = mSize / 2;
-    const mScale = mSize / 150; // world units to px
+    const MC = { x: WORLD.playX - 2, z: WORLD.playZ };          // world point at the map's centre
+    const mScale = mSize / (WORLD.playR * 2 + 6);              // world units → px
+    const mx = (x) => mCenter + (x - MC.x) * mScale, mz = (z) => mCenter + (z - MC.z) * mScale;
+
+    const bg = document.createElement('canvas');
+    bg.width = bg.height = mSize;
+    {
+      const c = bg.getContext('2d');
+      c.fillStyle = 'rgba(15, 25, 15, 0.85)';
+      c.fillRect(0, 0, mSize, mSize);
+      // hill: a few soft rings rising to the crest
+      const H = LAYOUT.grid;
+      for (let y = 2; y <= 10; y += 2) {
+        c.fillStyle = `rgba(120, 140, 90, ${0.07 + y * 0.012})`;
+        for (let px = 0; px < mSize; px += 2) for (let pz = 0; pz < mSize; pz += 2) {
+          const wx = MC.x + (px - mCenter) / mScale, wz = MC.z + (pz - mCenter) / mScale;
+          if (groundAt(wx, wz) > y) c.fillRect(px, pz, 2, 2);
+        }
+        void H;
+      }
+      const line = (pts, w, style) => {
+        c.strokeStyle = style; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
+        c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(mx(p.x), mz(p.z)) : c.moveTo(mx(p.x), mz(p.z)))); c.stroke();
+      };
+      line(LAYOUT.river.path.pts, LAYOUT.river.width * mScale, 'rgba(79, 160, 210, 0.75)');
+      line(LAYOUT.stream.path.pts, Math.max(1.2, LAYOUT.stream.width * mScale), 'rgba(79, 160, 210, 0.75)');
+      for (const pl of LAYOUT.pools) {
+        c.fillStyle = 'rgba(79, 160, 210, 0.75)';
+        c.beginPath(); c.ellipse(mx(pl.x), mz(pl.z), pl.rx * mScale, pl.rz * mScale, pl.rot, 0, Math.PI * 2); c.fill();
+      }
+      for (const pl of LAYOUT.plazas) {
+        c.fillStyle = 'rgba(190, 168, 128, 0.6)';
+        c.beginPath(); pl.pts.forEach(([x, z], i) => (i ? c.lineTo(mx(x), mz(z)) : c.moveTo(mx(x), mz(z)))); c.closePath(); c.fill();
+      }
+      for (const r of LAYOUT.roads) line(r.path.pts, Math.max(1.5, r.width * mScale), 'rgba(178, 158, 120, 0.75)');
+      // wall (with its gates left open)
+      const W = LAYOUT.wall.path.pts;
+      c.strokeStyle = 'rgba(214, 200, 170, 0.7)'; c.lineWidth = 2;
+      let open = true;
+      c.beginPath();
+      for (let i = 0; i <= W.length; i++) {
+        const p = W[i % W.length];
+        if (LAYOUT.wallGap(p.s)) { open = true; continue; }
+        if (open) { c.moveTo(mx(p.x), mz(p.z)); open = false; } else c.lineTo(mx(p.x), mz(p.z));
+      }
+      c.stroke();
+      // townhouses
+      c.fillStyle = 'rgba(200, 170, 140, 0.35)';
+      for (const h of LAYOUT.houses) c.fillRect(mx(h.x) - 1.5, mz(h.z) - 1.5, 3, 3);
+    }
 
     minimap = {
       update(cPos, cRot) {
         mCtx.clearRect(0, 0, mSize, mSize);
-
-        // Clip to circle
         mCtx.save();
         mCtx.beginPath();
         mCtx.arc(mCenter, mCenter, mCenter - 1, 0, Math.PI * 2);
         mCtx.clip();
+        mCtx.drawImage(bg, 0, 0);
 
-        // Background
-        mCtx.fillStyle = 'rgba(15, 25, 15, 0.85)';
-        mCtx.fillRect(0, 0, mSize, mSize);
-
-        // City wall
-        mCtx.beginPath();
-        mCtx.arc(mCenter, mCenter, wall.radius * mScale, 0, Math.PI * 2);
-        mCtx.strokeStyle = 'rgba(214, 200, 170, 0.55)';
-        mCtx.lineWidth = 2.5;
-        mCtx.stroke();
-
-        // Ring road
-        mCtx.beginPath();
-        mCtx.arc(mCenter, mCenter, RING_R * mScale, 0, Math.PI * 2);
-        mCtx.strokeStyle = 'rgba(158, 140, 108, 0.6)';
-        mCtx.lineWidth = 3;
-        mCtx.stroke();
-
-        // Spoke roads
-        mCtx.strokeStyle = 'rgba(158, 140, 108, 0.45)';
-        mCtx.lineWidth = 2;
-        // N spoke
-        mCtx.beginPath(); mCtx.moveTo(mCenter, mCenter); mCtx.lineTo(mCenter, mCenter - 47 * mScale); mCtx.stroke();
-        // E spoke
-        mCtx.beginPath(); mCtx.moveTo(mCenter, mCenter); mCtx.lineTo(mCenter + 47 * mScale, mCenter); mCtx.stroke();
-        // W spoke
-        mCtx.beginPath(); mCtx.moveTo(mCenter, mCenter); mCtx.lineTo(mCenter - 47 * mScale, mCenter); mCtx.stroke();
-        // S spoke (entry)
-        mCtx.beginPath(); mCtx.moveTo(mCenter, mCenter); mCtx.lineTo(mCenter, mCenter + 38 * mScale); mCtx.stroke();
-
-        // Current zone highlight (Phase 3.3)
+        // Building dots: portfolio buildings gold, the ones in this quarter brighter
         const zk = zoneKeyAt(cPos.x, cPos.z);
-        mCtx.fillStyle = 'rgba(255, 209, 102, 0.13)';
-        // canvas angle: 0 = +x (east), -PI/2 = up (north, -z), +PI/2 = south
-        const centre = { north: -Math.PI / 2, east: 0, west: Math.PI, square: Math.PI / 2 }[zk];
-        mCtx.beginPath();
-        mCtx.moveTo(mCenter, mCenter);
-        mCtx.arc(mCenter, mCenter, RING_R * mScale, centre - Math.PI / 4, centre + Math.PI / 4);
-        mCtx.closePath();
-        mCtx.fill();
-        if (zk === 'square') {
-          mCtx.beginPath();
-          mCtx.arc(mCenter, mCenter, 18 * mScale, 0, Math.PI * 2);
-          mCtx.fill();
-        }
-
-        // Fountain dot
-        mCtx.beginPath();
-        mCtx.arc(mCenter, mCenter, 3, 0, Math.PI * 2);
-        mCtx.fillStyle = 'rgba(79, 195, 247, 0.7)';
-        mCtx.fill();
-
-        // Building dots
         BUILDINGS.forEach(b => {
-          const bx = mCenter + b.x * mScale;
-          const bz = mCenter - b.z * mScale; // flip z for top-down
-          mCtx.fillStyle = b.project ? 'rgba(255, 209, 102, 0.6)' : 'rgba(200, 180, 150, 0.4)';
-          mCtx.fillRect(bx - 2, bz - 2, 4, 4);
+          const here = b.zone === zk;
+          mCtx.fillStyle = b.project ? (here ? 'rgba(255, 209, 102, 0.95)' : 'rgba(255, 209, 102, 0.5)') : 'rgba(220, 200, 170, 0.55)';
+          const sz = here ? 5 : 4;
+          mCtx.fillRect(mx(b.x) - sz / 2, mz(b.z) - sz / 2, sz, sz);
         });
 
-        // Cart arrow
-        const cx = mCenter + cPos.x * mScale;
-        const cz = mCenter - cPos.z * mScale;
+        // Cart arrow (heading: forward = (sin r, cos r) in x / z; canvas y = z)
         mCtx.save();
-        mCtx.translate(cx, cz);
-        mCtx.rotate(cRot);
+        mCtx.translate(mx(cPos.x), mz(cPos.z));
+        mCtx.rotate(Math.PI - cRot);
         mCtx.beginPath();
         mCtx.moveTo(0, -6);
         mCtx.lineTo(-4, 5);
@@ -2258,26 +2068,18 @@ function initTownWorld() {
 
   // ── Wheel tracks in the grass + surface for wheel audio ─────
   // Bruno-style tracks without a render target: a 512² canvas covering the
-  // town (132 × 132 units, ~0.26 u/px). Rear wheels paint soft earthy dots
-  // on it while on grass; it slowly fades. It's drawn as a decal just under
-  // the roads (so marks only show on grass) and the grass shader samples the
-  // same texture to lay blades flat in the tracks.
-  const TRACK_EXT = 132, TRACK_RES = 512;
+  // town (160 × 160 units, ~0.31 u/px). Rear wheels paint soft earthy dots
+  // on it while on grass; it slowly fades. The terrain shader darkens the
+  // ground under the marks (grass only — cobbles stay clean) and the grass
+  // shader samples the same texture to lay blades flat in the tracks.
+  const TRACK_EXT = 160, TRACK_RES = 512;
   const trackCanvas = document.createElement('canvas');
   trackCanvas.width = trackCanvas.height = TRACK_RES;
   const tctx = trackCanvas.getContext('2d');
   const trackTex = new THREE.CanvasTexture(trackCanvas);
   trackTex.minFilter = THREE.LinearFilter;
   trackTex.generateMipmaps = false;
-  const trackDecal = new THREE.Mesh(
-    new THREE.PlaneGeometry(TRACK_EXT, TRACK_EXT),
-    new THREE.MeshBasicMaterial({ map: trackTex, transparent: true, opacity: 0.8, depthWrite: false, color: 0x6a4b26,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
-  );
-  trackDecal.rotation.x = -Math.PI / 2;
-  trackDecal.position.y = 0.02;           // above the grass ground, below roads (0.04–0.07)
-  trackDecal.renderOrder = 1;
-  scene.add(trackDecal);
+  terrain.setTrackMap(trackTex, TRACK_EXT);
   if (grass && grass.setTrackMap) grass.setTrackMap(trackTex, TRACK_EXT);
   window._tracks = { canvas: trackCanvas, texture: trackTex, extent: TRACK_EXT };
 
@@ -2355,7 +2157,9 @@ function initTownWorld() {
     // Camera
     followCam.update(cart, delta);
     updateOcclusion(delta);
+    OCCLUSION_CUT.update(camera.position, cart.position);   // see-through townhouses / wall round the cart
     lightPool.update(followCam._focus);   // move the pooled lights to the sources nearest the view
+    terrain.updateLamps(followCam._focus); // and the lamplight pools painted on the ground
     fitShadowToView(followCam._focus);    // spend the shadow map on what's on screen
 
     // Labels
@@ -2375,6 +2179,8 @@ function initTownWorld() {
     // Clouds drift
     clouds.tick(delta);
     wallLanterns.update(elapsed);
+    waterSys.update(elapsed);
+    if (millWheel && !REDUCED_MOTION) millWheel.update(delta);
 
     // NPCs wave at the cart
     if (npcs.length) updateNpcs(cart.getPosition(), elapsed);
@@ -2407,11 +2213,11 @@ function initTownWorld() {
 
     // Existing animated props
     orb.rotation.y   = elapsed * 1.5;
-    orb.position.y   = 12 + Math.sin(elapsed * 2) * 0.3;
+    orb.position.y   = ORB_Y + Math.sin(elapsed * 2) * 0.3;
     fireGlow.intensity = 1.6 + Math.sin(elapsed * 3) * 0.4;
 
-    // Water shimmer
-    water.rotation.z = elapsed * 0.3;
+    // Fountain water shimmer
+    fountainWater.rotation.z = elapsed * 0.3;
 
     // Render through post-processing pipeline
     postFx.render();

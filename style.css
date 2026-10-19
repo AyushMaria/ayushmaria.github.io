@@ -3223,10 +3223,10 @@
     }
 
     /* Zone accents — set on .modal-card via data-zone in openModal() */
-    .modal-card[data-zone="north"]  { --modal-accent: #e08a2e; }
-    .modal-card[data-zone="east"]   { --modal-accent: #06d6a0; }
-    .modal-card[data-zone="west"]   { --modal-accent: #b07cf0; }
-    .modal-card[data-zone="square"] { --modal-accent: #ffd166; }
+    .modal-card[data-zone="hillside"] { --modal-accent: #e08a2e; }
+    .modal-card[data-zone="crest"]    { --modal-accent: #06d6a0; }
+    .modal-card[data-zone="lower"]    { --modal-accent: #b07cf0; }
+    .modal-card[data-zone="terrace"]  { --modal-accent: #ffd166; }
 
     .modal-card {
       position: relative;

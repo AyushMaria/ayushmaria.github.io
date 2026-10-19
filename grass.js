@@ -18,7 +18,8 @@ import { WIND, WIND_GLSL } from './wind.js';
  * @param scene
  * @param {object} opts
  * @param {number}   opts.count      number of blades to attempt (some are rejected)
- * @param {number}   opts.radius     scatter radius around the origin
+ * @param {number}   opts.radius     scatter radius around `center` [x, z]
+ * @param {Function} [opts.heightAt] (x, z) => ground height under each blade
  * @param {Function} opts.isOpen     (x, z) => true when grass may grow there
  * @param {number}   [opts.seed]
  */
@@ -28,7 +29,7 @@ function blankTrackMap() {
   return _blank;
 }
 
-export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => true, seed = 5,
+export function buildGrass(scene, { count = 20000, radius = 60, center = [0, 0], heightAt = () => 0, isOpen = () => true, seed = 5,
                                     bladeWidth = 0.1, bladeHeight = 0.6, baseColor = 0x3f7f33, tipColor = 0x9bcf5a } = {}) {
   let s = seed >>> 0;
   const rng = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
@@ -41,13 +42,14 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
   for (let i = 0; i < count; i++) {
     // uniform disc sample
     const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * radius;
-    const x = Math.sin(a) * r, z = Math.cos(a) * r;
+    const x = center[0] + Math.sin(a) * r, z = center[1] + Math.cos(a) * r;
     if (!isOpen(x, z)) continue;
+    const y = heightAt(x, z);
     const h = rng();
     // three vertices per blade share the base position; shape is built in the shader
     for (let k = 0; k < 3; k++) {
       pos[n * 9 + k * 3]     = x;
-      pos[n * 9 + k * 3 + 1] = 0;
+      pos[n * 9 + k * 3 + 1] = y;
       pos[n * 9 + k * 3 + 2] = z;
       tip[n * 3 + k]  = k === 0 ? 1 : 0;          // vertex 0 = tip
       side[n * 3 + k] = k === 0 ? 0 : (k === 1 ? -1 : 1);
@@ -61,7 +63,7 @@ export function buildGrass(scene, { count = 20000, radius = 60, isOpen = () => t
   geo.setAttribute('aTip',  new THREE.BufferAttribute(tip.subarray(0, n * 3), 1));
   geo.setAttribute('aSide', new THREE.BufferAttribute(side.subarray(0, n * 3), 1));
   geo.setAttribute('aRand', new THREE.BufferAttribute(rnd.subarray(0, n * 3), 1));
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), radius + 2);
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(center[0], 0, center[1]), radius + 12);
 
   const mat = new THREE.ShaderMaterial({
     uniforms: Object.assign({
