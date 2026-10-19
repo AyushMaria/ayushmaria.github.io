@@ -54,12 +54,10 @@ export const ROADS = [
     [6, -27], [12, -24.5], [16, -25.5] ] },
 ];
 
-/** Footpaths (dirt and stone, drivable): steps up the hill, path to the mill, path to the court. */
+/** Footpaths (dirt and stone, drivable): steps up the hill, path to the mill. */
 export const PATHS = [
   { key: 'steps', width: 2.4, pts: [[-14, -6], [-12, -15], [-10, -23]] },
   { key: 'millPath', width: 2.2, pts: [[-30.5, 43.5], [-38, 48], [-44, 51]] },
-  // from the end of Arena Lane along the river to the pickleball court's gate
-  { key: 'courtPath', width: 3.4, lamps: true, pts: [[45, 50], [50.5, 48.2], [55.2, 46.3], [57.3, 45]] },
 ];
 
 /** Squares: cobbled, flat. */
@@ -68,7 +66,33 @@ export const PLAZAS = [
     pts: [[-27.5, 28.5], [-12, 26], [-4.5, 33], [-7, 43], [-21.5, 44], [-28.5, 38.5]] },
   { key: 'crest', name: 'Crest Square', warm: true,
     pts: [[-18.5, -22.5], [6, -22.5], [8.5, -33.4], [-19.5, -33.4]] },
+  // the sports quarter: a forecourt shared by the stadium and court gates,
+  // and a fan square at the bridge head that Arena Lane runs through: food
+  // stalls and the ticket kiosk on the north side, a statue by the river
+  { key: 'arenaYard', name: 'Arena Forecourt',
+    pts: [[36, 47.5], [44.3, 43.8], [47.2, 40.5], [48.5, 40.1], [49.5, 43.3], [57, 41.2], [58, 44.6], [52.5, 48.9], [45.6, 51.9], [40.4, 51.8], [36.8, 50.1]] },
+  { key: 'fanSquare', name: 'Fan Square',
+    pts: [[15.8, 47.8], [16.8, 42], [20.5, 37.8], [25.8, 36.3], [27.6, 37.4], [27.2, 44.6], [29.4, 48.4], [31.2, 52.8],
+          [30.6, 56.8], [25, 58], [19.6, 57.4], [17.4, 55]],
+    // by hand, so the inside of the turn off the bridge stays clear and the bunting has its lamp
+    lamps: [[21, 39.3], [19.6, 45.6], [26.1, 45.7], [24.8, 56.4]] },
 ];
+
+/**
+ * Fan Square furniture (fan-square.js), kept back from Arena Lane so the
+ * turn off the bridge stays open. Rotations face the square's middle.
+ */
+export const FAN_SQUARE = {
+  centre: [21.5, 43.2],                       // the north side's middle: a club flag on a tall pole
+  kiosk: [25.6, 42.6],                        // ticket booth by the stadium
+  stalls: [[18.3, 41.6, false], [23.7, 38, true]],   // food stalls [x, z, red awning]
+  // bunting: stall → the square's north lamp → stall → kiosk ([x, z, height])
+  bunting: [[18.3, 41.6, 2.5], [21, 39.3, 3.2], [23.7, 38, 2.5], [25.6, 42.6, 2.7]],
+  // by the river, south of the lane: a footballer on a plinth and benches facing the water
+  statue: [27.6, 55.6],
+  benches: [[20.6, 56.6], [30, 57.6]],
+  fans: [[24.1, 42.6, 0], [23.3, 42.1, 1], [19.7, 42.6, 2], [26.4, 54.1, 1]],   // [x, z, variant]
+};
 
 /** The river along the foot of the hill (flows west). */
 export const RIVER = {
@@ -98,6 +122,9 @@ export const FIELDS = [
   [50, 82, 24, 11, -8], [-38, 86, 26, 12, 4], [80, -34, 16, 22, 15],
 ];
 
+/** The stadium and the court face the river at this angle (its bend there). */
+export const SPORTS_HEADING = 0.28;
+
 /**
  * Portfolio buildings. Tudor buildings (`roof` set, ≤ 4 roof segs) get
  * cream plaster, dark timber and terracotta gables; `color` is the plaster
@@ -120,14 +147,17 @@ export const BUILDINGS = [
     roofSegs: 6, label: 'Concierge Parlour', project: 'ace' },
   { x: 46.3, z: 4.6, w: 5.5, h: 6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, label: 'The Forge', project: 'mavpose' },
-  // A small fenced pickleball court on the riverbank, long side along the
-  // water, gate at the end the court path comes in from.
-  { x: 60, z: 38, w: 6.8, h: 1.2, d: 12.8, court: true,
-    label: 'The Pickleball Court', project: 'volley', heading: Math.atan2(-0.365, 0.931) },
-  // A small oval football stadium (stadium.js): stands, floodlights, a
-  // scoreboard and an xG shot map on the pitch. Gate faces Arena Lane.
-  { x: 44.5, z: 41.4, w: 13.4, h: 2.6, d: 10.4, stadium: true,
-    label: 'Prediction Colosseum', project: 'xg', heading: 0 },
+  // The sports quarter by the river (§2.14): the stadium and the pickleball
+  // court share one heading, turned to follow the river's bend, and one
+  // paved forecourt (ARENA_YARD) at the end of Arena Lane.
+  // An oval football stadium (stadium.js) at 1.35× its base size: stands,
+  // floodlights, a scoreboard and an xG shot map. w / d = stadiumFootprint(1.35).
+  { x: 36.5, z: 40.2, w: 18.5, h: 3, d: 14.4, stadium: true, stadiumScale: 1.35,
+    label: 'Prediction Colosseum', project: 'xg', heading: SPORTS_HEADING },
+  // A small fenced pickleball court at the stadium's east shoulder, its gate
+  // on the forecourt in line with the stadium's
+  { x: 51.3, z: 36.4, w: 6.8, h: 1.2, d: 12.8, court: true,
+    label: 'The Pickleball Court', project: 'volley', heading: SPORTS_HEADING },
 
   // Hillside (inside the walls)
   { x: 0, z: -13.8, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
@@ -147,10 +177,7 @@ export const BUILDINGS = [
 ];
 
 /** Townhouses placed by hand (the rest are generated along the streets). */
-export const EXTRA_HOUSES = [
-  // north side of Arena Lane, filling the gap west of the two houses there
-  { x: 26.4, z: 43.5, w: 4.2, d: 4.2, heading: 0, storeys: 2, h: 5.8, ridgeAlong: 'front', tint: 2, roofTint: 1, chimney: true, chimneySide: 1 },
-];
+export const EXTRA_HOUSES = [];
 
 /** Clock tower: on the crest behind City Hall, the town's skyline mark. */
 export const CLOCK_TOWER = { x: -6, z: -55, base: 6, height: 22 };
@@ -742,6 +769,7 @@ export function buildLayout({ res = 1 } = {}) {
     L.lamps.push({ x: B.x + bc * c + bs * a, z: B.z - bs * c + bc * a, onBridge: true, y: B.deckY(a) + 0.6 });
   }
   for (const pl of L.plazas) {
+    if (pl.lamps) { for (const [x, z] of pl.lamps) L.lamps.push({ x, z }); continue; }     // placed by hand
     for (const [px, pz] of pl.pts) {
       const [cx, cz] = pl.centroid, k = 1 - 1.6 / Math.hypot(px - cx, pz - cz);
       const x = cx + (px - cx) * k, z = cz + (pz - cz) * k;

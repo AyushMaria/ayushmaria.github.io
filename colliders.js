@@ -9,6 +9,7 @@
  *   { obb, x, z, hw, hd, heading }     rotated box: hw across, hd along the heading
  *                                      (buildings and townhouses face their street)
  *   { seg, ax, az, bx, bz, r }         capsule: wall runs, river and stream banks
+ *   { ellipse, x, z, a, b, heading }   oval footprint (the stadium); a across, b along
  * Any collider may carry `skip(x, z)` → true to ignore it at that point
  * (the river under the bridge deck).
  */
@@ -16,6 +17,11 @@
 /** Make an OBB collider (caches the heading's sin / cos). */
 export function obb(x, z, hw, hd, heading) {
   return { obb: true, x, z, hw, hd, heading, c: Math.cos(heading), s: Math.sin(heading) };
+}
+
+/** Make an elliptical collider (a = half-width across, b = half-depth along the heading). */
+export function ellipse(x, z, a, b, heading = 0) {
+  return { ellipse: true, x, z, a, b, heading, c: Math.cos(heading), s: Math.sin(heading) };
 }
 
 /** Make a capsule collider. */
@@ -63,6 +69,14 @@ export function pointHit(col, px, pz) {
     if (du < dv) { const sg = u < 0 ? -1 : 1; return { nx: sg * col.c, nz: -sg * col.s }; }
     const sg = v < 0 ? -1 : 1;
     return { nx: sg * col.s, nz: sg * col.c };
+  }
+  if (col.ellipse) {
+    const dx = px - col.x, dz = pz - col.z;
+    const u = dx * col.c - dz * col.s, v = dx * col.s + dz * col.c;
+    if ((u * u) / (col.a * col.a) + (v * v) / (col.b * col.b) >= 1) return null;
+    let gu = u / (col.a * col.a), gv = v / (col.b * col.b);
+    const l = Math.hypot(gu, gv) || 1; gu /= l; gv /= l;
+    return { nx: gu * col.c + gv * col.s, nz: -gu * col.s + gv * col.c };
   }
   if (col.ring) {
     const dx = px - (col.x || 0), dz = pz - (col.z || 0), d2 = dx * dx + dz * dz;
@@ -117,6 +131,16 @@ export function circlePush(col, x, z, r) {
     const h = pointHit(col, x, z);
     return { nx: h.nx, nz: h.nz, pen: Math.min(col.hw - Math.abs(u), col.hd - Math.abs(v)) + r };
   }
+  if (col.ellipse) {
+    const dx = x - col.x, dz = z - col.z;
+    const u = dx * col.c - dz * col.s, v = dx * col.s + dz * col.c;
+    const A = col.a + r, Bb = col.b + r, m = Math.sqrt((u * u) / (A * A) + (v * v) / (Bb * Bb));
+    if (m >= 1) return null;
+    let gu = u / (A * A), gv = v / (Bb * Bb);
+    const l = Math.hypot(gu, gv) || 1; gu /= l; gv /= l;
+    const pen = (1 - m) * Math.min(A, Bb);
+    return { nx: gu * col.c + gv * col.s, nz: -gu * col.s + gv * col.c, pen };
+  }
   if (col.ring) {
     const dx = x - (col.x || 0), dz = z - (col.z || 0), d = Math.hypot(dx, dz), lim = col.r - r;
     if (d <= lim) return null;
@@ -153,6 +177,7 @@ export function colliderIndex(list, cell = 8) {
     else if (c.circle) add(c, c.x - c.r, c.x + c.r, c.z - c.r, c.z + c.r);
     else if (c.seg) add(c, c.minX, c.maxX, c.minZ, c.maxZ);
     else if (c.obb) { const R = Math.hypot(c.hw, c.hd); add(c, c.x - R, c.x + R, c.z - R, c.z + R); }
+    else if (c.ellipse) { const R = Math.max(c.a, c.b); add(c, c.x - R, c.x + R, c.z - R, c.z + R); }
     else always.push(c);
   }
   const empty = [];

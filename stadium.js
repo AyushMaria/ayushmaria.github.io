@@ -16,18 +16,19 @@ import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.
 import { standardMat } from './materials.js';
 import { propMaterials } from './town-props.js';
 
-const PITCH = { w: 7.4, d: 4.4 };                 // playing area (x, z)
-const TIERS = [                                   // [inner rx, inner rz, outer rx, outer rz, top]
+const BASE_PITCH = { w: 7.4, d: 4.4 };            // playing area (x, z) at scale 1
+const BASE_TIERS = [                                   // [inner rx, inner rz, outer rx, outer rz, top]
   [4.75, 3.35, 5.35, 3.9, 0.55],
   [5.35, 3.9, 5.95, 4.45, 1.05],
   [5.95, 4.45, 6.5, 5.0, 1.55],
 ];
-const WALL = { rx: 6.7, rz: 5.2, t: 0.35, h: 2.4 };
-const GATE_HALF = 0.2;                           // gate gap (radians, either side of +z)
-const SEGS = 44;
+const BASE_WALL = { rx: 6.7, rz: 5.2, t: 0.35, h: 2.4 };
+const BASE_SEGS = 44;
+/** Footprint (x, z) of the stadium at a given scale — what town-layout.js needs. */
+export const stadiumFootprint = (scale = 1) => ({ w: 2 * (BASE_WALL.rx * scale + 0.2), d: 2 * (BASE_WALL.rz * scale + 0.2) });
 
 // Pitch texture: mowing stripes, white lines, and the xG shot map by the right-hand goal
-function pitchTexture() {
+function pitchTexture(PITCH) {
   const W = 1024, H = Math.round(W * PITCH.d / PITCH.w);
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -102,7 +103,15 @@ function netTexture() {
  * @param {{ reducedMotion?: boolean }} [opts]
  * @returns {{ group: THREE.Group, update(t:number, dt:number):void, light: THREE.Vector3, height: number }}
  */
-export function buildStadium(userData = null, { reducedMotion = false } = {}) {
+export function buildStadium(userData = null, { reducedMotion = false, scale = 1 } = {}) {
+  // Plan sizes grow with `scale`; heights grow more gently and people,
+  // goals and the gate stay life-size.
+  const S = scale;
+  const PITCH = { w: BASE_PITCH.w * S, d: BASE_PITCH.d * S };
+  const TIERS = BASE_TIERS.map(([a, b, c, d, top]) => [a * S, b * S, c * S, d * S, top * (1 + (S - 1) * 0.6)]);
+  const WALL = { ...BASE_WALL, rx: BASE_WALL.rx * S, rz: BASE_WALL.rz * S, h: BASE_WALL.h * (1 + (S - 1) * 0.5) };
+  const SEGS = Math.round(BASE_SEGS * S);
+  const GATE_HALF = 1.33 / WALL.rx;                // gate gap (radians, either side of +z) ≈ 2.7 units wide
   const g = new THREE.Group();
   const M = propMaterials();
   const tag = (m) => { if (userData) m.userData = { ...userData }; return m; };
@@ -116,7 +125,7 @@ export function buildStadium(userData = null, { reducedMotion = false } = {}) {
   apron.scale.set(WALL.rx + 0.2, 1, WALL.rz + 0.2);
   apron.position.y = 0.06;
   add(apron, false);
-  const pitch = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.w, PITCH.d), new THREE.MeshStandardMaterial({ map: pitchTexture(), roughness: 0.95 }));
+  const pitch = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.w, PITCH.d), new THREE.MeshStandardMaterial({ map: pitchTexture(BASE_PITCH), roughness: 0.95 }));   // texture drawn at base size, stretched
   pitch.rotation.x = -Math.PI / 2;
   pitch.position.y = 0.13;
   add(pitch, false);
@@ -243,7 +252,7 @@ export function buildStadium(userData = null, { reducedMotion = false } = {}) {
   add(boardMesh);
 
   // ── Floodlight pylons at the four corners ─────────────────────
-  const PH = 7.2;
+  const PH = 7.2 * (1 + (S - 1) * 0.5);
   const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => [sx * (WALL.rx - 0.2) * 0.86, sz * (WALL.rz - 0.2) * 0.86]);
   {
     const iron = new THREE.Mesh(mergeBufferGeometries(corners.flatMap(([x, z]) => {

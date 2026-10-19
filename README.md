@@ -54,6 +54,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`town-layout.js`**: The plan of the hill town: hill, High Street and lanes, squares, river, stream and pools, wall and gates, portfolio buildings, filler townhouses, lamps, trees and the carved height field.
 * **`terrain.js`**: The landscape mesh with streets painted into it, the river / stream / pools / falls, and the stone bridge.
 * **`stadium.js`**: The Prediction Colosseum as a small football stadium (stands, pitch with an xG shot map, scoreboard, floodlights, a ball that rolls into the net).
+* **`fan-square.js`**: Fan Square by the stadium (footballer statue, ticket kiosk, club flag, bunting, benches).
 * **`colliders.js`**: Collision shapes shared by the cart and the knockable props (circles, rotated boxes, capsules, the play-area ring).
 * **`town-props.js`**: Town wall, townhouses, mill wheel, clock tower, trees, clouds, mountains, stalls.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).

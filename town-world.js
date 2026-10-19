@@ -24,10 +24,11 @@ import { buildTempleHall } from './temple.js';
 import { mergeStaticChildren } from './merge-static.js';
 import { KnockableProps } from './props-physics.js';
 import { standardMat, sharedMaterialCount, OCCLUSION_CUT } from './materials.js';
-import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
+import { buildLayout, ZONE_NAMES, CLOCK_TOWER, WORLD, FAN_SQUARE, zoneKeyAt as layoutZoneKeyAt } from './town-layout.js';
 import { buildTerrain, buildWater, buildBridge } from './terrain.js';
 import { buildStadium } from './stadium.js';
-import { obb, circlePush, footprintDist, colliderIndex } from './colliders.js';
+import { buildFanSquare } from './fan-square.js';
+import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -257,7 +258,7 @@ function makeCourtBuilding(o) {
 // The Prediction Colosseum: a small football stadium (stadium.js)
 function makeStadiumBuilding(o) {
   const g = new THREE.Group();
-  const st = buildStadium(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  const st = buildStadium(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION, scale: o.stadiumScale || 1 });
   g.add(st.group);
   const skirt = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2.6, 40), propMaterials().stoneDark);
   skirt.scale.set(o.w / 2 + 0.1, 1, o.d / 2 + 0.1);
@@ -1357,8 +1358,10 @@ function initTownWorld() {
       particleSystem.createSmoke(new THREE.Vector3(c.x, c.y, c.z));
     }
 
-    // Collider: the building's own rotated footprint (it faces its street)
-    colliders.push(obb(o.x, o.z, o.w / 2 + 0.15, o.d / 2 + 0.15, o.heading));
+    // Collider: the building's own rotated footprint (it faces its street);
+    // the stadium is oval, so it gets an elliptical one
+    colliders.push(o.stadium ? ellipse(o.x, o.z, o.w / 2, o.d / 2, o.heading)
+                             : obb(o.x, o.z, o.w / 2 + 0.15, o.d / 2 + 0.15, o.heading));
   });
   buildShutters(scene);
   const wallLanterns = buildWallLanterns(scene, wallLanternSlots, {
@@ -1638,6 +1641,8 @@ function initTownWorld() {
       npcAt('The Pickleball Court', 0.9, -9.6, 1),
       npcAt('Vortex Observatory', 1.6, 1.4, 2),
       npcAt('The Mill', 1.8, 1.4, 1),
+      // fans in Fan Square: a queue at the ticket kiosk, one by a stall, one at the statue
+      ...FAN_SQUARE.fans.map(([x, z, v]) => [x, z, v, heightAt(x, z)]),
     ].filter(Boolean));
   }
 
@@ -1648,6 +1653,18 @@ function initTownWorld() {
     mergeStaticChildren(stall.group);
     colliders.push(stall.collider);
   });
+
+  // Fan Square at the bridge head: food stalls, the statue, the ticket kiosk, bunting
+  {
+    const [cx, cz] = FAN_SQUARE.centre;
+    FAN_SQUARE.stalls.forEach(([x, z, red]) => {
+      const stall = buildStall(scene, x, z, Math.atan2(cx - x, cz - z), { red, y: groundAt(x, z) });
+      mergeStaticChildren(stall.group);
+      colliders.push(stall.collider);
+    });
+    const fan = buildFanSquare(scene, FAN_SQUARE, groundAt);
+    colliders.push(...fan.colliders);
+  }
 
   // Glowing Rune Circle & Floating Books round the Observatory
   const runeMat = new THREE.MeshStandardMaterial({
