@@ -30,6 +30,7 @@ import { buildStadium } from './stadium.js';
 import { buildFanSquare } from './fan-square.js';
 import { buildControlTower, buildDrone, buildWaypointFlag } from './control-tower.js';
 import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from './vortex-observatory.js';
+import { buildCitadel } from './cloud-citadel.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -370,8 +371,45 @@ function makeObservatoryBuilding(o) {
   return g;
 }
 
+// The Cloud Citadel: master + worker towers computing a matrix (cloud-citadel.js)
+function makeCitadelBuilding(o) {
+  const g = new THREE.Group();
+  const cz = buildCitadel(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(cz.group);
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.1, 2.6, o.d - 1.1), propMaterials().stoneDark);
+  skirt.position.set(0, -1.29, -0.5);
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = cz.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    cz.update(t);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = cz.group.children[0];
+  // the orange beacon for the shared light pool
+  const lp = cz.beacon.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), o.heading || 0);
+  lightSources.push({ pos: new THREE.Vector3(o.x + lp.x, (o.y || 0) + lp.y, o.z + lp.z), color: new THREE.Color(0xff9a3c), intensity: 1.0, distance: 12 });
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.citadel) return makeCitadelBuilding(o);
   if (o.observatory) return makeObservatoryBuilding(o);
   if (o.controlTower) return makeControlTowerBuilding(o);
   if (o.court) return makeCourtBuilding(o);
