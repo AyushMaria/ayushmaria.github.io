@@ -9,6 +9,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeStaticChildren } from './merge-static.js';
 
 // Wrap an angle to (-π, π]
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -236,6 +237,12 @@ export class Cart {
     this.lanternLight = new THREE.PointLight(0xFFD166, 1.2, 8);
     this.lanternLight.position.set(0, 1.5, 1.65);
     addBody(this.lanternLight);
+
+    // Fewer draw calls (§4.1): bake the rigid parts of the body and of each
+    // wheel into one mesh per material. The lantern group and the wheel
+    // groups themselves stay separate, so sway, spin and steering still work.
+    mergeStaticChildren(body);
+    this.wheels.forEach(wg => mergeStaticChildren(wg));
   }
 
   // ── Touch steering marker ───────────────────────────────────

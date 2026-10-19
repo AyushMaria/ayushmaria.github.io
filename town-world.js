@@ -20,6 +20,7 @@ import {
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
 import { buildTempleHall } from './temple.js';
+import { mergeStaticChildren } from './merge-static.js';
 
 import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
@@ -503,6 +504,12 @@ function makeBuilding(o) {
     o._chimneyTop = { x: o.x + cx, y: chim.position.y + chimH / 2 + 0.3, z: o.z + cz };
   }
 
+  // Bake static parts that share a material into one mesh each (§4.1):
+  // walls + gable ends, roof + trim, timber + door frame, door + arch,
+  // chimney + cap… Every merged part opens the project when clicked.
+  const merged = mergeStaticChildren(g, { userData: o.project ? { project: o.project, label: o.label } : null });
+  const bodyMesh = body.parent ? body : (merged.find(m => m.material === bodyMat) || body);
+
   g.position.set(o.x, 0, o.z);
 
   // ── Phase 3.1: Floating interactive marker ───────────────────
@@ -520,7 +527,7 @@ function makeBuilding(o) {
       }
     });
   }
-  g.userData.body = body;
+  g.userData.body = bodyMesh;
   o.roofTop = roofTop;
   return g;
 }
@@ -875,18 +882,20 @@ function lampMaterials() {
 }
 const LAMP_COLOR = new THREE.Color(0xffd166);
 
+// All lamps live in one group so their poles and heads merge into two
+// meshes town-wide (mergeStaticChildren after the last lamp is placed).
+let lampField = null;
 function addLamp(scene, x, z) {
   const { pole: poleMat, glow: glowMat } = lampMaterials();
-  const g = new THREE.Group();
+  if (!lampField) { lampField = new THREE.Group(); lampField.name = 'lamps'; scene.add(lampField); }
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.5, 8), poleMat);
-  pole.position.y = 1.75;
-  g.add(pole);
+  pole.position.set(x, 1.75, z);
+  pole.castShadow = true;
+  lampField.add(pole);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), glowMat);
-  head.position.y = 3.6;
-  g.add(head);
-  g.position.set(x, 0, z);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  scene.add(g);
+  head.position.set(x, 3.6, z);
+  head.castShadow = true;
+  lampField.add(head);
   // No PointLight of its own: the light pool lends one when the lamp is near.
   const source = { pos: new THREE.Vector3(x, 3.6, z), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
   lightSources.push(source);
@@ -1412,6 +1421,8 @@ function initTownWorld() {
   const fountain = buildFountain(scene, particleSystem, { particles: PERF.fountain });
   colliders.push(fountain.collider);
   const water = fountain.water;
+  water.userData.keep = true;              // spins every frame — stays its own mesh
+  mergeStaticChildren(fountain.group);
 
   // Audio system integration
   const audioSys = new AudioSystem(camera);
@@ -1507,6 +1518,7 @@ function initTownWorld() {
     LAMPS.push([Math.sin(a) * (RING_R + 6), Math.cos(a) * (RING_R + 6)]);
   }
   LAMPS.forEach(([x, z]) => { addLamp(scene, x, z); colliders.push({ circle: true, x, z, r: 0.35 }); });
+  if (lampField) mergeStaticChildren(lampField);      // 27 poles + 27 heads → 2 meshes
   lampPoolMat = buildLampGroundPools(scene);
   // Fixed pool of PointLights shared by every lamp + the orb (see createLightPool)
   const lightPool = createLightPool(scene, PERF.lightPool);
@@ -1582,10 +1594,12 @@ function initTownWorld() {
   // ── City wall, clock tower, sky dressing ────────────────────
   const wall = buildCityWall(scene, { radius: 63, height: 6, gates: ['east', 'west', 'south'] });
   colliders.push(...wall.colliders);
+  mergeStaticChildren(wall.group);
 
   // Clock tower closes the view down Main Street (reference landmark)
   const clockTower = buildClockTower(scene, 0, -58, { base: 6, height: 22 });
   colliders.push(clockTower.collider);
+  mergeStaticChildren(clockTower.group);
   windowMats.push(clockTower.faceMat);
   particleSystem.createFireflies(30, { x: 20, y: 6, z: 20 }).position.set(0, 20, -18);
 
@@ -1669,7 +1683,11 @@ function initTownWorld() {
 
   // Market stalls (Town Square) — curved red-orange awnings, off the road
   [[-9.5, 21, Math.PI / 2, false], [9.5, 21.5, -Math.PI / 2, true], [9.5, 31, -Math.PI / 2, false]]
-    .forEach(([x, z, r, red]) => colliders.push(buildStall(scene, x, z, r, { red }).collider));
+    .forEach(([x, z, r, red]) => {
+      const stall = buildStall(scene, x, z, r, { red });
+      mergeStaticChildren(stall.group);
+      colliders.push(stall.collider);
+    });
 
   // Glowing Rune Circles & Floating Books (Research Quarter - East Arm)
   const runeMat = new THREE.MeshStandardMaterial({
