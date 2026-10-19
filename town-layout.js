@@ -164,8 +164,10 @@ export const BUILDINGS = [
     label: 'The Pickleball Court', project: 'volley', heading: SPORTS_HEADING },
 
   // Hillside (inside the walls)
-  { x: 0, z: -13.8, w: 5, h: 7.5, d: 4.5, color: 0xf3e6c8, roof: 0xc9553d,
-    chimney: true, label: 'Ledger Sanctum', project: 'ledger' },
+  // The Tally Bridge Counting House (counting-house.js): a stone vault house
+  // and a glassy counting room joined by a skybridge on arches
+  { x: 0, z: -13.8, w: 11, h: 5.2, d: 5, countingHouse: true,
+    label: 'Ledger Sanctum', project: 'ledger' },
   // A citadel made of copies of itself (cloud-citadel.js): a master tower
   // and six identical worker towers on a platform, wrapped in cloud
   { x: 20, z: -12, w: 7, h: 1, d: 7, citadel: true,

@@ -33,6 +33,7 @@ import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from '
 import { buildCitadel } from './cloud-citadel.js';
 import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
 import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
+import { buildCountingHouse } from './counting-house.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -480,8 +481,46 @@ function makeParlourBuilding(o) {
   return g;
 }
 
+// The Tally Bridge Counting House: vault + counting room + skybridge (counting-house.js)
+function makeCountingHouseBuilding(o) {
+  const g = new THREE.Group();
+  const ch = buildCountingHouse(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  g.add(ch.group);
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.2, 2.6, o.d - 0.6), propMaterials().stoneDark);
+  skirt.position.y = -1.29;
+  skirt.receiveShadow = true;
+  g.add(skirt);
+  const roofTop = ch.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    g.add(marker);
+    g.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    ch.update(t);
+    if (g.userData.marker) {
+      g.userData.marker.rotation.y = t * 1.5;
+      g.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  const h = o.heading || 0;
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = h;
+  g.userData.body = ch.group.children[0];
+  // the counting room's gold glow
+  const lp = ch.glow.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), h);
+  lightSources.push({ pos: new THREE.Vector3(o.x + lp.x, (o.y || 0) + lp.y, o.z + lp.z), color: new THREE.Color(0xffc25a), intensity: 1.0, distance: 11 });
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
+  if (o.countingHouse) return makeCountingHouseBuilding(o);
   if (o.parlour) return makeParlourBuilding(o);
   if (o.forge) return makeForgeBuilding(o);
   if (o.citadel) return makeCitadelBuilding(o);
