@@ -23,6 +23,7 @@
  */
 import * as THREE from 'three';
 import { WIND, WIND_GLSL } from './wind.js';
+import { tileInstances } from './merge-static.js';
 
 // ── Noise used for placement (JS) ─────────────────────────────────
 const hash = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -269,10 +270,9 @@ export function buildGrass(scene, { terrain, layout: L, heightAt, isOpen, layers
     });
     im.instanceMatrix.needsUpdate = true;
     im.instanceColor.needsUpdate = true;
-    im.frustumCulled = false;
     im.name = 'golden-drifts';
     scene.add(im);
-    meshes.push(im);
+    meshes.push(tileInstances(im, { pad: 0.6 }));    // culled per tile; the pad covers the wind sway
   }
 
   return {

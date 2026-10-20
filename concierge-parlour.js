@@ -19,6 +19,7 @@ import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.
 import { standardMat } from './materials.js';
 import { propMaterials } from './town-props.js';
 import { plasterTexture } from './textures.js';
+import { boundInstances } from './merge-static.js';
 
 const R = 2.95;                     // body circumradius (octagon)
 const AP = R * Math.cos(Math.PI / 8);   // apothem: distance to a face
@@ -233,7 +234,7 @@ export function buildParlour(userData = null, { reducedMotion = false } = {}) {
   const seedTaken = [1, 4, 6, 11];
   for (let i = 0; i < COLS * ROWS; i++) { taken[i] = seedTaken.includes(i); setTile(i, 0, taken[i]); }
   tiles.instanceMatrix.needsUpdate = true; tiles.instanceColor.needsUpdate = true;
-  board.add(tiles);
+  board.add(boundInstances(tiles, { pad: 0.2 }));     // tiles flip in place
   g.add(board);
 
   // ── Pigeons: two perched on the dome, one that flies an errand ──

@@ -21,6 +21,7 @@ import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.
 import { standardMat } from './materials.js';
 import { propMaterials } from './town-props.js';
 import { stoneTexture } from './textures.js';
+import { boundInstances } from './merge-static.js';
 
 const PLAT = { w: 7, d: 7, h: 1.0 };
 const MASTER = { s: 1.7, h: 9.0 };                 // square, above the platform
@@ -106,7 +107,7 @@ export function buildCitadel(userData = null, { reducedMotion = false } = {}) {
       m4.compose(new THREE.Vector3(w.x, P, w.z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), w.a), new THREE.Vector3(1, 1, 1));
       im.setMatrixAt(i, m4); caps.setMatrixAt(i, m4);
     });
-    add(im); add(caps);
+    add(boundInstances(im)); add(boundInstances(caps));
   }
 
   // ── Walkway bridges master → each worker, with rails ──────────
@@ -145,7 +146,7 @@ export function buildCitadel(userData = null, { reducedMotion = false } = {}) {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
     wins.forEach((w, i) => { m4.compose(new THREE.Vector3(w.x, w.y, w.z), q.setFromAxisAngle(Y, w.ry), one); winIM.setMatrixAt(i, m4); winIM.setColorAt(i, new THREE.Color(0x3a2a1a)); });
   }
-  g.add(winIM);
+  g.add(boundInstances(winIM));                       // static positions; only the colours change
 
   // ── Packets hopping along the walkways ────────────────────────
   const packetMat = new THREE.MeshBasicMaterial({ color: 0xffa040 });

@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { standardMat } from './materials.js';
 import { propMaterials } from './town-props.js';
+import { boundInstances } from './merge-static.js';
 
 const BASE_PITCH = { w: 7.4, d: 4.4 };            // playing area (x, z) at scale 1
 const BASE_TIERS = [                                   // [inner rx, inner rz, outer rx, outer rz, top]
@@ -115,7 +116,8 @@ export function buildStadium(userData = null, { reducedMotion = false, scale = 1
   const g = new THREE.Group();
   const M = propMaterials();
   const tag = (m) => { if (userData) m.userData = { ...userData }; return m; };
-  const add = (mesh, cast = true) => { mesh.castShadow = cast; mesh.receiveShadow = true; g.add(tag(mesh)); return mesh; };
+  // instanced parts are added once their matrices are set, so they can be bounded and culled here
+  const add = (mesh, cast = true) => { mesh.castShadow = cast; mesh.receiveShadow = true; if (mesh.isInstancedMesh) boundInstances(mesh); g.add(tag(mesh)); return mesh; };
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const Y = new THREE.Vector3(0, 1, 0);
   const inGate = (a) => Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < GATE_HALF;

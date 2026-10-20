@@ -109,3 +109,95 @@ export function mergeStaticChildren(parent, { userData = null } = {}) {
   }
   return added;
 }
+
+// ── Instanced culling (task.md §4.1) ─────────────────────────
+// three r150 builds every InstancedMesh with frustumCulled = false, and a
+// culled one would be tested against its *geometry's* bounds (one instance
+// at the origin), so out of the box instanced props are drawn every frame,
+// in the main pass and again in the shadow map. These helpers give an
+// instanced mesh real bounds (over all its instances) and switch culling on.
+// They give each mesh a light *view* of its geometry (same attribute
+// objects, so the same GPU buffers) carrying those bounds, so shared
+// geometries are never touched. Don't dispose a view: it would free the
+// buffers the other views still use.
+
+const _im = new THREE.Matrix4(), _ibox = new THREE.Box3(), _iall = new THREE.Box3();
+
+function geometryView(src, sphere) {
+  const g = new THREE.BufferGeometry();
+  if (src.index) g.setIndex(src.index);
+  for (const [name, attr] of Object.entries(src.attributes)) g.setAttribute(name, attr);
+  for (const gr of src.groups) g.addGroup(gr.start, gr.count, gr.materialIndex);
+  g.setDrawRange(src.drawRange.start, src.drawRange.count);
+  g.boundingSphere = sphere;
+  return g;
+}
+
+/**
+ * Give a static (or in-place animated) InstancedMesh bounds that cover every
+ * instance and turn frustum culling on. `pad` widens them for shaders that
+ * move vertices (wind sway) or instances that wobble in place.
+ */
+export function boundInstances(im, { pad = 0 } = {}) {
+  const src = im.geometry;
+  if (!src.boundingBox) src.computeBoundingBox();
+  _iall.makeEmpty();
+  for (let i = 0; i < im.count; i++) {
+    im.getMatrixAt(i, _im);
+    _iall.union(_ibox.copy(src.boundingBox).applyMatrix4(_im));
+  }
+  if (_iall.isEmpty()) return im;
+  const sphere = _iall.getBoundingSphere(new THREE.Sphere());
+  sphere.radius += pad;
+  im.geometry = geometryView(src, sphere);
+  im.frustumCulled = true;
+  // r150 raycasts each instance against the geometry's own sphere, so
+  // picking uses the original geometry (whose sphere is one instance's)
+  im.raycast = function (raycaster, hits) {
+    const view = this.geometry;
+    this.geometry = src;
+    THREE.InstancedMesh.prototype.raycast.call(this, raycaster, hits);
+    this.geometry = view;
+  };
+  return im;
+}
+
+/**
+ * Split a static InstancedMesh spread over the town into square tiles of
+ * `tile` units, one culled InstancedMesh per tile, so the camera and the
+ * shadow map only draw the tiles they can see. The tiles replace `im` in
+ * its parent (inside a Group of the same name) and keep its material,
+ * colours, shadow flags, render order and userData.
+ * @returns {THREE.Object3D} the Group of tiles (or `im` itself if it fits one tile)
+ */
+export function tileInstances(im, { tile = 48, pad = 0 } = {}) {
+  const buckets = new Map();
+  for (let i = 0; i < im.count; i++) {
+    im.getMatrixAt(i, _im);
+    const k = Math.floor(_im.elements[12] / tile) + ',' + Math.floor(_im.elements[14] / tile);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(i);
+  }
+  if (buckets.size <= 1) return boundInstances(im, { pad });
+  const group = new THREE.Group();
+  group.name = im.name;
+  group.position.copy(im.position); group.quaternion.copy(im.quaternion); group.scale.copy(im.scale);
+  const col = new THREE.Color();
+  for (const list of buckets.values()) {
+    const t = new THREE.InstancedMesh(im.geometry, im.material, list.length);
+    list.forEach((src, j) => {
+      im.getMatrixAt(src, _im); t.setMatrixAt(j, _im);
+      if (im.instanceColor) { im.getColorAt(src, col); t.setColorAt(j, col); }
+    });
+    t.instanceMatrix.needsUpdate = true;
+    if (t.instanceColor) t.instanceColor.needsUpdate = true;
+    t.castShadow = im.castShadow; t.receiveShadow = im.receiveShadow;
+    t.renderOrder = im.renderOrder; t.layers.mask = im.layers.mask;
+    t.name = im.name; t.userData = { ...im.userData };
+    boundInstances(t, { pad });
+    group.add(t);
+  }
+  const parent = im.parent;
+  if (parent) { parent.add(group); parent.remove(im); }
+  return group;
+}

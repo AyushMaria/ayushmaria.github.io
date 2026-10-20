@@ -21,6 +21,7 @@ import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTextu
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { attachWind } from './wind.js';
 import { standardMat, withOcclusionCut } from './materials.js';
+import { tileInstances } from './merge-static.js';
 
 // ── Shared materials ────────────────────────────────────────────
 let _mats = null;
@@ -384,6 +385,7 @@ export function buildLandingTrees(scene, trees, { heightAt = () => 0, tile = 64,
       });
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.frustumCulled = true;            // r150's InstancedMesh starts with culling off; the tile bounds make it safe
       group.add(im);
     }
     bb.getBoundingSphere(sphere);
@@ -423,9 +425,8 @@ export function buildBushes(scene, places, { sunDir, cards = 80, colliders: want
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
     scene.add(mesh);
-    meshes.push(mesh);
+    meshes.push(tileInstances(mesh, { pad: 1 }));   // culled per tile; the pad covers the leaf cards' sway
   }
   return { meshes, colliders };
 }
@@ -480,9 +481,8 @@ export function buildWildFlowers(scene, clusters, { palette = [0xffffff, 0xffd16
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.castShadow = true;
-  mesh.frustumCulled = false;
   scene.add(mesh);
-  return mesh;
+  return tileInstances(mesh, { pad: 0.6 });         // culled per tile; the pad covers the heads' sway
 }
 
 // ── Clouds ──────────────────────────────────────────────────────
