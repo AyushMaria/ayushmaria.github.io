@@ -2452,8 +2452,9 @@ function initTownWorld() {
     cart.onCobble = isCobble(p.x, p.z);
     if (cart.getSpeed() > 0.01) {
       const s = Math.sin(cart.rotation), c = Math.cos(cart.rotation);
+      const rear = cart.trackOffsets || [[-1.0, -1.1], [1.0, -1.1]];   // rear wheels (cart-local)
       for (let i = 0; i < 2; i++) {
-        const fx = i ? 1.0 : -1.0, fz = -1.1;              // rear wheels
+        const [fx, fz] = rear[i];
         const x = p.x + fx * c + fz * s, z = p.z - fx * s + fz * c;
         const last = trackLast[i];
         if (last && Math.hypot(x - last.x, z - last.z) < 0.3) continue;

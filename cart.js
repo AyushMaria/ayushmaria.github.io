@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { mergeStaticChildren } from './merge-static.js';
+import { buildGisshaModel } from './gissha.js';
 import { pointHit } from './colliders.js';
 
 // Wrap an angle to (-π, π]
@@ -125,143 +125,11 @@ export class Cart {
     scene.add(this.group);
   }
 
-  // ── Procedural cart model ───────────────────────────────────
+  // ── Cart model: a gissha, a Heian court carriage (gissha.js) ──
+  // Fills this.body, this.wheels, this.lantern(+Light), this.tailMat,
+  // this.reverseMat and this.trackOffsets.
   _buildModel() {
-    const MAT = {
-      wood:     new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.85 }),
-      darkWood: new THREE.MeshStandardMaterial({ color: 0x5C3D1A, roughness: 0.9 }),
-      metal:    new THREE.MeshStandardMaterial({ color: 0x4A4A4A, roughness: 0.7, metalness: 0.5 }),
-      canopy:   new THREE.MeshStandardMaterial({ color: 0xC0392B, roughness: 0.6, side: THREE.DoubleSide }),
-      glow:     new THREE.MeshStandardMaterial({ color: 0xFFD166, emissive: 0xFFD166, emissiveIntensity: 0.8 }),
-      hay:      new THREE.MeshStandardMaterial({ color: 0xD4A843, roughness: 1 }),
-    };
-
-    // Everything except the wheels lives in `body`, which pitches and rolls
-    // on fake suspension springs while the wheels stay planted.
-    const body = new THREE.Group();
-    body.name = 'cart-body';
-    this.group.add(body);
-    this.body = body;
-    const addBody = (m) => { body.add(m); return m; };
-
-    // Base plank
-    const base = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 3.2), MAT.wood);
-    base.position.y = 0.55;
-    base.castShadow = true;
-    base.receiveShadow = true;
-    addBody(base);
-
-    // Side rails
-    [-0.85, 0.85].forEach(x => {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 3.0), MAT.darkWood);
-      rail.position.set(x, 0.85, 0);
-      rail.castShadow = true;
-      addBody(rail);
-    });
-
-    // Front & back panels
-    [1.5, -1.5].forEach(z => {
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.08), MAT.darkWood);
-      panel.position.set(0, 0.85, z);
-      panel.castShadow = true;
-      addBody(panel);
-    });
-
-    // Hay bale (cargo)
-    const hay = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.0), MAT.hay);
-    hay.position.set(0, 0.82, -0.8);
-    hay.rotation.y = 0.15;
-    addBody(hay);
-
-    // Wheels (4 corners)
-    [
-      { x: -1.0, z: 1.1 }, { x: 1.0, z: 1.1 },
-      { x: -1.0, z: -1.1 }, { x: 1.0, z: -1.1 },
-    ].forEach(pos => {
-      const wg = new THREE.Group();
-
-      // Rim
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.05, 8, 16), MAT.metal);
-      rim.rotation.y = Math.PI / 2;
-      wg.add(rim);
-
-      // Spokes
-      for (let i = 0; i < 6; i++) {
-        const spoke = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.015, 0.015, 0.56, 4), MAT.darkWood
-        );
-        spoke.rotation.z = (i / 6) * Math.PI;
-        wg.add(spoke);
-      }
-
-      // Hub
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8), MAT.metal);
-      hub.rotation.x = Math.PI / 2;
-      wg.add(hub);
-
-      wg.position.set(pos.x, 0.32, pos.z);
-      wg.rotation.order = 'YXZ';          // steer (Y) first, then spin (X)
-      wg.userData.front = pos.z > 0;      // +Z is the cart's nose
-      this.group.add(wg);
-      this.wheels.push(wg);
-    });
-
-    // Rear lamps: dim red tail lights that flare when braking; a white
-    // reversing lamp between them.
-    this.tailMat = new THREE.MeshStandardMaterial({ color: 0x5a0d0d, emissive: 0xff2a1a, emissiveIntensity: 0.25 });
-    this.reverseMat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0xfff1d6, emissiveIntensity: 0 });
-    [-0.62, 0.62].forEach(x => {
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.05), this.tailMat);
-      lamp.position.set(x, 0.92, -1.56);
-      addBody(lamp);
-    });
-    const rev = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.05), this.reverseMat);
-    rev.position.set(0, 0.92, -1.56);
-    addBody(rev);
-
-    // Canopy posts
-    [
-      { x: -0.75, z: 1.2 }, { x: 0.75, z: 1.2 },
-      { x: -0.75, z: -1.2 }, { x: 0.75, z: -1.2 },
-    ].forEach(pos => {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 6), MAT.darkWood);
-      post.position.set(pos.x, 1.82, pos.z);
-      post.castShadow = true;
-      addBody(post);
-    });
-
-    // Red canvas canopy
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 2.8), MAT.canopy);
-    canopy.position.y = 2.52;
-    canopy.castShadow = true;
-    addBody(canopy);
-
-    // Front lantern post
-    const lPost = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), MAT.darkWood);
-    lPost.position.set(0, 1.0, 1.65);
-    addBody(lPost);
-
-    // Lantern body
-    const lanternG = new THREE.Group();
-    lanternG.add(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.18), MAT.glow));
-    const lTop = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.1, 4), MAT.darkWood);
-    lTop.position.y = 0.16;
-    lTop.rotation.y = Math.PI / 4;
-    lanternG.add(lTop);
-    lanternG.position.set(0, 1.45, 1.65);
-    addBody(lanternG);
-    this.lantern = lanternG;
-
-    // Lantern point light
-    this.lanternLight = new THREE.PointLight(0xFFD166, 1.2, 8);
-    this.lanternLight.position.set(0, 1.5, 1.65);
-    addBody(this.lanternLight);
-
-    // Fewer draw calls (§4.1): bake the rigid parts of the body and of each
-    // wheel into one mesh per material. The lantern group and the wheel
-    // groups themselves stay separate, so sway, spin and steering still work.
-    mergeStaticChildren(body);
-    this.wheels.forEach(wg => mergeStaticChildren(wg));
+    buildGisshaModel(this);
   }
 
   // ── Touch steering marker ───────────────────────────────────
@@ -592,8 +460,9 @@ export class Cart {
 
     // ── Wheels: roll at the true rate (distance / radius), front ones steer
     this.wheelAngle += (this.velocity * dt) / 0.32;
+    // (wheelAngle is distance / 0.32; each wheel turns at its own radius)
     this.wheels.forEach(w => {
-      w.rotation.x = this.wheelAngle;
+      (w.userData.spin || w).rotation.x = this.wheelAngle * 0.32 / (w.userData.radius || 0.32);
       w.rotation.y = w.userData.front ? this.steerAngle : 0;
     });
 
