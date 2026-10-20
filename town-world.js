@@ -84,7 +84,7 @@ export const animatedProps = [];
 let LAYOUT = null;
 export let BUILDINGS = [];        // LAYOUT.buildings: plan + heading + floor level + zone
 
-// Zone names are shared with audio.js, the fast-travel HUD, achievements
+// Zone names are shared with audio.js, the R respawn, achievements
 // and the project modal's contextual header. Spawns come from the layout.
 export const ZONES = Object.fromEntries(Object.entries(ZONE_NAMES).map(([k, name]) => [k, { name, spawn: null }]));
 
@@ -2124,24 +2124,6 @@ function initTownWorld() {
     });
   }
 
-  // ── Fast-travel / fallback zone HUD (Phase 4.3, partial 1.4) ─
-  // Real <button>s so keyboard + screen-reader users can move around the
-  // town without driving; on touch devices this is the "don't want to
-  // drive" path. Uses Cart.teleportTo (GSAP glide) — the road-spline
-  // auto-drive from §1.4 is still open.
-  const zoneHud = document.getElementById('zone-hud');
-  let lastZoneKey = null;
-  if (zoneHud) {
-    zoneHud.querySelectorAll('[data-zone]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const z = ZONES[btn.dataset.zone];
-        if (!z || cart.teleporting || modalOpen) return;
-        cart.teleportTo(z.spawn.x, z.spawn.z, z.spawn.rot, REDUCED_MOTION ? 0.4 : 1.6);
-        achievements.onFastTravel();
-      });
-    });
-  }
-
   // ── Recovery & extras (R respawn, H bell, Unstuck, boost) ─────
   // R or the Unstuck button glides the cart to the nearest quarter spawn.
   function respawnNearest() {
@@ -2582,14 +2564,9 @@ function initTownWorld() {
     // NPCs wave at the cart
     if (npcs.length) updateNpcs(cart.getPosition(), elapsed);
 
-    // Achievements / stats + keep the fast-travel HUD's active pill in sync
+    // Achievements / stats
     const cPosNow = cart.getPosition();
-    const zoneNow = zoneKeyAt(cPosNow.x, cPosNow.z);
-    achievements.update(delta, cart, zoneNow);
-    if (zoneHud && zoneNow !== lastZoneKey) {
-      lastZoneKey = zoneNow;
-      zoneHud.querySelectorAll('[data-zone]').forEach(b => b.classList.toggle('active', b.dataset.zone === zoneNow));
-    }
+    achievements.update(delta, cart, zoneKeyAt(cPosNow.x, cPosNow.z));
 
     // Audio system
     audioSys.update(delta, elapsed, cart, true);   // evening → crickets on

@@ -24,7 +24,7 @@
 - [x] Scroll-wheel zoom (lerp between min/max distance)
 - [x] Speed-based dynamic zoom (camera pulls back when fast)
 - [x] Collision shake effect
-- [x] Isometric camera — the only view on desktop and mobile (fixed SE diagonal, follows the cart; scroll / pinch zoom 0.6–1.5×; backs off on portrait screens). `Q` toggle and chase cam removed. Buildings between the camera and the cart fade to 25% so the cart is never hidden
+- [x] Isometric camera — the only view on desktop and mobile (fixed SE diagonal, follows the cart; scroll / pinch zoom 0.6–2.2×; backs off on portrait screens). Default distance 34 units (was 50): a building fills about a third of a laptop screen; zoom out reaches the old far view (75). Framing a building for its act/card always eases to 36 units, the distance the acts are laid out for. `Q` toggle and chase cam removed. Buildings between the camera and the cart fade to 25% so the cart is never hidden
 - [ ] **Spherical coordinates** *(reserved for later)* — `phi`/`theta`/`radius` system (Bruno Simon's `View.js` pattern) is written but **commented out** in `FollowCamera` (`cart.js`): `this.spherical` (θ 45°, φ ≈ 46.7°, r = `isoDist` — reproduces today's iso view exactly), `_applySpherical()` and a hook at the top of `update()`. Isometric stays the only view until this is switched on
 - [x] **Mouse orbit** → replaced by drag / two-finger look-around pan that springs back when you drive (§2.11). An `_orbitBy()` helper is reserved (commented out) alongside the spherical system
 - [x] **Cinematic transitions** → camera eases in to frame the building while its project card is open (`FollowCamera.frame()`, §2.11)
@@ -35,7 +35,7 @@
 - [x] Removed inline `initTownWorld()` script block from `index.html`
 - [x] Controls hint overlay (fades out after 5s)
 - [ ] **Three.js r160+ upgrade** — tracked in §4.2
-- [ ] **Zone fast-travel** — HUD buttons should auto-drive cart along road spline (`#zone-hud` is now wired to `Cart.teleportTo()` — GSAP glide, not a road-spline drive yet)
+- [x] ~~**Zone fast-travel**~~ — **removed**: the `#zone-hud` quarter buttons, the map button's Fast Travel list and the *Blink Step* achievement are gone (old saves drop it, so the count stays honest). You drive between the quarters; `R` / Unstuck still glide the cart to the nearest quarter
 - [x] **Bugfix: `initMiniMap()` threw at boot** — `#town-map` / `#town-map-toggle` were missing from the markup, which killed the rest of the inline script (ambient sound toggle never enabled). Markup restored.
 
 ## 1.5 Core Patterns (Bruno Simon Reference)
@@ -191,7 +191,7 @@
 - [x] **Mill** — new building on the stream below the terrace with a turning water wheel
 - [x] **Pickleball court** — the Volley Court building is now a small fenced pickleball court on the riverbank east of the Colosseum (`buildPickleballCourt()` in `town-props.js`): blue court on a green apron with baselines, sidelines, centre lines and kitchen lines, net on posts, chain-link fence with a gate, bench, paddles, balls and two players. Reached by the new **court path** from the end of Arena Lane along the river (lit); still opens the Vibe & Volley card
 - [x] **Cart on the hill** — sits on the ground, pitches / rolls with the slope, mild gravity along the grade (slower uphill); camera, shadows, light pool, labels and occlusion follow the height
-- [x] **Quarters** — Lower Town, Market Terrace, Hillside, The Crest (HUD, fast travel, respawn, audio chime, achievements, modal ribbons + accents). Old saved zone visits are dropped
+- [x] **Quarters** — Lower Town, Market Terrace, Hillside, The Crest (respawn, audio chime, achievements, modal ribbons + accents; the HUD and fast travel were later removed). Old saved zone visits are dropped
 - [x] **Minimap** — north up, drawn from the plan (hill, river, stream, streets, squares, wall, houses); buildings in your quarter highlighted
 - [x] **Docs map** — `node tools/make-town-map.mjs` → `docs/town-map.svg` (contours, water, streets, wall, buildings, houses, lamps, trees, play-area ring). The old Python map tool, drag-and-drop editor and `apply-placements.py` were retired (they parsed the old hand-placed arrays)
 - [x] **Grass rework → a velvet lawn with golden drifts** (§2.16, `grass.js`, picked from four from-scratch prototypes): the paper-thin camera-facing blades are gone. The lawn is now a plush pile — 10 shells (6 on the low tier) over the terrain's own lawn triangles (~38k; no streets, squares, fields, water or building plots) cut into tiny tapered strands, the same cone family as the cedars, with drifts of longer and shorter pile and wind ripples across the upper shells. The shells share the terrain's uniforms, so the lamp pools still glow on the grass and wheel tracks press the pile flat. Where the lawn meets the forest and along the river and stream banks, ~17k long ribbon blades grow in golden drifts, olive at the root and straw-gold at the tip, with a sheen rolling through them in each gust. The Observatory's streamlines sit just above the pile and the wildflowers stand taller to clear it. Cost in the opening view: about +15 draw calls and +0.65M triangles
@@ -229,7 +229,7 @@
 
 ## 2.10 Map Button Fix
 - [x] Removed a duplicate `#town-map` block (no click handler) that sat on top of the real map button and swallowed every click
-- [x] Map button is context-aware: section links on the landing page, **Fast Travel** list (mirrors the zone HUD, highlights the current quarter, Esc / outside click closes) inside the town
+- [x] Map button: section links on the landing page; hidden inside the town (the minimap covers it, and fast travel was removed)
 - [x] Quarter spawns moved out onto the spokes (±24) so fast travel actually lands in Main Street / Research / Services instead of inside the Square radius
 - [x] `tools/make-town-map.py` reads double-quoted signboard text again (signs were missing from the editor after `apply-placements.py`)
 
@@ -273,7 +273,7 @@
 - [x] `timePlayed` counter persisted to localStorage
 - [x] Building visit tracking (which buildings the player has approached)
 - [x] Exploration progress percentage (buildings visited / total) — `#explore-hud` pill, tap for a summary
-- [x] Achievement notifications (toast-style) for milestones — 12 achievements in `achievements.js`, `aria-live` toasts, chime on unlock
+- [x] Achievement notifications (toast-style) for milestones — 11 achievements in `achievements.js`, `aria-live` toasts, chime on unlock
 - [ ] Achievements panel / reset control (currently only the summary toast; `window._achievements.reset()` for dev)
 
 ---
@@ -300,7 +300,7 @@
 ## 4.3 Mobile Polish
 - [x] Mobile joystick UI and touch handling
 - [x] Mobile interact button
-- [x] **Fallback HUD navigation** — `#zone-hud` (4 buttons, icon-only on touch/≤640px) teleports the cart; also keyboard/screen-reader reachable
+- [x] ~~**Fallback HUD navigation**~~ — `#zone-hud` teleport buttons, since removed with fast travel
 - [x] **Responsive controls overlay** — touch card (joystick/tap/quarters) swapped in at boot, smaller type ≤640px, minimap moved out from under the joystick, portrait vignette widened
 - [x] **Performance scaling** — `detectPerfTier()` → `PERF_PRESETS` (pixel ratio, shadow map 1024, PCF instead of PCFSoft, particle counts, half-res bloom). Force with `?lowperf` / `?highperf`
 - [x] **Touch nipple controls** — superseded by the point-to-drive stick (§2.11)

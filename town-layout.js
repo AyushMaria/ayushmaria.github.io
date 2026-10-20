@@ -932,7 +932,7 @@ export function buildLayout({ res = 1 } = {}) {
     if (freeGround(x, z, 1.6) && !treeNear(x, z, 2.6)) L.flowers.push({ x, z });
   }
 
-  // ── Spawns for fast travel / respawn ──────────────────────────
+  // ── Spawns for respawn (R / Unstuck) ──────────────────────────
   const onRoad = (key, s, back = false) => {
     const r = L.road(key), p = r.path.pts[clamp(Math.round(s), 0, r.path.pts.length - 1)];
     return { x: p.x, z: p.z, rot: Math.atan2(back ? -p.tx : p.tx, back ? -p.tz : p.tz) };

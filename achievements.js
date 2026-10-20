@@ -5,7 +5,7 @@
  *
  * Persists to localStorage under one key:
  *   { distanceDriven, timePlayed, visited: [label], zones: [key],
- *     projectsOpened: [id], unlocked: [achievementId], fastTravels }
+ *     projectsOpened: [id], unlocked: [achievementId] }
  *
  * The class is deliberately DOM-only (no Three.js import) so it can be
  * unit-tested and so it fits the planned TownGame singleton as a plain
@@ -40,8 +40,6 @@ const ACHIEVEMENTS = [
     check: (s, c) => c.sessionTime > 90 },
   { id: 'settler',       icon: '⏳', title: 'Settler',            desc: 'Spent five minutes in the settlement.',
     check: s => s.timePlayed >= 300 },
-  { id: 'teleporter',    icon: '✨', title: 'Blink Step',         desc: 'Used fast travel for the first time.',
-    check: s => s.fastTravels >= 1 },
 ];
 
 function defaultStats() {
@@ -52,7 +50,6 @@ function defaultStats() {
     zones: [],
     projectsOpened: [],
     unlocked: [],
-    fastTravels: 0,
   };
 }
 
@@ -87,6 +84,9 @@ export class Achievements {
     this.stats = loadStats();
     // quarters renamed with the hill-town layout: forget visits to zones that no longer exist
     if (opts.zones) this.stats.zones = this.stats.zones.filter(z => opts.zones.includes(z));
+    // fast travel (and its "Blink Step" achievement) was removed: keep the count honest for old saves
+    this.stats.unlocked = this.stats.unlocked.filter(id => ACHIEVEMENTS.some(a => a.id === id));
+    delete this.stats.fastTravels;
     this.sessionTime = 0;
     this._saveTimer = 0;
     this._dirty = false;
@@ -159,12 +159,6 @@ export class Achievements {
   onProjectOpened(projectId) {
     if (!projectId || this.stats.projectsOpened.includes(projectId)) return;
     this.stats.projectsOpened.push(projectId);
-    this._dirty = true;
-    this._checkAchievements();
-  }
-
-  onFastTravel() {
-    this.stats.fastTravels++;
     this._dirty = true;
     this._checkAchievements();
   }

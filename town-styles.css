@@ -259,60 +259,6 @@
   display: none;
 }
 
-/* ── Zone fast-travel HUD (Phase 4.3 fallback nav) ──────────── */
-
-.zone-hud {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  background: rgba(20, 12, 45, 0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 209, 102, 0.3);
-  border-radius: 999px;
-  z-index: 640;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-}
-
-.zone-hud button {
-  appearance: none;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #e9dfc9;
-  font-family: var(--font-body, sans-serif);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  white-space: nowrap;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-
-.zone-hud button:hover,
-.zone-hud button:focus-visible {
-  background: rgba(255, 209, 102, 0.14);
-  color: #ffd166;
-  outline: none;
-  border-color: rgba(255, 209, 102, 0.5);
-}
-
-.zone-hud button.active {
-  background: rgba(255, 209, 102, 0.22);
-  color: #ffd166;
-}
-
-.zone-hud .zone-hud-icon { font-size: 1rem; line-height: 1; }
-
 /* ── Exploration HUD + achievement toasts (Phase 3.4) ───────── */
 
 .explore-hud {
@@ -426,14 +372,6 @@
 /* Applied via #town-world.is-touch (set at boot) rather than a width
    query so tablets in landscape still get thumb-friendly controls.   */
 
-#town-world.is-touch .zone-hud button {
-  padding: 8px 10px;
-  min-height: 40px;
-  font-size: 0.78rem;
-}
-
-#town-world.is-touch .zone-hud .zone-hud-label { display: none; }
-#town-world.is-touch .zone-hud .zone-hud-icon { font-size: 1.2rem; }
 
 #town-world.is-touch .explore-hud { top: auto; bottom: 24px; left: 50%; transform: translateX(-50%); }
 
@@ -475,9 +413,6 @@
   }
   .controls-hint { font-size: 0.74rem; }
   .zone-name { font-size: 1.9rem; }
-  .zone-hud { top: 12px; padding: 4px; gap: 2px; }
-  .zone-hud .zone-hud-label { display: none; }
-  .zone-hud .zone-hud-icon { font-size: 1.15rem; }
   .explore-hud { font-size: 0.72rem; padding: 5px 10px; }
   .explore-hud-bar { width: 44px; }
   .achievement-toasts { top: auto; bottom: 74px; right: 12px; left: 12px; align-items: center; }

@@ -14,6 +14,7 @@ import { pointHit } from './colliders.js';
 
 // Wrap an angle to (-π, π]
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const FRAME_DIST = 36;    // camera distance while a building's act plays / its card is open
 
 // ════════════════════════════════════════════════════════════════
 // CART CLASS
@@ -211,7 +212,7 @@ export class Cart {
     gsap.delayedCall(duration, () => { this.teleporting = false; });
   }
 
-  // Called after a respawn/fast-travel so stuck state starts fresh
+  // Called after a respawn so stuck state starts fresh
   resetStuck() { this._stuckLog.length = 0; this.stuck = false; }
 
   // ── Cinematic Focus ───────────────────────────────────────────
@@ -660,7 +661,7 @@ export class FollowCamera {
     // less edge distortion than the old 60° lens at 27 units.
     this.fov        = 32;
     this.isoDir     = new THREE.Vector3(15, 20, 15).normalize();  // ~43° elevation
-    this.isoDist    = 50;        // base distance along isoDir (same ground in view as 60° @ 27)
+    this.isoDist    = 34;        // base distance along isoDir: close enough that a building fills a third of a laptop screen
 
     // ── Reserved: spherical camera (phi / theta / radius) ─────────────
     // Not used while isometric is the only view. Kept for a future orbit /
@@ -678,9 +679,9 @@ export class FollowCamera {
     // );
     // this.sphericalLimits = { minPhi: 0.35, maxPhi: 1.25, minRadius: 25, maxRadius: 80 };
     // this.orbitSpeed = 0.005;                       // radians per dragged pixel
-    this.zoom       = 1;         // user zoom (wheel / pinch), 0.6 – 1.5
+    this.zoom       = 1;         // user zoom (wheel / pinch): 0.6 – 2.2 × isoDist (20 – 75 units)
     this.minZoom    = 0.6;
-    this.maxZoom    = 1.5;
+    this.maxZoom    = 2.2;
     this.speedBoost = 3.0;       // pull back a little at speed
     this.smoothness = 0.08;
     this._dist      = this.isoDist;
@@ -769,7 +770,7 @@ export class FollowCamera {
   frame(target) { this._frame.target = target ? target.clone() : null; }
 
   setupEvents() {
-    const blocked = (t) => t && t.closest && t.closest('.modal-overlay, .zone-hud, #town-map, .controls-overlay, #mobile-joystick, button');
+    const blocked = (t) => t && t.closest && t.closest('.modal-overlay, #town-map, .controls-overlay, #mobile-joystick, button');
 
     // Scroll-wheel zoom (desktop)
     window.addEventListener('wheel', (e) => {
@@ -883,9 +884,11 @@ export class FollowCamera {
       f.x += (mx - f.x) * fr.mix; f.z += (mz - f.z) * fr.mix;
     }
 
-    // Distance: base × zoom × portrait factor, eased out a touch at speed; closer when framing
-    const target = (this.isoDist * this.zoom * this._aspectFactor() + Math.min(cartSpeed, 0.2) * this.speedBoost * 10 + this._boostZoom)
-      * THREE.MathUtils.lerp(1, 0.72, fr.mix);
+    // Distance: base × zoom × portrait factor, eased out a touch at speed. Framing a
+    // building eases to FRAME_DIST whatever the zoom, so its act is always seen
+    // from the distance it was laid out for.
+    const base = this.isoDist * this.zoom * this._aspectFactor() + Math.min(cartSpeed, 0.2) * this.speedBoost * 10 + this._boostZoom;
+    const target = THREE.MathUtils.lerp(base, FRAME_DIST * this._aspectFactor(), fr.mix);
     this._dist = THREE.MathUtils.lerp(this._dist, target, ease(0.05));
 
     const desiredLook = this._tmp.set(f.x, cartPos.y + 1.2, f.z);
