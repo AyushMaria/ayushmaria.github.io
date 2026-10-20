@@ -13,10 +13,10 @@ import { AudioSystem } from './audio.js';
 import { Achievements } from './achievements.js';
 import { cobbleTexture, plasterTexture, stoneTexture, windowTexture } from './textures.js';
 import {
-  propMaterials, gableRoofGeometry, buildPathWall, buildClockTower,
+  propMaterials, gableRoofGeometry, buildClockTower,
   buildTrees, buildLandingTrees, buildBushes, buildWildFlowers, foliageMaterials,
   buildClouds, buildMountains, buildStall, buildFountain, buildWallLanterns,
-  buildTownhouses, buildMillWheel, buildPickleballCourt,
+  buildMillWheel, buildPickleballCourt,
 } from './town-props.js';
 import { WIND, attachWind, updateWindMaterials } from './wind.js';
 import { buildGrass } from './grass.js';
@@ -35,6 +35,9 @@ import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
 import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
 import { buildCountingHouse } from './counting-house.js';
 import { buildTinyTots } from './tiny-tots.js';
+import { buildStreetOrbs } from './street-orbs.js';
+import { buildCastleWall } from './castle-wall.js';
+import { buildMachiyaRow, buildMachiya, GLOWING as MACHIYA_GLOW } from './machiya.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
 
 import * as THREE from 'three';
@@ -558,6 +561,21 @@ function makeSchoolBuilding(o) {
   return g;
 }
 
+// Tavern, Mill, Guild Board, Adventurer Stats: Kyoto townhouses (machiya.js)
+let machiyaGlowTracked = false;
+function makeMachiyaBuilding(o) {
+  const { group: g, roofTop, roofH, materials } = buildMachiya(o, Math.abs(Math.round(o.x * 7 + o.z * 3)));
+  if (!machiyaGlowTracked) { MACHIYA_GLOW.forEach(k => windowMats.push(materials[k])); machiyaGlowTracked = true; }
+  const body = g.children.find(m => m.material === materials.timber) || g.children[0];
+  body.userData = { project: o.project, label: o.label };
+  g.position.set(o.x, o.y || 0, o.z);
+  g.rotation.y = o.heading || 0;
+  g.userData.body = body;
+  o.roofTop = roofTop;
+  o.roofH = roofH;
+  return g;
+}
+
 function makeBuilding(o) {
   if (o.temple) return makeTempleBuilding(o);
   if (o.schoolhouse) return makeSchoolBuilding(o);
@@ -569,6 +587,8 @@ function makeBuilding(o) {
   if (o.controlTower) return makeControlTowerBuilding(o);
   if (o.court) return makeCourtBuilding(o);
   if (o.stadium) return makeStadiumBuilding(o);
+  // Filler buildings (no project) are machiya like the townhouses around them
+  if (!o.project && isTudorBuilding(o)) return makeMachiyaBuilding(o);
   const g = new THREE.Group();
   const tudor = isTudorBuilding(o);
   const M = propMaterials();
@@ -1177,36 +1197,7 @@ function createLightPool(scene, size) {
 }
 
 // Shared lamp materials (one program, no per-lamp material copies)
-let _lampMats = null;
-function lampMaterials() {
-  if (_lampMats) return _lampMats;
-  _lampMats = {
-    pole: standardMat({ color: 0x3e2518, roughness: 0.9 }),
-    glow: new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.6 }),
-  };
-  return _lampMats;
-}
 const LAMP_COLOR = new THREE.Color(0xffd166);
-
-// All lamps live in one group so their poles and heads merge into two
-// meshes town-wide (mergeStaticChildren after the last lamp is placed).
-let lampField = null;
-function addLamp(scene, x, z, y = 0) {
-  const { pole: poleMat, glow: glowMat } = lampMaterials();
-  if (!lampField) { lampField = new THREE.Group(); lampField.name = 'lamps'; scene.add(lampField); }
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.5, 8), poleMat);
-  pole.position.set(x, y + 1.75, z);
-  pole.castShadow = true;
-  lampField.add(pole);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), glowMat);
-  head.position.set(x, y + 3.6, z);
-  head.castShadow = true;
-  lampField.add(head);
-  // No PointLight of its own: the light pool lends one when the lamp is near.
-  const source = { pos: new THREE.Vector3(x, y + 3.6, z), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
-  lightSources.push(source);
-  lampRefs.push({ headMat: glowMat, source, x, y, z });
-}
 
 // ════════════════════════════════════════════════════════════════
 // LABEL SYSTEM (replaces CSS2DRenderer)
@@ -1643,9 +1634,9 @@ function initTownWorld() {
   windowMats.push(SHARED.windowPane);
 
   // ── Townhouses lining the streets (instanced, see town-props.js) ──
-  const houseWindow = SHARED.windowPane.clone();
-  windowMats.push(houseWindow);
-  buildTownhouses(scene, LAYOUT.houses, { windowMaterial: houseWindow });
+  // (machiya.js: Kyoto townhouses in the City Hall's grey tile)
+  const houseRow = buildMachiyaRow(scene, LAYOUT.houses);
+  MACHIYA_GLOW.forEach(k => windowMats.push(houseRow.materials[k]));
   LAYOUT.houses.forEach(h => colliders.push(obb(h.x, h.z, h.w / 2 + 0.35, h.d / 2 + 0.35, h.heading)));
 
   // Water, bridge parapets and the edge of the play area
@@ -1796,12 +1787,20 @@ function initTownWorld() {
   particleSystem.createCampfire(new THREE.Vector3(CAMPFIRE.x, CAMPFIRE.y + 0.2, CAMPFIRE.z), PERF.campfire);
   audioSys.attachFire(fireGlow);
 
-  // ── Lamps along the streets (placed by town-layout.js) ──────
-  for (const l of LAYOUT.lamps) {
-    addLamp(scene, l.x, l.z, l.onBridge ? l.y : groundAt(l.x, l.z));
-    colliders.push({ circle: true, x: l.x, z: l.z, r: 0.35 });
+  // ── Street lights: armillary orbs floating over the streets (street-orbs.js) ──
+  // Placed by town-layout.js. No poles, so no colliders: the keystone under
+  // each orb clears the cart's canopy. Each orb lends its position to the
+  // shared PointLight pool and to the lamplight pools on the ground.
+  {
+    const spots = LAYOUT.lamps.map(l => ({ x: l.x, z: l.z, y: l.onBridge ? l.y - 0.6 : groundAt(l.x, l.z) }));
+    const orbs = buildStreetOrbs(scene, spots);
+    const level = { set emissiveIntensity(v) { orbs.setLevel(v); } };   // applyEvening sets this
+    spots.forEach((s, i) => {
+      const source = { pos: orbs.orbs[i].clone(), color: LAMP_COLOR, intensity: 0.7, distance: 8 };
+      lightSources.push(source);
+      lampRefs.push({ headMat: level, source, x: s.x, y: s.y, z: s.z });
+    });
   }
-  if (lampField) mergeStaticChildren(lampField);      // every pole + head → 2 meshes
   terrain.setLamps(lampRefs);                          // warm pools of light on the ground
   // Fixed pool of PointLights shared by every lamp + the vortex (see createLightPool)
   const lightPool = createLightPool(scene, PERF.lightPool);
@@ -1830,8 +1829,10 @@ function initTownWorld() {
   }
 
   // ── Town wall, clock tower, sky dressing ────────────────────
-  const wall = buildPathWall(scene, LAYOUT);
+  // An ishigaki castle wall with yagura towers and a roofed gate (castle-wall.js)
+  const wall = buildCastleWall(scene, LAYOUT);
   colliders.push(...wall.colliders);
+  windowMats.push(wall.materials.paper);
 
   // Clock tower on the crest behind City Hall — the town's skyline mark
   const clockTower = buildClockTower(scene, CLOCK_TOWER.x, CLOCK_TOWER.z, {

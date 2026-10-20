@@ -48,7 +48,18 @@ export class Cart {
     this.brakeForce    = 0.014;
     this.friction      = 0.0022;
     this.steerSpeed    = 0.022;
-    this.maxSteerAngle = 0.68;     // ~39° at a crawl (turning circle ~5 units) — the hill town has tight corners
+    // Steering aims for a turning circle, not a wheel angle: the tightest
+    // radius grows from 3.4 at a crawl to 9 at top speed (13 at full boost),
+    // and the wheel angle follows from it (atan(wheelBase / radius)). The
+    // High Street's hairpins allow an 8–10 unit arc on the best line, so the
+    // cart can take every bend in town at cruising speed. (It used to scale
+    // a 39° lock down to 17°: a 14-unit circle at speed, wider than the bends.)
+    this.turnRadius    = { crawl: 3.4, top: 9.0, boost: 13.0 };
+    // Corner assist (keys + gamepad; point-to-drive has its own): with the
+    // wheel turned past a quarter of its lock the target speed eases toward
+    // 60 % and the cart sheds speed a little faster than coasting.
+    this.cornerEase    = 0.6;
+    this.cornerDecel   = 0.006;
     this.steerReturn   = 0.04;
     this.wheelBase     = 4.2;
     this.boostSpeed    = 1.6;     // × maxSpeed while boosting
@@ -352,6 +363,12 @@ export class Cart {
     }
 
     const speedRatio = Math.min(1, Math.abs(this.velocity) / this.maxSpeed);
+    // Steering lock for this speed, from the turning circle (see turnRadius)
+    const boostOver = Math.max(0, Math.abs(this.velocity) / this.maxSpeed - 1) / (this.boostSpeed - 1);
+    const TR = this.turnRadius;
+    const radius = boostOver > 0 ? THREE.MathUtils.lerp(TR.top, TR.boost, Math.min(1, boostOver))
+                                 : THREE.MathUtils.lerp(TR.crawl, TR.top, speedRatio);
+    const lock = Math.atan(this.wheelBase / radius);
 
     // ── Resolve input ────────────────────────────────────────
     let inFwd = 0, inSteer = 0, inBrake = this.keys.brake || this.pad.brake;
@@ -416,6 +433,16 @@ export class Cart {
     }
     if (this.inputLocked) { inFwd = 0; inSteer = 0; inBrake = true; stickActive = false; }
 
+    // ── Corner assist (keys + gamepad) ───────────────────────
+    // Holding a turn at speed eases the throttle so the arc stays on the
+    // cobbles — no brake needed for the hairpins.
+    let cornering = false;
+    if (!stickActive && inFwd > 0 && inSteer !== 0) {
+      const turn = Math.abs(this.steerAngle) / lock;
+      const ease = THREE.MathUtils.clamp((turn - 0.25) / 0.6, 0, 1);
+      if (ease > 0) { inFwd *= THREE.MathUtils.lerp(1, this.cornerEase, ease); cornering = true; }
+    }
+
     // ── Opposite input brakes first, then reverses (Bruno's reverseBrake) ──
     const opposing = (inFwd < 0 && this.velocity > 0.01) || (inFwd > 0 && this.velocity < -0.01);
     let braking = inBrake;
@@ -432,7 +459,7 @@ export class Cart {
         const acc = this.accel * (this.boosting ? this.boostAccel : 1);
         this.velocity = this.velocity < target
           ? Math.min(this.velocity + acc * dt, target)
-          : Math.max(this.velocity - this.friction * dt, target);
+          : Math.max(this.velocity - (cornering ? this.cornerDecel : this.friction) * dt, target);
       } else if (inFwd < 0) {
         const target = -this.reverseMax * -inFwd;
         this.velocity = this.velocity > target
@@ -456,11 +483,10 @@ export class Cart {
     }
 
     // ── Steering ─────────────────────────────────────────────
-    // Speed-sensitive lock: full lock when crawling (tight junctions and
-    // hairpins), ~43 % at top speed (≈ the old 16.5°) so a held key doesn't
-    // spin the cart. Eased toward the target (time-based).
+    // Lock from the turning circle above: 51° at a crawl (tight junctions),
+    // ~25° at top speed, so the fastest swing is ~76°/s and a held key never
+    // spins the cart. Eased toward the target (time-based).
     {
-      const lock = this.maxSteerAngle * THREE.MathUtils.lerp(1, 0.43, speedRatio);
       const target = THREE.MathUtils.clamp(inSteer, -1, 1) * lock;
       const diff = target - this.steerAngle;
       const k = 1 - Math.pow(inSteer !== 0 ? 0.86 : 0.88, dt);   // ~9 %/frame in, ~12 %/frame back

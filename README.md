@@ -64,7 +64,10 @@ We have successfully transitioned from a static void into a living settlement.
 * **`tiny-tots.js`**: Tiny Tots Academy (storybook schoolhouse with clock, bell cupola and access ramp; playground with slide, swing, rainbow gate and kites).
 * **The forest**: `buildLandingTrees()` in `town-props.js` draws the landing page's cedars and maples, scattered by `town-layout.js` over every open space.
 * **`colliders.js`**: Collision shapes shared by the cart and the knockable props (circles, rotated boxes, capsules, the play-area ring).
-* **`town-props.js`**: Town wall, townhouses, mill wheel, clock tower, trees, clouds, mountains, stalls.
+* **`town-props.js`**: Mill wheel, clock tower, trees, clouds, mountains, stalls.
+* **`castle-wall.js`**: The town wall as an ishigaki castle wall: battered stone base, white plaster parapet, yagura towers, a roofed gate and the water gate.
+* **`machiya.js`**: The filler buildings as Kyoto townhouses (machiya): every townhouse, plus the Tavern, Mill, Guild Board and Adventurer Stats.
+* **`street-orbs.js`**: The street lights: armillary orbs floating over the streets, with halos.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
 * **`achievements.js`**: Exploration tracking, achievements and toasts.
 * **`docs/town-map.svg`**: Top-down reference map of the town (contours, water, streets, wall, buildings, townhouses, lamps, trees), drawn from `town-layout.js`. Regenerate with `node tools/make-town-map.mjs` after changing the plan.

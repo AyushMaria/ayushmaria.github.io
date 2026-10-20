@@ -2,8 +2,6 @@
  * town-props.js — Large set-dressing built to the reference art
  *
  *   • gableRoofGeometry()   — steep two-slope roof with closed gable ends
- *   • buildPathWall()       — town wall following a path over the hill: towers, gate, water gate
- *   • buildTownhouses()     — instanced filler townhouses lining the streets
  *   • buildMillWheel()      — the turning water wheel behind the mill
  *   • buildClockTower()     — gothic landmark at the end of Main Street
  *   • buildTrees()          — leaf-card crowns per species (Bruno Simon's Foliage pattern)
@@ -23,7 +21,6 @@ import { stoneTexture, roofTileTexture, cloudTexture, clockTexture, plasterTextu
 import { mergeBufferGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { attachWind } from './wind.js';
 import { standardMat, withOcclusionCut } from './materials.js';
-import { seg as segCollider } from './colliders.js';
 
 // ── Shared materials ────────────────────────────────────────────
 let _mats = null;
@@ -96,138 +93,6 @@ export function gableRoofGeometry(w, h, d) {
   g.addGroup(12, 6, 1);
   void slopeEnd;
   return g;
-}
-
-/** Box UVs in world units (so stone blocks keep their size on long boxes). */
-function boxUV(geo, unit = 2) {
-  const pos = geo.attributes.position, nrm = geo.attributes.normal, uv = geo.attributes.uv;
-  for (let i = 0; i < pos.count; i++) {
-    const ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i));
-    const [u, v] = ax > 0.5 ? [pos.getZ(i), pos.getY(i)] : ay > 0.5 ? [pos.getX(i), pos.getZ(i)] : [pos.getX(i), pos.getY(i)];
-    uv.setXY(i, u / unit, v / unit);
-  }
-  uv.needsUpdate = true;
-  return geo;
-}
-
-// ── Town wall ───────────────────────────────────────────────────
-/**
- * Curtain wall that follows a closed path over the hill (town-layout.js):
- * short straight runs that step with the ground, crenellations, round
- * towers, an open gatehouse where the High Street passes through and a
- * barred water gate where the stream leaves town. Instanced: a handful of
- * draw calls for the whole wall. Its materials take part in the occlusion
- * cut so the cart shows through when the wall is between it and the camera.
- *
- * @param {object} L  buildLayout() result (wall path, gaps, groundAt)
- * @returns {{ group, colliders }}
- */
-export function buildPathWall(scene, L) {
-  const M = propMaterials();
-  const stone = withOcclusionCut(M.stone.clone());
-  const stoneDark = withOcclusionCut(M.stoneDark.clone());
-  const tile = withOcclusionCut(M.tile.clone());
-  const group = new THREE.Group();
-  group.name = 'town-wall';
-  const colliders = [];
-  const W = L.wall, H = W.height, T = W.thickness, ground = L.groundAt;
-  const P = W.coarse.pts, total = W.coarse.length;
-
-  // runs: one box per coarse segment that isn't in a gap
-  const runs = [];
-  for (let i = 0; i < P.length; i++) {
-    const a = P[i], b = P[(i + 1) % P.length];
-    const sMid = (a.s + (b.s < a.s ? total : b.s)) / 2 % total;
-    if (L.wallGap(sMid) || L.wallGap(a.s) || L.wallGap(b.s)) continue;
-    const ga = ground(a.x, a.z), gb = ground(b.x, b.z);
-    runs.push({ a, b, top: (ga + gb) / 2 + H, bottom: Math.min(ga, gb) - 1.6 });
-  }
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
-  const Y = new THREE.Vector3(0, 1, 0);
-  const box = new THREE.BoxGeometry(1, 1, 1);
-  const walls = new THREE.InstancedMesh(box, stone, runs.length);
-  const merlons = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.0, T + 0.2), stoneDark, runs.length);
-  runs.forEach((r, i) => {
-    const dx = r.b.x - r.a.x, dz = r.b.z - r.a.z, len = Math.hypot(dx, dz);
-    q.setFromAxisAngle(Y, Math.atan2(-dz, dx));
-    m.compose(p.set((r.a.x + r.b.x) / 2, (r.top + r.bottom) / 2, (r.a.z + r.b.z) / 2), q, sc.set(len + 0.35, r.top - r.bottom, T));
-    walls.setMatrixAt(i, m);
-    m.compose(p.setY(r.top + 0.5), q, sc.set(1, 1, 1));
-    merlons.setMatrixAt(i, m);
-    colliders.push(segCollider(r.a.x, r.a.z, r.b.x, r.b.z, T / 2 + 0.25));
-  });
-  walls.castShadow = walls.receiveShadow = true;
-  merlons.castShadow = true;
-  group.add(walls, merlons);
-
-  const pointAt = (s) => {
-    const k = W.path.pts.length, i = Math.round((((s % total) + total) % total) / total * k) % k;
-    return W.path.pts[i];
-  };
-  // towers: every ~17 units, not in or right beside a gap; a pair at each gate
-  const tR = 2.4;
-  const towerAt = [];
-  const nearGap = (s, pad) => W.gaps.some(g => { let d = Math.abs(s - g.s); d = Math.min(d, total - d); return d < g.half + pad; });
-  const clearOfRoads = (s) => { const c = pointAt(s); return !L.roadClear || L.roadClear(c.x, c.z) > tR + 0.6; };
-  for (let s = 6; s < total - 4; s += 17) {
-    if (nearGap(s, 4)) continue;
-    // a tower must not stand in a street: try a little either side, else skip it
-    const ok = [0, 3, -3, 6, -6].map(d => s + d).find(clearOfRoads);
-    if (ok !== undefined) towerAt.push(ok);
-  }
-  for (const g of W.gaps) if (g.kind === 'gate') towerAt.push((g.s - g.half - 2.2 + total) % total, (g.s + g.half + 2.2) % total);
-  const towerGeo = new THREE.CylinderGeometry(tR, tR + 0.3, 1, 14);
-  const roofGeo = new THREE.ConeGeometry(tR + 0.9, 4.2, 14);
-  const towers = new THREE.InstancedMesh(towerGeo, stone, towerAt.length);
-  const roofs = new THREE.InstancedMesh(roofGeo, tile, towerAt.length);
-  towerAt.forEach((s, i) => {
-    const c = pointAt(s);
-    let lo = Infinity;
-    for (let a = 0; a < 6; a++) lo = Math.min(lo, ground(c.x + Math.cos(a) * tR, c.z + Math.sin(a) * tR));
-    const g0 = ground(c.x, c.z), topY = g0 + H + 4, base = lo - 1.5;
-    m.compose(p.set(c.x, (topY + base) / 2, c.z), q.identity(), sc.set(1, topY - base, 1));
-    towers.setMatrixAt(i, m);
-    m.compose(p.set(c.x, topY + 2.1, c.z), q.identity(), sc.set(1, 1, 1));
-    roofs.setMatrixAt(i, m);
-    colliders.push({ circle: true, x: c.x, z: c.z, r: tR + 0.5 });
-  });
-  towers.castShadow = roofs.castShadow = true;
-  towers.receiveShadow = true;
-  group.add(towers, roofs);
-
-  // gatehouse (open) and water gate (barred) spanning each gap
-  for (const g of W.gaps) {
-    const c = pointAt(g.s);
-    const gh = new THREE.Group();
-    const y0 = g.kind === 'gate' ? ground(g.x, g.z) : Math.max(ground(pointAt(g.s - g.half).x, pointAt(g.s - g.half).z), ground(pointAt(g.s + g.half).x, pointAt(g.s + g.half).z)) - 0.4;
-    gh.position.set(g.x, y0, g.z);
-    gh.rotation.y = Math.atan2(-c.tz, c.tx);       // local x along the wall
-    const span = g.half * 2 + 1.6;
-    const lintel = new THREE.Mesh(boxUV(new THREE.BoxGeometry(span, 2.4, T + 0.6), 2.2), stone);
-    lintel.position.y = H - 0.1;
-    lintel.castShadow = true;
-    gh.add(lintel);
-    const crenel = new THREE.Mesh(boxUV(new THREE.BoxGeometry(span, 0.9, T + 0.8), 2.2), stoneDark);
-    crenel.position.y = H + 1.5;
-    gh.add(crenel);
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(g.half - 0.25, 0.35, 8, 24, Math.PI), stoneDark);
-    arch.position.y = H - 1.4 - (g.half - 0.25) * 0.15;
-    arch.scale.y = 0.5;
-    gh.add(arch);
-    if (g.kind === 'water') {
-      // portcullis bars down into the water
-      const bars = [];
-      for (let x = -g.half + 0.4; x <= g.half - 0.4; x += 0.45) bars.push(x);
-      const barMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.09, H - 0.4, 0.09), M.iron, bars.length);
-      bars.forEach((x, i) => { m.compose(p.set(x, (H - 1.3) / 2 - 0.2, 0), q.identity(), sc.set(1, 1, 1)); barMesh.setMatrixAt(i, m); });
-      gh.add(barMesh);
-      const a = pointAt(g.s - g.half), b = pointAt(g.s + g.half);
-      colliders.push(segCollider(a.x, a.z, b.x, b.z, 0.5));
-    }
-    group.add(gh);
-  }
-  scene.add(group);
-  return { group, colliders };
 }
 
 // ── Clock tower ─────────────────────────────────────────────────
@@ -890,109 +755,6 @@ export function buildWallLanterns(scene, slots, { reducedMotion = false, windStr
   }
   pose(0);
   return { update: reducedMotion ? () => {} : pose, glass };
-}
-
-// ── Filler townhouses ───────────────────────────────────────────
-const HOUSE_PLASTER = [0xf3e4c4, 0xefe0bf, 0xf7dcc4, 0xe9d6ae, 0xf6ead0];
-const HOUSE_ROOF    = [0xc9553d, 0xb84a36, 0xa9432f, 0xd9694a];
-
-/**
- * Small plaster-and-timber townhouses lining the streets (town-layout.js
- * places them; each faces its street). Everything is instanced — plinth,
- * walls, timber frame, roof, gable ends, windows, doors, chimneys — so
- * forty houses cost about nine draw calls. All of it takes part in the
- * occlusion cut.
- *
- * @param {Array} houses  [{ x, y, z, w, d, h, heading, storeys, ridgeAlong, tint, roofTint, chimney, chimneySide }]
- * @param {{ windowMaterial: THREE.Material }} opts  glowing lattice windows (shared with the town)
- */
-export function buildTownhouses(scene, houses, { windowMaterial }) {
-  const M = propMaterials();
-  const tileTex = M.tile.map.clone(); tileTex.repeat.set(4, 2.6); tileTex.needsUpdate = true;
-  const plasterTex = M.plaster.map.clone(); plasterTex.repeat.set(2, 2); plasterTex.needsUpdate = true;
-  const mat = {
-    plinth:  withOcclusionCut(new THREE.MeshStandardMaterial({ map: M.stoneDark.map, color: 0xa89c86, roughness: 0.95 })),
-    plaster: withOcclusionCut(new THREE.MeshStandardMaterial({ map: plasterTex, color: 0xffffff, roughness: 0.9 })),
-    timber:  withOcclusionCut(new THREE.MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.95 })),
-    tile:    withOcclusionCut(new THREE.MeshStandardMaterial({ map: tileTex, color: 0xffffff, roughness: 0.8 })),
-    gable:   withOcclusionCut(new THREE.MeshStandardMaterial({ map: plasterTex, color: 0xffffff, roughness: 0.9 })),
-    door:    withOcclusionCut(new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.9 })),
-    chimney: withOcclusionCut(new THREE.MeshStandardMaterial({ map: M.stoneDark.map, color: 0x9a8e7a, roughness: 0.95 })),
-    window:  withOcclusionCut(windowMaterial),
-  };
-  // unit roof split into its tiled slopes and its plaster gable ends
-  const roofGeo = gableRoofGeometry(1, 1, 1);
-  const ri = roofGeo.index.array;
-  const slopes = roofGeo.clone(); slopes.setIndex(Array.from(ri.slice(0, 12))); slopes.clearGroups();
-  const gables = roofGeo.clone(); gables.setIndex(Array.from(ri.slice(12, 18))); gables.clearGroups();
-
-  const counts = { win: 0, timber: 0, chim: 0 };
-  for (const h of houses) {
-    counts.win += (h.storeys === 2 ? 4 : 2) + 1;   // front windows (+1 back)
-    counts.timber += h.storeys === 2 ? 14 : 10;
-    if (h.chimney) counts.chim++;
-  }
-  const N = houses.length;
-  const mk = (geo, m, n, cast = true) => {
-    const im = new THREE.InstancedMesh(geo, m, Math.max(1, n));
-    im.count = n; im.castShadow = cast; im.receiveShadow = true; im.name = 'townhouses';
-    scene.add(im); return im;
-  };
-  const unit = new THREE.BoxGeometry(1, 1, 1);
-  const plinths = mk(unit, mat.plinth, N), bodies = mk(unit, mat.plaster, N);
-  const roofs = mk(slopes, mat.tile, N), ends = mk(gables, mat.gable, N);
-  const doors = mk(unit, mat.door, N, false), timbers = mk(unit, mat.timber, counts.timber);
-  const windows = mk(new THREE.PlaneGeometry(0.85, 1.0), mat.window, counts.win, false);
-  const chims = mk(unit, mat.chimney, counts.chim);
-
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
-  const Y = new THREE.Vector3(0, 1, 0), col = new THREE.Color(), white = new THREE.Color(0xffffff);
-  let wi = 0, ti = 0, ci = 0;
-  houses.forEach((h, i) => {
-    const c = Math.cos(h.heading), s = Math.sin(h.heading);
-    const W = (lx, ly, lz) => p.set(h.x + lx * c + lz * s, h.y + ly, h.z - lx * s + lz * c);
-    q.setFromAxisAngle(Y, h.heading);
-    const set = (im, k, lx, ly, lz, sx, sy, sz, extraYaw = 0) => {
-      const qq = extraYaw ? q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Y, extraYaw)) : q;
-      m.compose(W(lx, ly, lz), qq, sc.set(sx, sy, sz));
-      im.setMatrixAt(k, m);
-    };
-    set(plinths, i, 0, -1.1, 0, h.w + 0.3, 2.9, h.d + 0.3);
-    set(bodies, i, 0, (h.h + 0.3) / 2, 0, h.w, h.h - 0.3, h.d);
-    bodies.setColorAt(i, col.setHex(HOUSE_PLASTER[h.tint % HOUSE_PLASTER.length]));
-    ends.setColorAt(i, col.setHex(HOUSE_PLASTER[h.tint % HOUSE_PLASTER.length]));
-    roofs.setColorAt(i, col.setHex(HOUSE_ROOF[h.roofTint % HOUSE_ROOF.length]).lerp(white, 0.68));
-    // roof: gable to the street ('front') or eaves to the street ('side')
-    const front = h.ridgeAlong === 'front';
-    const span = front ? h.w : h.d, len = front ? h.d : h.w, rh = span * 0.6;
-    set(roofs, i, 0, h.h - 0.02, 0, span + 1.0, rh, len + 0.9, front ? 0 : Math.PI / 2);
-    set(ends, i, 0, h.h - 0.02, 0, span + 1.0, rh, len + 0.9, front ? 0 : Math.PI / 2);
-    set(doors, i, (i % 3 - 1) * h.w * 0.18, 0.3 + 1.0, h.d / 2 + 0.04, 1.0, 2.0, 0.12);
-    // timber frame: corner posts + a band at each floor and under the eaves
-    const t = 0.15, hw = h.w / 2, hd = h.d / 2, top = h.h;
-    for (const [x, z] of [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]]) set(timbers, ti++, x, (top + 0.3) / 2, z, t * 1.3, top - 0.3, t * 1.3);
-    const bands = h.storeys === 2 ? [0.4, top / 2 + 0.2, top - 0.08] : [0.4, top - 0.08];
-    for (const y of bands) {
-      set(timbers, ti++, 0, y, hd + 0.01, h.w + 0.1, t, t);
-      set(timbers, ti++, 0, y, -hd - 0.01, h.w + 0.1, t, t);
-      if (y > 0.5) { set(timbers, ti++, hw + 0.01, y, 0, t, t, h.d + 0.1); set(timbers, ti++, -hw - 0.01, y, 0, t, t, h.d + 0.1); }
-    }
-    // windows: two per floor on the front, one on the back
-    const rows = h.storeys === 2 ? [1.55, top / 2 + 1.35] : [1.55];
-    const doorX = (i % 3 - 1) * h.w * 0.18;
-    for (const y of rows) for (const x of [-h.w * 0.28, h.w * 0.28]) {
-      if (y < 2 && Math.abs(x - doorX) < 1.0) continue;
-      if (wi < counts.win) set(windows, wi++, x, y, hd + 0.03, 1, 1, 1);
-    }
-    if (wi < counts.win) set(windows, wi++, 0, rows[rows.length - 1], -hd - 0.03, 1, 1, 1, Math.PI);
-    if (h.chimney) set(chims, ci++, h.chimneySide * h.w * 0.28, top + rh * 0.55, -h.d * 0.12, 0.55, rh + 1.2, 0.55);
-  });
-  windows.count = wi; timbers.count = ti; chims.count = ci;
-  for (const im of [plinths, bodies, roofs, ends, doors, timbers, windows, chims]) {
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-  }
-  return { materials: mat };
 }
 
 // ── Mill wheel ──────────────────────────────────────────────────
