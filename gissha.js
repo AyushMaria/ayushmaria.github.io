@@ -153,6 +153,7 @@ export function buildGisshaModel(cart) {
   lantern.position.set(0.38, CAB.y0 + 1.2, 1.78);
   body.add(lantern);
   cart.lantern = lantern;
+  cart.lanternMat = M.lantern;                 // brightened by the cart when parked at a building
   cart.lanternLight = new THREE.PointLight(0xFFD166, 1.2, 8);
   cart.lanternLight.position.set(0.38, CAB.y0 + 0.85, 1.85);
   body.add(cart.lanternLight);

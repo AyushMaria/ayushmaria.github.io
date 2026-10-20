@@ -100,6 +100,14 @@ export class Cart {
     // nothing is "stuck" when the modal closes).
     this.inputLocked = false;
 
+    // Parking: town-world sets the building the cart is beside (or null).
+    // Once the cart has stopped with no input it eases a little (≤ 20°)
+    // to face it, and the lantern brightens while it's in range.
+    this.parkTarget = null;
+    this._parkGoal = null;           // heading the settle turn eases to
+    this.lanternGlow = 0;            // 0..1
+    this.lanternMat = null;          // set by gissha.js
+
     // Touch: the stick is read in SCREEN space and turned into a world
     // heading through this camera (set by town-world), so "push up" always
     // means "drive up the screen" whatever way the cart faces — Bruno
@@ -209,6 +217,13 @@ export class Cart {
   // ── Cinematic Focus ───────────────────────────────────────────
   setFocusTarget(targetPos) {
     this.focusTarget = targetPos;
+  }
+
+  /** The building the cart is parked beside ({ x, z }), or null when none is in range. */
+  setParkTarget(t) {
+    if (t === this.parkTarget) return;
+    this.parkTarget = t;
+    this._parkGoal = null;
   }
 
   // ── Physics update (called every frame) ───────────────────
@@ -369,6 +384,21 @@ export class Cart {
       this.rotation += (this.velocity * Math.tan(this.steerAngle) / this.wheelBase) * dt;
     }
 
+    // ── Park: settle a little toward the building once stopped ──
+    if (this.parkTarget && Math.abs(this.velocity) < 0.01 && inFwd === 0 && inSteer === 0 && !stickActive) {
+      if (this._parkGoal === null) {
+        const toB = Math.atan2(this.parkTarget.x - this.position.x, this.parkTarget.z - this.position.z);
+        const diff = wrapAngle(toB - this.rotation);
+        // building ahead or beside: nose toward it; directly behind: leave it be
+        this._parkGoal = this.rotation + (Math.abs(diff) < 2.6 ? THREE.MathUtils.clamp(diff, -0.35, 0.35) : 0);
+      }
+      const prev = this.rotation;
+      this.rotation += wrapAngle(this._parkGoal - this.rotation) * (1 - Math.pow(0.95, dt));
+      if (colliders && this._hit(this.position, colliders)) { this.rotation = prev; this._parkGoal = prev; }   // never swing into a wall
+    } else if (inFwd !== 0 || inSteer !== 0 || stickActive) {
+      this._parkGoal = null;         // driving again: settle afresh next time it stops
+    }
+
     // ── Slope: gravity along the grade (uphill slows, downhill helps) ──
     if (this.heightAt && Math.abs(this.velocity) > 0.002) {
       const fx = Math.sin(this.rotation), fz = Math.cos(this.rotation);
@@ -475,11 +505,15 @@ export class Cart {
     this._updateLamps(this.braking || (this.inputLocked && Math.abs(this.velocity) > 0.005), this.reversing);
     this._updateSteerMarker(delta, stickActive);
 
-    // ── Lantern sway & pulse ─────────────────────────────────
+    // ── Lantern sway & pulse (brighter while parked at a building) ──
+    this.lanternGlow += ((this.parkTarget ? 1 : 0) - this.lanternGlow) * (1 - Math.pow(0.93, dt));
     if (this.lantern)
       this.lantern.rotation.z = Math.sin(Date.now() * 0.003) * 0.05 + this.steerAngle * 0.3 - this._spring.roll * 1.5;
-    if (this.lanternLight)
-      this.lanternLight.intensity = 1.0 + Math.sin(Date.now() * 0.004) * 0.3;
+    if (this.lanternLight) {
+      this.lanternLight.intensity = (1.0 + Math.sin(Date.now() * 0.004) * 0.3) * (1 + this.lanternGlow * 1.2);
+      this.lanternLight.distance = 8 + this.lanternGlow * 4;
+    }
+    if (this.lanternMat) this.lanternMat.emissiveIntensity = 1.3 + this.lanternGlow * 1.6;
   }
 
   // Sit on the ground and tilt with it. Height comes from the centre;

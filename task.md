@@ -250,7 +250,8 @@
 - [x] Floating octahedron markers above interactive buildings (rotating + bobbing)
 - [x] **Input-aware icons** — E / A (✕ on PlayStation) / Tap, switches with the last-used device (§2.11)
 - [x] **Smooth distance fade-in/out** — Interaction prompt opacity-fades (§2.11)
-- [ ] **Cart "park" animation** — Cart turns slightly toward building, lantern brightens on approach
+- [x] **Cart "park" animation** — once the cart stops beside a project building with no input it eases up to 20° to face it (never swinging into a collider; a building straight behind is left alone), and the paper lantern and its light brighten while the building is in range (`Cart.setParkTarget`, set from `updateInteraction`)
+- [x] **Return key** opens the building too (E still works); ignored while a button or field has focus so it doesn't double-fire
 
 ## 3.2 Project Modals Overhaul
 - [x] Redesign modals to match isekai/fantasy town aesthetic ("quest scroll" parchment, ornamental corners, zone-coloured ribbon, gauge bars; night variant; `role=dialog` + focus trap)

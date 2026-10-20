@@ -2209,6 +2209,7 @@ function initTownWorld() {
       if (d < INTERACT_RANGE && d < nearDist) { nearDist = d; nearest = bm.data; }
     });
 
+    cart.setParkTarget(nearest);                    // settle toward it + brighten the lantern (cart.js)
     if (nearest && !modalOpen) {
       // soft "tok" when the prompt appears or switches to another building
       if (currentInteractable !== nearest) audioSys.playPrompt();
@@ -2246,7 +2247,13 @@ function initTownWorld() {
 
   // Keyboard interact
   window.addEventListener('keydown', e => {
-    if (e.code === 'KeyE' && currentInteractable) openProject(currentInteractable);
+    if (!currentInteractable || e.repeat) return;
+    if (e.code === 'KeyE') { openProject(currentInteractable); return; }
+    // Return works too, unless a button or field has focus (it activates that instead)
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !(e.target && e.target.closest && e.target.closest('button, a[href], input, textarea, select, [contenteditable="true"]'))) {
+      e.preventDefault();
+      openProject(currentInteractable);
+    }
   });
 
   // Mobile interact
