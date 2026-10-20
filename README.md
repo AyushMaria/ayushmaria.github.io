@@ -73,6 +73,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`docs/town-map.svg`**: Top-down reference map of the town (contours, water, streets, wall, buildings, townhouses, lamps, trees), drawn from `town-layout.js`. Regenerate with `node tools/make-town-map.mjs` after changing the plan.
 * **`wind.js`** / **`grass.js`**: Shared wind field, leaf-card foliage helpers and grass blades (see `docs/wind-foliage-guide.md`).
 * **`implementation_plan.md`**: Our roadmap for future town expansions.
+* **`assets/`**: The link-preview card (`og-preview.jpg`, 1200 × 630) shown when the site is shared, and the icons (favicon, home-screen and app icons: an armillary orb like the street lights). The Open Graph and Twitter tags in `index.html` point at the preview with an absolute URL, because link crawlers don't run JavaScript or resolve `./` paths.
 
 ---
 

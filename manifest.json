@@ -1,8 +1,8 @@
 {
   "name": "Ayush's Settlement",
   "short_name": "Settlement",
-  "description": "A fantasy village where every building is a project. Explore the settlement and discover my work.",
-  "start_url": "./portfolio.html",
+  "description": "Drive a cart through a hilltop town where every building is a project.",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#1a0a2e",
   "theme_color": "#ff4c1f",
@@ -21,21 +21,9 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["portfolio", "entertainment"],
-  "shortcuts": [
-    {
-      "name": "View Projects",
-      "short_name": "Projects",
-      "description": "Explore all GitHub projects",
-      "url": "./portfolio.html#town",
-      "icons": [{ "src": "./assets/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Research Quarter",
-      "short_name": "Research",
-      "description": "View data science projects",
-      "url": "./portfolio.html#research",
-      "icons": [{ "src": "./assets/icon-192.png", "sizes": "192x192" }]
-    }
-  ]
+  "categories": [
+    "portfolio",
+    "entertainment"
+  ],
+  "scope": "./"
 }
