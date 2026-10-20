@@ -69,6 +69,8 @@ We have successfully transitioned from a static void into a living settlement.
 * **`machiya.js`**: The filler buildings as Kyoto townhouses (machiya): every townhouse, plus the Tavern, Mill, Guild Board and Adventurer Stats.
 * **`street-orbs.js`**: The street lights: armillary orbs floating over the streets, with halos.
 * **`gissha.js`**: The cart you drive: a Heian court carriage (gissha) on two great wheels, with small steering wheels under the shafts and a swinging paper lantern.
+* **`building-acts.js`**: The short act each project building plays above itself when you press Enter (chat bubbles, trails, flying tokens, flipping tiles) before its card opens.
+* **`project-card.js`** / **`project-card.css`**: The tabbed project cards inside the modal: What it does, Try it (a small interactive toy per project), Results, Under the hood, plus the live-site and paper links.
 * **`textures.js`**: Procedural canvas textures (cobbles, plaster, roof tiles, stone, windows).
 * **`achievements.js`**: Exploration tracking, achievements and toasts.
 * **`docs/town-map.svg`**: Top-down reference map of the town (contours, water, streets, wall, buildings, townhouses, lamps, trees), drawn from `town-layout.js`. Regenerate with `node tools/make-town-map.mjs` after changing the plan.

@@ -48,6 +48,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./town-styles.css">
+  <link rel="stylesheet" href="./project-card.css">
     <!-- GSAP CDN - Step 6: Intro Animation -->     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>     <!-- Three.js CDN -->
   <script type="importmap">
     {
@@ -209,11 +210,16 @@
         <div class="modal-badges" id="modal-badges"></div>
       </div>
       <div class="modal-body">
-        <p class="modal-why" id="modal-why"></p>
-        <h3 class="modal-section-title" id="modal-stack-title">Tools &amp; Materials</h3>
-        <div class="modal-stack" id="modal-stack"></div>
-        <h3 class="modal-section-title" id="modal-stats-title">Quest Log</h3>
-        <div class="modal-stats" id="modal-stats"></div>
+        <!-- project cards: tabs built by project-card.js -->
+        <div class="pc" id="modal-pc" hidden></div>
+        <!-- City Hall (and any project without a card entry) -->
+        <div id="modal-legacy">
+          <p class="modal-why" id="modal-why"></p>
+          <h3 class="modal-section-title" id="modal-stack-title">Tools &amp; Materials</h3>
+          <div class="modal-stack" id="modal-stack"></div>
+          <h3 class="modal-section-title" id="modal-stats-title">Quest Log</h3>
+          <div class="modal-stats" id="modal-stats"></div>
+        </div>
       </div>
       <div class="modal-footer" id="modal-footer"></div>
     </div>
@@ -293,9 +299,7 @@
       badges: ['LLM', 'Drone Telemetry', 'Python'],
       why: 'Ask a drone\'s flight log a question in plain English and get a chart back. MAVPose reads ArduPilot and PX4 logs (.tlog, .bin, .ulg), finds the messages that match your question, lines up their timestamps and units, then has an LLM write the plotting script, runs it in a sandbox and fixes it automatically if it fails. It works as a command-line tool and as a pip package.',
       stack: ['Python', 'pymavlink', 'pyulog', 'Pandas', 'LangChain', 'ChromaDB', 'Matplotlib', 'OpenRouter'],
-      stats: { COMPLEXITY: 88, ACTIVE: 95, ORIGINALITY: 92 },
       github: 'https://github.com/AyushMaria/MAVPose',
-      demo: 'https://github.com/AyushMaria/MAVPose#readme',
       readme: 'https://github.com/AyushMaria/MAVPose#readme'
     },
 
@@ -305,9 +309,7 @@
       badges: ['AI Agent', 'WhatsApp', 'Booking'],
       why: 'An AI concierge that lives inside WhatsApp for the Vibe & Volley pickleball courts. Players message it in plain language and Ace checks availability, books, moves and cancels 30-minute slots, applies promo codes and answers questions about the venue, then sends reminders before each game. The owner gets an admin mode for revenue reports, booking search and blocking slots. No human dispatcher required.',
       stack: ['Python', 'FastAPI', 'Twilio WhatsApp', 'LangGraph', 'Gemini 2.5 Flash', 'Supabase', 'pgvector'],
-      stats: { COMPLEXITY: 90, ACTIVE: 92, ORIGINALITY: 88 },
       github: 'https://github.com/AyushMaria/Ace-booking-concierge',
-      demo: 'https://github.com/AyushMaria/Ace-booking-concierge#readme',
       readme: 'https://github.com/AyushMaria/Ace-booking-concierge#readme'
     },
 
@@ -317,9 +319,7 @@
       badges: ['Web', 'SEO', 'Education'],
       why: 'A production kindergarten website built for real-world use with structured data markup, semantic HTML, and full SEO optimization. Focused on accessibility and mobile-first design for parents finding a school.',
       stack: ['HTML', 'CSS', 'JavaScript', 'Schema.org', 'SEO'],
-      stats: { COMPLEXITY: 62, ACTIVE: 78, ORIGINALITY: 65 },
       github: 'https://github.com/AyushMaria/TinyTotsWebsite',
-      demo: 'https://github.com/AyushMaria/TinyTotsWebsite',
       readme: 'https://github.com/AyushMaria/TinyTotsWebsite#readme'
     },
 
@@ -329,9 +329,7 @@
       badges: ['Full-Stack', 'Booking', 'JavaScript'],
       why: 'The website players use to book the Vibe & Volley pickleball courts. Pick a date and 30-minute slots, watch availability update live as others book, and get a confirmation email. Prices, promo codes and booking rules are checked on the server, and the venue has its own admin dashboard and a read-only staff view.',
       stack: ['React', 'Supabase Realtime', 'Vercel Functions', 'EmailJS', 'JavaScript'],
-      stats: { COMPLEXITY: 74, ACTIVE: 80, ORIGINALITY: 70 },
       github: 'https://github.com/AyushMaria/vibe-volley-fresh',
-      demo: 'https://github.com/AyushMaria/vibe-volley-fresh',
       readme: 'https://github.com/AyushMaria/vibe-volley-fresh#readme'
     },
 
@@ -341,9 +339,7 @@
       badges: ['Integration', 'AI Agent', 'Accounting'],
       why: 'Finds the invoices customers haven\'t paid. Tally Bridge asks TallyPrime\'s live server for its receivables, keeps every bill that is 30 or more days overdue, and loads them into a Supabase table on a daily schedule. A companion Discord bot (Tally AI) then answers questions like "who owes us the most?" from that table.',
       stack: ['Python', 'TallyPrime XML', 'lxml', 'Supabase', 'LangGraph', 'Gemini', 'discord.py'],
-      stats: { COMPLEXITY: 82, ACTIVE: 75, ORIGINALITY: 85 },
       github: 'https://github.com/AyushMaria/tally-bridge',
-      demo: 'https://github.com/AyushMaria/tally-AI',
       readme: 'https://github.com/AyushMaria/tally-bridge#readme'
     },
 
@@ -353,9 +349,7 @@
       badges: ['Drone', 'MAVLink', 'Hardware'],
       why: 'Flies a drone from a handheld controller. InstillGCS reads the buttons and dials of a custom STM32 USB controller, detects whether the drone runs ArduPilot or PX4, and turns each press into a MAVLink command: arm, take off, land, change flight mode, drop a payload, start the camera, or set the altitude between 20 and 100 m.',
       stack: ['Python', 'pymavlink', 'DroneKit', 'evdev', 'STM32'],
-      stats: { COMPLEXITY: 93, ACTIVE: 85, ORIGINALITY: 90 },
       github: 'https://github.com/AyushMaria/InstillGCS',
-      demo: 'https://github.com/AyushMaria/InstillGCS',
       readme: 'https://github.com/AyushMaria/InstillGCS#readme'
     },
 
@@ -366,15 +360,8 @@
       badges: ['ML', 'Computer Vision', 'YOLOv5'],
       why: 'Detects and classifies vortex cores in fluid dynamics imagery using a YOLOv5 object detector followed by an AdaBoost ensemble classifier. Built on a Google Cloud VM with a custom HTML front end for image input. Published in the European Journal of Computational Mechanics (2023).',
       stack: ['Python', 'YOLOv5', 'AdaBoost', 'XGBoost', 'Google Cloud'],
-      stats: { COMPLEXITY: 85, ACTIVE: 40, ORIGINALITY: 88 },
       github: 'https://github.com/AyushMaria/Vortex-Core-Detection',
-      demo: 'https://github.com/AyushMaria/Vortex-Core-Detection',
-      readme: 'https://github.com/AyushMaria/Vortex-Core-Detection#readme',
-      links: [
-        { label: 'GitHub', href: 'https://github.com/AyushMaria/Vortex-Core-Detection', cls: 'btn-github' },
-        { label: 'Read the Paper', href: 'https://doi.org/10.13052/ejcm2642-2085.3252', cls: 'btn-demo' },
-        { label: 'README', href: 'https://github.com/AyushMaria/Vortex-Core-Detection#readme', cls: 'btn-readme' },
-      ]
+      readme: 'https://github.com/AyushMaria/Vortex-Core-Detection#readme'
     },
 
     xg: {
@@ -383,9 +370,7 @@
       badges: ['Data Science', 'Football', 'Statistics'],
       why: 'A statistical deep-dive into Expected Goals (xG) modelling for football. Analyses shot quality, spatial patterns, and team performance using event-level data — producing publication-quality visualizations and model comparisons.',
       stack: ['Python', 'Pandas', 'Scikit-learn', 'Matplotlib', 'Jupyter'],
-      stats: { COMPLEXITY: 72, ACTIVE: 35, ORIGINALITY: 74 },
       github: 'https://github.com/AyushMaria/Expected-xG-Goals-Football',
-      demo: 'https://github.com/AyushMaria/Expected-xG-Goals-Football',
       readme: 'https://github.com/AyushMaria/Expected-xG-Goals-Football#readme'
     },
 
@@ -395,9 +380,7 @@
       badges: ['Cloud', 'AWS', 'Distributed Systems'],
       why: 'Implemented a distributed computing environment on AWS EC2 to benchmark parallel matrix operations. Explores the trade-offs of cloud-native task distribution versus single-node performance for dense linear algebra workloads.',
       stack: ['Python', 'AWS EC2', 'MPI', 'NumPy', 'Bash'],
-      stats: { COMPLEXITY: 78, ACTIVE: 30, ORIGINALITY: 68 },
       github: 'https://github.com/AyushMaria/Distributed-Computing-AWS',
-      demo: 'https://github.com/AyushMaria/Distributed-Computing-AWS',
       readme: 'https://github.com/AyushMaria/Distributed-Computing-AWS#readme'
     }
   };
@@ -455,6 +438,17 @@
 
       document.getElementById('modal-why').textContent = p.why;
 
+      // Project cards (project-card.js): one line, then tabs — What it does,
+      // Try it, Results, Under the hood. City Hall keeps the classic layout.
+      const PC = window.ProjectCards;
+      const hasCard = !!(PC && PC.has(projectId));
+      const pcEl = document.getElementById('modal-pc');
+      document.getElementById('modal-legacy').hidden = hasCard;
+      pcEl.hidden = !hasCard;
+      modalCard.classList.toggle('has-pc', hasCard);
+      if (hasCard) modalCard.setAttribute('aria-describedby', PC.render(projectId, pcEl, p));
+      else { if (PC) PC.stop(); pcEl.innerHTML = ''; modalCard.setAttribute('aria-describedby', 'modal-why'); }
+
       const esc = (v) => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
       document.getElementById('modal-stack-title').textContent = p.stackTitle || 'Tools & Materials';
@@ -489,15 +483,18 @@
       statsTitle.style.display = statsEl.style.display = statsEl.innerHTML ? '' : 'none';
 
       const footerEl = document.getElementById('modal-footer');
-      if (p.links) {
+      if (hasCard) {
+        const links = [{ label: 'Code', href: p.github, cls: 'btn-github' }, ...PC.links(projectId), { label: 'README', href: p.readme, cls: 'btn-readme' }];
+        footerEl.innerHTML = links.filter(l => l.href).map(l =>
+          `<a class="btn-link ${l.cls}" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)} &nearr;</a>`).join('');
+      } else if (p.links) {
         footerEl.innerHTML = p.links.filter(l => l.href).map(l =>
           `<a class="btn-link ${l.cls || ''}" href="${esc(l.href)}"${/^mailto:/.test(l.href) ? '' : ' target="_blank" rel="noopener"'}>${esc(l.label)} &nearr;</a>`
         ).join('');
       } else {
         footerEl.innerHTML = `
-          <a class="btn-link btn-github" href="${p.github}" target="_blank">GitHub &nearr;</a>
-          <a class="btn-link btn-demo" href="${p.demo}" target="_blank">Live Demo &nearr;</a>
-          <a class="btn-link btn-readme" href="${p.readme}" target="_blank">README &nearr;</a>
+          <a class="btn-link btn-github" href="${esc(p.github)}" target="_blank" rel="noopener">Code &nearr;</a>
+          <a class="btn-link btn-readme" href="${esc(p.readme)}" target="_blank" rel="noopener">README &nearr;</a>
         `;
       }
 
@@ -522,6 +519,7 @@
     function closeModal() {
       if (isClosing) return;
       isClosing = true;
+      if (window.ProjectCards) window.ProjectCards.stop();
       modalOverlay.classList.add('hidden');
       modalOverlay.setAttribute('aria-hidden', 'true');
       document.dispatchEvent(new CustomEvent('settlement:modal', { detail: { open: false } }));
@@ -1513,6 +1511,7 @@
     })();
   </script>
   <!-- Town world module (ES module) -->
+  <script type="module" src="./project-card.js"></script>
   <script type="module" src="./town-world.js"></script>
 </body>
 </html>

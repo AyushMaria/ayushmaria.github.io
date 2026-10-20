@@ -256,6 +256,8 @@
 - [x] Redesign modals to match isekai/fantasy town aesthetic ("quest scroll" parchment, ornamental corners, zone-coloured ribbon, gauge bars; night variant; `role=dialog` + focus trap)
 - [x] Add transition animation when entering from 3D town (`.from-town` door-in animation; cart input locked via `settlement:modal` event; respects reduced motion)
 - [x] Contextual modal content based on building zone (zone ribbon + building name + zone flavour line; per-project `flavor` override supported)
+- [x] **Building acts** (`building-acts.js`) — pressing Enter/E/A at a project building eases the camera to it and plays a ~3 s act above it before the card opens: Ace's WhatsApp exchange, the Volley slot tiles flipping, the xG shot and its probability, MAVPose's flight-log trails, the tower's ARM → TAKE OFF → LAND calls, the Observatory's detection ring and model vote, the Citadel's packets to six workers and back, bills riding the Counting House skybridge, Tiny Tots' enquiry. Any key, click or gamepad A skips to the card; Escape or gamepad B backs out without opening it; reduced motion opens the card straight away
+- [x] **Tabbed project cards** (`project-card.js`, `project-card.css`) — one-liner plus four tabs: *What it does* (5-frame story), *Try it* (a small toy of the project; none for Tiny Tots), *Results* (the real numbers, xG compared with StatsBomb), *Under the hood* (flow chips + stack). ←/→ (anywhere in the card except sliders and inputs), Home/End on the tabs, and LB/RB move between tabs. Footer: Code, the live site where one exists (Volley, Tiny Tots), the published paper for Vortex (DOI), README. Replaces the stat bars and demo lines in `index.html`; About keeps the legacy layout
 
 ## 3.3 Minimap
 - [x] Canvas-based minimap with circular clip

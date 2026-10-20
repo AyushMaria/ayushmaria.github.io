@@ -36,6 +36,7 @@ import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
 import { buildCountingHouse } from './counting-house.js';
 import { buildTinyTots } from './tiny-tots.js';
 import { buildStreetOrbs } from './street-orbs.js';
+import { createBuildingActs } from './building-acts.js';
 import { buildCastleWall } from './castle-wall.js';
 import { buildMachiyaRow, buildMachiya, GLOWING as MACHIYA_GLOW } from './machiya.js';
 import { obb, ellipse, circlePush, footprintDist, colliderIndex } from './colliders.js';
@@ -2106,11 +2107,21 @@ function initTownWorld() {
     if (modalOpen && e.detail.projectId) achievements.onProjectOpened(e.detail.projectId);
   });
 
+  // The building acts out its project (building-acts.js) while the camera
+  // eases in, then the card opens. Any key / click skips to the card.
+  const acts = createBuildingActs(scene, { reducedMotion: REDUCED_MOTION });
+  window._acts = acts;
   function openProject(data) {
-    if (!data || !data.project || modalOpen || typeof window.openModal !== 'function') return;
+    if (!data || !data.project || modalOpen || acts.playing || typeof window.openModal !== 'function') return;
     followCam.frame(new THREE.Vector3(data.x, data.y || 0, data.z));   // ease toward the building while its card is open
-    const zone = ZONES[data.zone];
-    window.openModal(data.project, { zone: zone ? zone.name : '', zoneKey: data.zone, building: data.label });
+    cart.inputLocked = true;                                            // coast to a stop while it plays
+    acts.play(data.project, data, () => {
+      const zone = ZONES[data.zone];
+      window.openModal(data.project, { zone: zone ? zone.name : '', zoneKey: data.zone, building: data.label });
+    }, () => {                                                         // backed out (Escape / B): no card
+      cart.inputLocked = false;
+      followCam.frame(null);
+    });
   }
 
   // ── Fast-travel / fallback zone HUD (Phase 4.3, partial 1.4) ─
@@ -2415,6 +2426,8 @@ function initTownWorld() {
 
     if (modalOpen) {
       if (edge(1) && typeof window.closeModal === 'function') window.closeModal();
+      // bumpers switch the card's tabs (project-card.js)
+      if (window.ProjectCards && (edge(4) || edge(5))) window.ProjectCards.step(edge(5) ? 1 : -1);
       cart.pad.active = false;
     } else {
       // Racing input when a trigger is held
@@ -2431,7 +2444,9 @@ function initTownWorld() {
       }
       cart.pad.brake = pressed(1);
       cart.pad.boost = pressed(4) || pressed(5);
-      if (edge(0) && currentInteractable) openProject(currentInteractable);
+      if (acts.playing && edge(1)) acts.abort();
+      else if (edge(0) && acts.playing) acts.skip();
+      else if (edge(0) && currentInteractable) openProject(currentInteractable);
       if (edge(2)) audioSys.playBell();
       if (edge(3)) respawnNearest();
     }
@@ -2510,6 +2525,7 @@ function initTownWorld() {
 
     // Cart
     pollGamepad();
+    acts.update(Math.min(delta, 0.25));
     cart.update(delta, colliders);
     knockables.update(delta, cart);
     updateTracks(elapsed);
