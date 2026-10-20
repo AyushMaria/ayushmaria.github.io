@@ -147,8 +147,8 @@ export const BUILDINGS = [
   // pavilion under a verdigris dome, a chat-bubble lantern on the cupola
   { x: -16, z: 56.5, w: 6.2, h: 5, d: 6.2, parlour: true,
     label: 'Concierge Parlour', project: 'ace' },
-  // The Drone Forge (drone-forge.js): a Tudor forge with a flat-roofed
-  // workshop wing, its doors open on a drone bench and a landing pad on top
+  // The Drone Forge (drone-forge.js): a kaji-ba — a swordsmith's smithy open
+  // to the lane beside a drone workshop with the landing pad on its roof deck
   { x: 46.8, z: 4.4, w: 8.4, h: 5.6, d: 5, color: 0xe9d6ae, roof: 0xa9432f,
     chimney: true, forge: true, label: 'The Forge', project: 'mavpose', heading: 0.34 },
   // The sports quarter by the river (§2.14): the stadium and the pickleball

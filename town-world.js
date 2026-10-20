@@ -31,7 +31,7 @@ import { buildFanSquare } from './fan-square.js';
 import { buildControlTower, buildDrone, buildWaypointFlag } from './control-tower.js';
 import { buildObservatory, buildVortex, buildStreamlines, VORTEX_OFFSET } from './vortex-observatory.js';
 import { buildCitadel } from './cloud-citadel.js';
-import { buildForgeWing, forgeFlight, HALL } from './drone-forge.js';
+import { buildForge, forgeFlight, YARD as FORGE_YARD } from './drone-forge.js';
 import { buildParlour, BOARD as PARLOUR_BOARD } from './concierge-parlour.js';
 import { buildCountingHouse } from './counting-house.js';
 import { buildTinyTots } from './tiny-tots.js';
@@ -417,31 +417,43 @@ function makeCitadelBuilding(o) {
 // The Drone Forge: the usual Tudor hall (chimney and all) plus a workshop
 // wing with a landing pad, and a drone that takes off from it (drone-forge.js)
 function makeForgeBuilding(o) {
+  // The Drone Forge as a kaji-ba: a swordsmith's smithy beside a drone
+  // workshop with the landing pad on its rooftop deck (drone-forge.js)
   const parent = new THREE.Group();
   const h = o.heading || 0, hc = Math.cos(h), hs = Math.sin(h), baseY = o.y || 0;
   const toWorld = (v) => new THREE.Vector3(o.x + v.x * hc + v.z * hs, baseY + v.y, o.z - v.x * hs + v.z * hc);
-  // the gabled hall: a normal Tudor building on the left half of the plot
-  const hall = { ...o, forge: false, noSign: true, w: HALL.w, x: o.x + HALL.cx * hc, z: o.z - HALL.cx * hs };
-  const hallGroup = makeBuilding(hall);
-  parent.add(hallGroup);
-  // the workshop wing, in the whole building's frame
-  const wing = buildForgeWing(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
-  wing.group.position.set(o.x, baseY, o.z);
-  wing.group.rotation.y = h;
-  parent.add(wing.group);
+  const forge = buildForge(o.project ? { project: o.project, label: o.label } : null, { reducedMotion: REDUCED_MOTION });
+  forge.group.position.set(o.x, baseY, o.z);
+  forge.group.rotation.y = h;
+  parent.add(forge.group);
+  windowMats.push(forge.glowing[0]);                       // the lattice glows with the evening
   // the pad drone
   const drone = buildDrone(null, { path: forgeFlight(toWorld, h), scale: 1.3, reducedMotion: REDUCED_MOTION });
   parent.add(drone.group);
-  animatedProps.push({ update: (t) => { wing.update(t); drone.update(t); } });
-  // warm glow from the open doors
-  lightSources.push({ pos: toWorld(wing.glow), color: new THREE.Color(0xff8a3a), intensity: 1.0, distance: 10 });
-  // easel and crates stand just outside the plot
-  o._extraColliders = [[5.1, 1.4, 0.55], [4.8, -0.95, 0.75]].map(([x, z, r]) => { const w = toWorld(new THREE.Vector3(x, 0, z)); return { circle: true, x: w.x, z: w.z, r }; });
-  parent.userData.marker = hallGroup.userData.marker;
-  parent.userData.body = hallGroup.userData.body;
-  o.roofTop = hall.roofTop;
-  o.roofH = hall.roofH;
-  o._chimneyTop = hall._chimneyTop;
+  // project marker over the smithy's smoke vent
+  const roofTop = forge.height;
+  if (o.project) {
+    const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), standardMat({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 0.5 }));
+    marker.position.y = roofTop + 1.5;
+    forge.group.add(marker);
+    parent.userData.marker = marker;
+  }
+  animatedProps.push({ update: (t) => {
+    forge.update(t); drone.update(t);
+    if (parent.userData.marker) {
+      parent.userData.marker.rotation.y = t * 1.5;
+      parent.userData.marker.position.y = roofTop + 2 + Math.sin(t * 2.5 + o.x) * 0.3;
+    }
+  } });
+  // the hearth's warm glow out of the open smithy
+  lightSources.push({ pos: toWorld(forge.glow), color: new THREE.Color(0xff8a3a), intensity: 1.0, distance: 10 });
+  // the notice board and the crates stand just outside the plot
+  const [bx, bz] = FORGE_YARD.board, [cx, cz] = FORGE_YARD.crates;
+  o._extraColliders = [[bx, bz, 0.8], [cx, cz + 0.35, 0.75]].map(([x, z, r]) => { const w = toWorld(new THREE.Vector3(x, 0, z)); return { circle: true, x: w.x, z: w.z, r }; });
+  parent.userData.body = forge.group.children[0];
+  o.roofTop = roofTop;
+  o.roofH = roofTop - o.h;
+  o._chimneyTop = toWorld(forge.smoke);                    // smoke rises from the vent
   window._forgeDrone = drone;
   return parent;
 }

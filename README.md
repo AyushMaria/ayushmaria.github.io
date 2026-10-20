@@ -58,7 +58,7 @@ We have successfully transitioned from a static void into a living settlement.
 * **`control-tower.js`**: Navigator's Tower as an airfield control tower (glazed cab, radar, aviation light, windsock), plus the waypoint drone and flags.
 * **`vortex-observatory.js`**: the Vortex Observatory (dome, telescope, anemometer), the teal vortex with its detection box, and the streamlines round its foot.
 * **`cloud-citadel.js`**: the Cloud Citadel (master and worker towers, walkways, cloud bank, window rows computing a matrix).
-* **`drone-forge.js`**: the Drone Forge's workshop wing (open barn doors, hearth, drone bench, rooftop landing pad, flight-log easel) and the pad drone's flight.
+* **`drone-forge.js`**: The Forge (MAVPose) as a kaji-ba: a swordsmith's smithy beside a drone workshop, the landing pad on its roof deck, and the pad drone's flight.
 * **`concierge-parlour.js`**: Ace's Concierge Parlour (octagonal pavilion, verdigris dome, chat-bubble lantern, booking board, pigeons).
 * **`counting-house.js`**: the Tally Bridge Counting House (vault house, counting room, skybridge on arches, scrolls and letters on the line, balance scale).
 * **`tiny-tots.js`**: Tiny Tots Academy (storybook schoolhouse with clock, bell cupola and access ramp; playground with slide, swing, rainbow gate and kites).

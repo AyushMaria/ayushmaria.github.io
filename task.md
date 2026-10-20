@@ -94,8 +94,6 @@
 - [x] Signboards at roundabout exits and ring road intersections
 - [x] **NPC silhouettes** — Billboard sprites that wave when cart approaches (canvas-drawn, 3 variants × 2 frames = 6 shared `SpriteMaterial`s; tinted by `DayCycle`)
 - [x] **Flower boxes under windows** — Small planter geometry on building facades (3 `InstancedMesh`es for every box + bed bloom in town; per-instance bloom colours)
-- [ ] **Lightning particle effects** — Between Research Quarter towers
-- [ ] **Musical note particle emitter** — Bard's stage near Tavern
 - [x] **Volumetric cone lights** — Warm interior light spilling from Tavern windows (additive cone shader + ground pool, intensity follows nightness)
 - [x] **Wind sway on flower beds** — Vertex displacement via `applyWindSway()` (`onBeforeCompile`, shared program, also applied to window-box blooms)
 
@@ -115,7 +113,6 @@
 - [x] **Bugfix: gable roof slopes were wound inside-out** (front-face culled → roofs looked half missing); trees/lamps/signs pulled clear of the Ledger, Forge, Stats and Guild footprints
 - [x] **Chibi cursor follower removed** (Step 25 JS + CSS) — it read as an annoying stickman on the pointer
 - [x] ~~Gate doors that open~~ — superseded by the hill-town layout (§2.14): the gatehouse is open and the town spills outside the wall
-- [ ] **Dormer windows / balconies** on the taller Tudor buildings (reference has them)
 - [x] **Hanging lanterns** — `buildWallLanterns()` in `town-props.js`: a bracketed iron lantern (wall plate, arm, brace, cage with glowing glass) above every building door (12; City Hall keeps its own temple lanterns). Three `InstancedMesh`es for the whole town = 3 draw calls; no PointLights (emissive glass + bloom). Lanterns hang from the bracket tip and swing gently with the shared wind (still under reduced motion)
 
 ## 2.6 Audio System (`audio.js`)
@@ -145,7 +142,6 @@
 - [x] **Placement tooling** — `tools/make-town-map.py` generates `docs/town-map.svg` + `docs/town-map-editor.html` (drag objects, road/overlap warnings, export snippets); the audit found and fixed flowers/rocks on the ring road, a bed on the south road and the Tavern touching the road
 - [ ] Wind lines (Bruno's `WindLines.js`) — faint streaks that show the gust direction
 - [x] Grass flattens in the cart's wheel tracks (§2.11) — a full see-through fade is still open
-- [ ] Grass "see-through" fade around the cart when it drives through tall patches
 
 ## 2.11 Driving Feel (from the folio-2025 comparison, no Rapier)
 - [x] **Point-to-drive touch** — the stick is read in screen space and turned into a world heading through the camera; steering = angle to that heading (full lock at 45°), throttle = push depth (eased), pointing behind the cart (>135°, 20° hysteresis) reverses. Ground ring + arrow shows the requested heading while the stick is held
@@ -220,6 +216,8 @@
 - [x] **Townhouses → machiya** (`machiya.js`, replaces `buildTownhouses()`): Kyoto townhouses in the City Hall's grey tile — a dark timber ground floor behind a glowing kōshi lattice, an indigo noren over the door bay, a cream plaster upper floor with a slit window, a pent roof between the floors and a low tile gable; four plaster and four timber tints so the streets don't repeat. The four filler buildings without a project (the Tavern, the Mill, the Guild Board and Adventurer Stats) are machiya too (the Tavern with a pair of red lanterns at its door); the Forge stays Tudor. Lattice, slit windows and lanterns glow with the evening level
 - [x] **Link previews** — sharing the site now shows a card: a 1200 × 630 render of the town at dusk with the title (`assets/og-preview.jpg`). The Open Graph / Twitter tags were already in `index.html` but pointed at a relative `./assets/og-preview.png` that didn't exist, and at an old URL (`/ayush-settlement/`); they now use absolute URLs on `https://ayushmaria.github.io/`, with the image's size, type and alt text and a canonical link. The missing favicons and app icons exist now (an armillary orb, SVG + PNG), and the manifest starts at `./` instead of a `portfolio.html` that isn't there
 - [x] **The cart → a gissha** (`gissha.js`, picked from four from-scratch designs): the hay cart is gone. You now drive a Heian court carriage — a black lacquered cabin with gold corner fittings, bands and edging, vermilion side panels with small sudare windows, bamboo sudare blinds glowing at front and back, purple agemaki tassels at the roof corners, and an arched roof that sweeps up at both ends with a gold ridge. It rides on two great 0.78 wheels with sixteen spokes under the cabin; two small gilded wheels on steering forks under the curved shafts turn with the steering. Tail lights are red beads at the back corners (they flare when braking), a white bead lights when reversing, and a paper chōchin swings from a hooked pole over the yoke and carries the cart's light. Each wheel spins at its own radius (`userData.radius`, spin on a child group so the forks steer without spinning) and the grass ruts follow the great wheels (`cart.trackOffsets`). Same 2 × 3.4 collision box; roof tips 2.42 up, under the street orbs
+- [x] **The Forge → a kaji-ba** (`drone-forge.js`, picked from four from-scratch designs; the last Tudor building in town): a swordsmith's smithy beside a drone workshop on the one plot. The smithy is open to Forge Lane between dark posts — a clay hearth glowing at the back, a bellows box, an anvil with a blade on it, a quench trough and tongs, and a shimenawa rope with paper shide across the front — under a hipped grey-tile roof with a raised smoke vent the chimney smoke now rises from. The workshop is a machiya front: a glowing kōshi lattice, an indigo noren with a white quadcopter crest over the open door, a drone on the bench inside, and the brass quadcopter sign at its corner. Its flat roof carries a wooden drying deck (monohoshi-dai) with a vermilion rail and the landing pad, reached by a ladder; the pad drone's loop flies over the smithy. The flight log hangs on a roofed notice board (kōsatsu) by the lane, with crates of parts beside the workshop. No more Tudor shutters, window boxes or door lantern on the Forge
+- [x] Dropped as out of date: lightning between the Research Quarter towers, the bard's stage, Tudor dormers, the grass see-through fade (the lawn is too short to hide the cart)
 - [ ] Waterfall / river ambient sound, mill-wheel creak
 - [ ] Map editor for the new plan (drag points in `town-layout.js`)
 
