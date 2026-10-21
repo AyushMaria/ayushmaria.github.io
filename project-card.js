@@ -39,6 +39,8 @@ const CARDS = {
     ],
     resultsNote: 'From the MAVPose README.',
     flow: ['Flight log', 'pymavlink / pyulog', 'ChromaDB search', 'Parquet', 'LLM (OpenRouter)', 'Sandboxed Matplotlib', 'plot.png'],
+    live: 'https://ayushmaria.github.io/MAVPose/',
+    liveLabel: 'Project page',
   },
 
   ace: {
@@ -101,6 +103,8 @@ const CARDS = {
     compare: { title: 'AUC, drawn from 0 to 1', rows: [['CatBoost (this project)', 0.806], ["StatsBomb's own model", 0.813]] },
     resultsNote: 'From the Expected-xG-Goals-Football README. Started as a Cranfield MSc thesis.',
     flow: ['StatsBomb open data', 'Shot table (pandas)', 'Features', 'CatBoost · XGBoost · LightGBM · logistic', 'Calibration + tests', 'Charts & tables'],
+    live: 'https://ayushmaria.github.io/xg/',
+    liveLabel: 'Open the xG explorer',
   },
 
   instillgcs: {
@@ -506,7 +510,7 @@ export const ProjectCards = {
   links: (id) => {
     const c = CARDS[id] || {};
     const out = [];
-    if (c.live) out.push({ label: 'Open the live site', href: c.live, cls: 'btn-demo' });
+    if (c.live) out.push({ label: c.liveLabel || 'Open the live site', href: c.live, cls: 'btn-demo' });
     if (c.paper) out.push({ label: 'Read the paper', href: c.paper, cls: 'btn-demo' });
     return out;
   },
